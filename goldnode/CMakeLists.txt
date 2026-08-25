@@ -4,6 +4,9 @@ set(goldnode_SOURCES
 )
 add_executable(goldnode ${goldnode_SOURCES})
 target_link_libraries(goldnode gall)
+if (GOLD_ICONV_LIBS)
+  target_link_libraries(goldnode ${GOLD_ICONV_LIBS})
+endif()
 include_directories(../goldlib/gall ../golded3)
 
 INSTALL(TARGETS goldnode

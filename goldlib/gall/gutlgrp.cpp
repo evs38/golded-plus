@@ -52,14 +52,14 @@ Grp::Grp()
 Grp::~Grp()
 {
 
-    std::multimap<int, grp_stock>::iterator i;
+    grp_stock_map::iterator i;
     for(currgrp = container.begin(); currgrp != container.end(); currgrp++)
-        for(i = currgrp->second.begin(); i != currgrp->second.end(); i++)
+        for(i = (*currgrp).second.begin(); i != (*currgrp).second.end(); i++)
         {
-            if(i->second.type == grp_stock::TYPE_OBJECT)
-                throw_free(i->second.data.object_item);
-            else if(i->second.type == grp_stock::TYPE_STRING)
-                throw_delete(i->second.data.string_item);
+            if((*i).second.type == grp_stock::TYPE_OBJECT)
+                throw_free((*i).second.data.object_item);
+            else if((*i).second.type == grp_stock::TYPE_STRING)
+                throw_delete((*i).second.data.string_item);
         }
 }
 
@@ -71,9 +71,9 @@ void Grp::AddGrp(const char* id)
 {
 
     std::string sid(id);
-    std::multimap<int, grp_stock> m;
+    grp_stock_map m;
     m.insert(std::pair<int, grp_stock>(GRP_MEMBER, sid));
-    container.push_back(std::pair<std::string, std::multimap<int, grp_stock> >(sid, m));
+    container.push_back(std::pair<std::string, grp_stock_map>(sid, m));
     currgrp = container.end()-1;
     currgrpno = container.size()-1;
 }
@@ -85,7 +85,7 @@ void Grp::AddGrp(const char* id)
 void Grp::AddMbr(const char* id)
 {
 
-    currgrp->second.insert(std::pair<int, grp_stock>(GRP_MEMBER, std::string(id)));
+    (*currgrp).second.insert(std::pair<int, grp_stock>(GRP_MEMBER, std::string(id)));
 }
 
 
@@ -94,11 +94,11 @@ void Grp::AddMbr(const char* id)
 const char* Grp::SetGrp(const char* id)
 {
 
-    std::multimap<int, grp_stock>::iterator i;
+    grp_stock_map::iterator i;
     for(currgrp = container.begin(), currgrpno = 0; currgrp != container.end(); currgrp++, currgrpno++)
-        for(i = currgrp->second.find(GRP_MEMBER); (i != currgrp->second.end()) and (i->first == GRP_MEMBER); i++)
-            if(strwild(id, i->second.data.string_item->c_str()))
-                return i->second.data.string_item->c_str();
+        for(i = (*currgrp).second.find(GRP_MEMBER); (i != (*currgrp).second.end()) and ((*i).first == GRP_MEMBER); i++)
+            if(strwild(id, (*i).second.data.string_item->c_str()))
+                return (*i).second.data.string_item->c_str();
     currgrpno = -1;
     return NULL;
 }
@@ -109,7 +109,7 @@ const char* Grp::SetGrp(const char* id)
 void Grp::AddItm(int __type, bool __data)
 {
 
-    currgrp->second.insert(std::pair<int, grp_stock>(__type, __data));
+    (*currgrp).second.insert(std::pair<int, grp_stock>(__type, __data));
 }
 
 
@@ -118,7 +118,7 @@ void Grp::AddItm(int __type, bool __data)
 void Grp::AddItm(int __type, char __data)
 {
 
-    currgrp->second.insert(std::pair<int, grp_stock>(__type, __data));
+    (*currgrp).second.insert(std::pair<int, grp_stock>(__type, __data));
 }
 
 
@@ -127,7 +127,7 @@ void Grp::AddItm(int __type, char __data)
 void Grp::AddItm(int __type, int __data)
 {
 
-    currgrp->second.insert(std::pair<int, grp_stock>(__type, __data));
+    (*currgrp).second.insert(std::pair<int, grp_stock>(__type, __data));
 }
 
 
@@ -136,7 +136,7 @@ void Grp::AddItm(int __type, int __data)
 void Grp::AddItm(int __type, const std::string& __data)
 {
 
-    currgrp->second.insert(std::pair<int, grp_stock>(__type, __data));
+    (*currgrp).second.insert(std::pair<int, grp_stock>(__type, __data));
 }
 
 
@@ -148,7 +148,7 @@ void Grp::AddItm(int __type, void* __data, int __size)
     void *data = throw_malloc(__size+sizeof(int));
     *((int *)data) = __size;
     memcpy((char *)data+sizeof(int), __data, __size);
-    currgrp->second.insert(std::pair<int, grp_stock>(__type, data));
+    (*currgrp).second.insert(std::pair<int, grp_stock>(__type, data));
 }
 
 
@@ -162,15 +162,15 @@ int Grp::GetItm(int __type, bool& __data, int __no)
         return -1;
 
     // Pointer to item type index for this group and type
-    int rv = currgrp->second.count(__type);
+    int rv = (*currgrp).second.count(__type);
 
     if(rv)
     {
         if((__no >= rv) or (__no == -1))
             __no = rand() % rv;
-        std::multimap<int, grp_stock>::iterator i = currgrp->second.find(__type);
+        grp_stock_map::iterator i = (*currgrp).second.find(__type);
         while(__no--) i++;
-        __data = i->second.data.bool_item;
+        __data = (*i).second.data.bool_item;
     }
 
     // Return number of items of this type in the group
@@ -188,15 +188,15 @@ int Grp::GetItm(int __type, char& __data, int __no)
         return -1;
 
     // Pointer to item type index for this group and type
-    int rv = currgrp->second.count(__type);
+    int rv = (*currgrp).second.count(__type);
 
     if(rv)
     {
         if((__no >= rv) or (__no == -1))
             __no = rand() % rv;
-        std::multimap<int, grp_stock>::iterator i = currgrp->second.find(__type);
+        grp_stock_map::iterator i = (*currgrp).second.find(__type);
         while(__no--) i++;
-        __data = i->second.data.char_item;
+        __data = (*i).second.data.char_item;
     }
 
     // Return number of items of this type in the group
@@ -214,15 +214,15 @@ int Grp::GetItm(int __type, int& __data, int __no)
         return -1;
 
     // Pointer to item type index for this group and type
-    int rv = currgrp->second.count(__type);
+    int rv = (*currgrp).second.count(__type);
 
     if(rv)
     {
         if((__no >= rv) or (__no == -1))
             __no = rand() % rv;
-        std::multimap<int, grp_stock>::iterator i = currgrp->second.find(__type);
+        grp_stock_map::iterator i = (*currgrp).second.find(__type);
         while(__no--) i++;
-        __data = i->second.data.int_item;
+        __data = (*i).second.data.int_item;
     }
 
     // Return number of items of this type in the group
@@ -240,15 +240,15 @@ int Grp::GetItm(int __type, std::string& __data, int __no)
         return -1;
 
     // Pointer to item type index for this group and type
-    int rv = currgrp->second.count(__type);
+    int rv = (*currgrp).second.count(__type);
 
     if(rv)
     {
         if((__no >= rv) or (__no == -1))
             __no = rand() % rv;
-        std::multimap<int, grp_stock>::iterator i = currgrp->second.find(__type);
+        grp_stock_map::iterator i = (*currgrp).second.find(__type);
         while(__no--) i++;
-        __data = *(i->second.data.string_item);
+        __data = *((*i).second.data.string_item);
     }
 
     // Return number of items of this type in the group
@@ -266,15 +266,15 @@ int Grp::GetItm(int __type, void* __data, int __size, int __no)
         return -1;
 
     // Pointer to item type index for this group and type
-    int rv = currgrp->second.count(__type);
+    int rv = (*currgrp).second.count(__type);
 
     if(rv)
     {
         if((__no >= rv) or (__no == -1))
             __no = rand() % rv;
-        std::multimap<int, grp_stock>::iterator i = currgrp->second.find(__type);
+        grp_stock_map::iterator i = (*currgrp).second.find(__type);
         while(__no--) i++;
-        void *data = i->second.data.object_item;
+        void *data = (*i).second.data.object_item;
         int local_size = *((int *)data);
         __size = minimum_of_two (local_size, __size);
         memcpy(__data, (char *)data+sizeof(int), __size);

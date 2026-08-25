@@ -34,6 +34,16 @@
 
 //  ------------------------------------------------------------------
 
+//  OS/2's own headers declare a type called ERR; curses defines ERR as
+//  a macro. Whichever is parsed second loses, and the system headers
+//  are not ours to change - so they go first, while ERR is still a
+//  plain identifier. The include guard keeps them from being read
+//  again when curses drags them in.
+#if defined(__OS2__)
+    #define INCL_BASE
+    #include <os2.h>
+#endif
+
 // Even many system which mostly have C++-ready header files,
 // do not have C++-ready curses.h.
 extern "C" {
@@ -45,6 +55,19 @@ extern "C" {
 #include <curses.h>
 #endif
 }
+
+
+//  ------------------------------------------------------------------
+//  termname() is part of X/Open Curses, but not every implementation
+//  declares it in <curses.h>: NetBSD keeps it in <term.h>, which cannot
+//  simply be included because it also defines a handful of short
+//  lowercase macros - lines, columns, tab - that collide with ordinary
+//  identifiers throughout the program. Declaring the one function we
+//  need is cheaper than working around all of them.
+
+#if !defined(NCURSES_VERSION)
+extern "C" char* termname(void);
+#endif
 
 
 //  ------------------------------------------------------------------

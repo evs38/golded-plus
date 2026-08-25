@@ -92,6 +92,38 @@ int SquishArea::load_message(int __mode, gmsg* __msg, SqshHdr& __hdr)
         return false;
     }
 
+    //  Squish keeps the kludges in a control block of their own, ahead
+    //  of the text and with its own length, and the file is sitting at
+    //  the start of it now. So the charset the message declares can be
+    //  had without reading the text - which is what a message list
+    //  needs to decode the header fields correctly. Only the block is
+    //  read; the text after it is not touched.
+    if(not (__mode & GMSG_TXT) and _frm.ctlsize)
+    {
+        char* _ctl = (char*)throw_calloc(1, (uint)_frm.ctlsize + 1);
+        if(read(_fhsqd, _ctl, (uint)_frm.ctlsize) == (ssize_t)_frm.ctlsize)
+        {
+            _ctl[_frm.ctlsize] = NUL;
+            //  The entries run together, each introduced by its Ctrl-A
+            //  and ending where the next one begins.
+            //  Every entry is looked at rather than stopping at the
+            //  first: where a message carries more than one, the last
+            //  wins - which is what reading the text does, and what Jam
+            //  does walking its subfields.
+            for(char* _p = _ctl; *_p; )
+            {
+                if(*_p == CTRL_A)
+                {
+                    __msg->set_hdrchrs_from_kludge(_p);
+                    _p++;
+                }
+                while(*_p and (*_p != CTRL_A))
+                    _p++;
+            }
+        }
+        throw_free(_ctl);
+    }
+
     // Read control info and message text
     if(__mode & GMSG_TXT)
     {

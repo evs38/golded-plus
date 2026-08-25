@@ -161,9 +161,30 @@ char* mime_header_encode(char* dest, const char* source, GMsg* msg)
     const char* lp;
     char temp_src[4096];
 
+    //  The header being built names msg->charset, so the text put into
+    //  it has to be in that charset - an encoded-word that says CP866
+    //  and holds UTF-8 is worse than useless. Same order as everywhere
+    //  else: the recoder if there is one, the compiled-in tables only
+    //  when there is not (DOS). LoadCharset() clears ChsTP whenever a
+    //  recoder is available, so in practice only one of these runs.
+
     if(*msg->charset)
     {
-        if (ChsTP)
+        const char* target = IsQuotedPrintable(msg->charset) ?
+                             ExtractPlainCharset(msg->charset) :
+                             strlword(msg->charset);
+
+        GRecoder& rec = g_recoder(g_local_charset(), target);
+
+        if(rec.is_open())
+        {
+            if(not rec.is_identity())
+            {
+                strxcpy(temp_src, rec.convert(s).c_str(), sizeof(temp_src));
+                s = temp_src;
+            }
+        }
+        else if (ChsTP)
         {
             char chln, *d = temp_src;
 

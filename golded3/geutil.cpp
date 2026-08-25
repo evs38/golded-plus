@@ -26,6 +26,7 @@
 
 #include <cstdarg>
 #include <golded.h>
+#include <gutf8.h>
 
 #define UPDATE_STATUSLINE_ERROR    " ERROR! Please look a log file and make a report to developers! "
 
@@ -39,8 +40,10 @@ extern GPickArealist* PickArealist;
 
 void update_statuslines()
 {
-# define BUFSIZE 200
-# define BUFLEN  199
+//  The status line is WIDE screen columns; a column can take several
+//  bytes, so the buffers holding it are sized for the worst case.
+# define BUFSIZE 800
+# define BUFLEN  799
     char buf[BUFSIZE]="";    /* FIXME: it is need to use dynamic arrays in this fuction to prevent buffer overflow or screen garbage */
     char * const buf_end = buf+BUFLEN;
     static char old_status_line[BUFSIZE] = "";
@@ -86,21 +89,39 @@ void update_statuslines()
                      __gver_postversion__
                     );
 
-        int help_len = strlen(help);
-        int clk_len = strlen(clkinfo);
+        //  These are screen columns: the middle field has to be padded
+        //  out to what is left of the line after the help and the clock,
+        //  and that is a question about columns, not bytes.
+        int help_len = (int)g_utf8_width(help);
+        int clk_len = (int)g_utf8_width(clkinfo);
         int len = WIDE-help_len-clk_len-2;
-        gsprintf(PRINTF_DECLARE_BUFFER(buf), "%c%s%-*.*s%s ", goldmark, help, len, len, information, clkinfo);
+        std::string _info = g_utf8_fit(information, (len > 0) ? len : 0);
+
+        gsprintf(PRINTF_DECLARE_BUFFER(buf), "%c%s%s%s ", goldmark, help, _info.c_str(), clkinfo);
+
+        int buf_bytes = (int)strlen(buf);
 
         char *begin = buf;
         char *obegin = old_status_line;
-        char *end = buf + WIDE-1;               // last position before final '\0'
-        char *oend = old_status_line + WIDE-1;  // last position before final '\0'
+        char *end = buf + buf_bytes-1;               // last byte before final '\0'
+        char *oend = old_status_line + strlen(old_status_line);
+        if(oend > old_status_line)
+            oend--;
         while((*begin != NUL) and (*begin == *obegin) and (begin<buf_end) and (obegin<old_status_line_end))
         {
             ++begin;
             ++obegin;
         }
-        if(begin == end)
+        //  The comparison walked bytes; back up to the start of the
+        //  character they belong to, so the redraw does not begin in the
+        //  middle of one.
+        while((begin > buf) and g_utf8_is_continuation(begin))
+        {
+            --begin;
+            --obegin;
+        }
+
+        if(begin >= end)
             return;
         // we have at least one mismatch
         if(*obegin)
@@ -122,10 +143,15 @@ void update_statuslines()
         int row, col;
         vposget(&row, &col);
         *(++end) = NUL;
-        wwprintstr(W_STAT, 0,begin-buf, C_STATW, begin);
-        if(*help and ((begin - buf) < (help_len-1)) and ((end - buf) > (help_len-1)))
+        //  The print position is a column, and the offsets found above
+        //  are byte offsets into the line.
+        int begin_col = (int)g_utf8_width(buf, begin-buf);
+        int end_col   = (int)g_utf8_width(buf, end-buf);
+
+        wwprintstr(W_STAT, 0,begin_col, C_STATW, begin);
+        if(*help and (begin_col < (help_len-1)) and (end_col > (help_len-1)))
             wwprintc(W_STAT, 0,help_len-1, C_STATW, sep);
-        if(((begin - buf) < (WIDE-clk_len)) and ((end - buf) > (WIDE-clk_len)))
+        if((begin_col < (WIDE-clk_len)) and (end_col > (WIDE-clk_len)))
             wwprintc(W_STAT, 0,WIDE-clk_len, C_STATW, sep);
         vposset(row, col);
 #ifdef GOLD_MOUSE
@@ -210,7 +236,7 @@ void w_info(const char* info)
     static int ecol;
     static int len;
     static char buf[150] = { "" };
-    char* buf2 = NULL;
+    std::string shortened;
 
     int prev_wh = whandle();
     if(wh != -1)
@@ -218,13 +244,17 @@ void w_info(const char* info)
 
     if(info)
     {
-        int tmp = strlen(info);
+        //  'tmp' becomes the width of the window below, so it has to be
+        //  measured in screen columns. strlen() made the window twice as
+        //  wide as the text on anything multibyte, and scol - which is
+        //  (MAXCOL-len)/2-1 - went negative once the string was long
+        //  enough.
+        int tmp = (int)g_utf8_width(info);
         if(tmp > MAXCOL-5)
         {
-            buf2 = (char *)throw_malloc(MAXCOL-5);
-            strxcpy(buf2, info, MAXCOL-5);
-            info = buf2;
-            tmp = MAXCOL-6;
+            shortened = g_utf8_truncate(info, (size_t)(MAXCOL-6));
+            info = shortened.c_str();
+            tmp = (int)g_utf8_width(info);
         }
         if(wh == -1)
         {
@@ -250,7 +280,9 @@ void w_info(const char* info)
         }
         if(not streql(buf, info))
         {
-            strcpy(buf, info);
+            //  Bounded: cut by columns above, the text can still be
+            //  several bytes per column.
+            strxcpy(buf, info, sizeof(buf));
             wprints(0, 0, C_INFOW, buf);
         }
     }
@@ -265,9 +297,6 @@ void w_info(const char* info)
     }
 
     wactiv_(prev_wh);
-
-    if(buf2)
-        throw_free(buf2);
 }
 
 
@@ -402,6 +431,23 @@ bool is_uue_line(const char* ptr)
     if (decoded_bytes == 0) return (linelen <= 2);
 
     int expected = 1 + ((decoded_bytes + 2) / 3) * 4;
+
+    //  Some encoders pad the last line out with blanks and some mailers
+    //  add trailing spaces in transit, so those do not count towards the
+    //  length - but never trim below what the count calls for, because
+    //  in the classic table a space is a zero byte and is real data.
+    //
+    //  Anything still longer than that is ordinary text, not a
+    //  uuencoded line. This used to accept any length up to 61, and
+    //  since every printable ASCII character decodes to something, that
+    //  matched ordinary prose: a quoted line of 41 to 61 bytes starting
+    //  with '>' was taken for uuencoded data, lost its quote colour and
+    //  was kept out of the wrap logic. Lines carrying any byte above
+    //  127 - most Russian text - never matched, which is why the damage
+    //  looked arbitrary.
+    while (linelen > expected && s[linelen - 1] == ' ')
+        linelen--;
+
     int datalen = linelen;
 
     // Tolerate one trailing checksum character
@@ -411,15 +457,10 @@ bool is_uue_line(const char* ptr)
     if (datalen == expected) {
         length_ok = true;
     } else {
-        int max_expected = 61; // 1 + ceil(45/3)*4
-        if (datalen > expected && datalen <= max_expected) {
-            length_ok = true;
-        } else {
-            // Padding variance handling
-            switch (decoded_bytes % 3) {
-                case 1: if (expected - 2 == datalen) length_ok = true; break;
-                case 2: if (expected - 1 == datalen) length_ok = true; break;
-            }
+        // Padding variance handling
+        switch (decoded_bytes % 3) {
+            case 1: if (expected - 2 == datalen) length_ok = true; break;
+            case 2: if (expected - 1 == datalen) length_ok = true; break;
         }
     }
 
@@ -715,9 +756,9 @@ gkey SearchKey(gkey key, std::list<CmdKey>::iterator keys, int totkeys)
         int tkeys=totkeys;
         while(tkeys > 0)
         {
-            int j = KeyCmp(&key, &(kmin->key));
+            int j = KeyCmp(&key, &((*kmin).key));
             if(j == 0)
-                return(kmin->cmd);
+                return((*kmin).cmd);
             else if(j < 0)
                 break;
             else
@@ -888,6 +929,22 @@ bool find(const std::vector<std::string> &vec, const std::string &str)
     for (; it != end; it++)
     {
         if ((*it) == str)
+            return true;
+    }
+
+    return false;
+}
+
+//  The same over a plain string, so a literal at the call site
+//  needs no temporary - see the note in geprot.h.
+bool find(const std::vector<std::string> &vec, const char *str)
+{
+    std::vector<std::string>::const_iterator it = vec.begin();
+    std::vector<std::string>::const_iterator end = vec.end();
+
+    for (; it != end; it++)
+    {
+        if (strcmp(it->c_str(), str) == 0)
             return true;
     }
 

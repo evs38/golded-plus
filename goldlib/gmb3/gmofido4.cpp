@@ -26,7 +26,10 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
-#if defined(__WATCOMC__) || defined(__MINGW32__) || defined(_MSC_VER)
+//  Open Watcom's Linux target has the unix <utime.h>; its DOS, OS/2 and
+//  Windows ones have the Microsoft <sys/utime.h>.
+#if (defined(__WATCOMC__) && !defined(__LINUX__)) \
+    || defined(__MINGW32__) || defined(_MSC_VER)
     #include <sys/utime.h>
 #else
     #include <utime.h>
@@ -160,9 +163,9 @@ void FidoArea::save_message(int __mode, gmsg* __msg, FidoHdr& __hdr)
     __hdr.attr |= (word)(__msg->attr.arq() ? FIDO_AUDITREQ  : 0);
     __hdr.attr |= (word)(__msg->attr.urq() ? FIDO_UPDREQ    : 0);
 
-    strxcpy(__hdr.to, __msg->to, 36);
-    strxcpy(__hdr.by, __msg->by, 36);
-    strxcpy(__hdr.re, __msg->re, 72);
+    __msg->fit_hdr(__hdr.to, __msg->to, 36);
+    __msg->fit_hdr(__hdr.by, __msg->by, 36);
+    __msg->fit_hdr(__hdr.re, __msg->re, 72);
 
     __hdr.ftsc.origzone  = __msg->oorig.zone;
     __hdr.orignet        = __msg->oorig.net;

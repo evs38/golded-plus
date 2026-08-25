@@ -34,14 +34,16 @@
 #include <termios.h>
 #include <sys/time.h>
 #include <sys/types.h>
-#include <sys/file.h>
+#if !defined(__WATCOMC__)
+#include <sys/file.h>          //  not part of Open Watcom's Linux headers
+#endif
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <gutlunix.h>
 #include <gsigunix.h>
 #include <gkbdunix.h>
 
-#ifdef __BEOS__
+#if defined(__BEOS__) && !defined(__HAIKU__)
     //sz: some undocumented call that behaves in same manner as select ...
     //used in BEOS_BONE builds ...
     extern "C" int waiton( int, fd_set *, fd_set *, fd_set *, bigtime_t);
@@ -176,7 +178,10 @@ void gkbd_tty_reset()
 int gkbd_sys_input_pending(int tsecs)
 {
 
-#if !defined(__BEOS__)
+//  BeOS needed the two schemes below because select() did not work on a
+//  terminal there. Haiku's does, and it has neither `waiton' nor the
+//  TCWAITEVENT ioctl, so it takes the ordinary POSIX path.
+#if !defined(__BEOS__) || defined(__HAIKU__)
     static fd_set read_fd_set;
     struct timeval wait;
     long usecs, secs;

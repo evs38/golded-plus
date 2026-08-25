@@ -229,14 +229,12 @@ bool ftn_golded_nodelist_index::searchfirst()
         long left = 0;
         long right = maxnode;
         int diff = 0;
-        int prevdiff;
 
         do
         {
             mid = (left+right)/2;
             node = mid + 1;
             getnode();
-            prevdiff = diff;
             diff = namebrowse ? namecmp() : addrcmp();
 #ifdef DEBUG
             printf("(%d)\n", diff);
@@ -258,7 +256,6 @@ bool ftn_golded_nodelist_index::searchfirst()
         {
             node = left + 1;
             getnode();
-            prevdiff = diff;
             diff = namebrowse ? namecmp() : addrcmp();
 #ifdef DEBUG
             printf("(%d)\n", diff);
@@ -271,23 +268,49 @@ bool ftn_golded_nodelist_index::searchfirst()
             }
         }
 
-        if(absolute(prevdiff) > absolute(diff))
-            previous();
-        else
+        //  The loop above stops near the answer but not reliably on it,
+        //  so settle the last step or two by walking.
+        //
+        //  What used to stand here compared the magnitudes of two probes
+        //  and then stepped from a third position, which is only right
+        //  when those probes are adjacent - they need not be. It survived
+        //  because those magnitudes are counts of bytes compared, and
+        //  with ASCII names they came out in an order that happened to
+        //  pick the right neighbour. A UTF-8 name doubles them and the
+        //  branch flips: looking up a Cyrillic surname landed two entries
+        //  short of it.
+        //
+        //  Walk to the first entry that is not less than the name asked
+        //  for, which is the entry an incremental lookup should show.
+
+        while((diff > 0) and next())
+            diff = namebrowse ? namecmp() : addrcmp();
+
+        while(diff < 0)
         {
-            prevdiff = diff;
-            if(next())
+            if(not previous())
+                break;
+
+            int back = namebrowse ? namecmp() : addrcmp();
+            if(back > 0)
             {
-                diff = namebrowse ? namecmp() : addrcmp();
-#ifdef DEBUG
-                printf("(%d)\n", diff);
-#endif
-                if(absolute(prevdiff) >= absolute(diff))
-                    previous();
+                //  Gone one too far: the entry before is already less
+                //  than the name, so the one we just left is the answer.
+                if(next())
+                    diff = namebrowse ? namecmp() : addrcmp();
+                break;
             }
-            else
-                fetchdata();
+            diff = back;
         }
+
+        if(diff == 0)
+        {
+            exactmatch = true;
+            fetchdata();
+            return true;
+        }
+
+        fetchdata();
     }
 
     exactmatch = false;
@@ -385,6 +408,15 @@ bool ftn_golded_nodelist_index::open()
         nodelists++;
     }
     fclose(fp);
+
+    //  An index written by a build with a different _GEIdx would be
+    //  read as garbage - every record at the wrong offset - so check
+    //  that the file divides into whole records before believing it.
+    if(filelength(fhn) % (long)sizeof(_GEIdx))
+    {
+        close();
+        return false;
+    }
 
     maxnode = filelength(fha) / sizeof(word);
     if(filelength(fhn) / sizeof(_GEIdx) < (size_t)maxnode)

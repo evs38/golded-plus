@@ -4,7 +4,15 @@
 # with binary SunOS x86 build installable package
 
 srcdatefile=srcdate.h
-build=`sed -n 's/.*"\([[:digit:]]\{8\}\)".*/\1/p' $srcdatefile`
+#  Solaris's own sed does not take \{8\} after a character class, and
+#  quietly matches nothing - which left the package named
+#  "golded-plus-x86-115-.pkg", with the date missing. GNU sed is what
+#  the makefiles use here as well.
+SED=sed
+for s in gsed /usr/gnu/bin/sed ; do
+  if command -v $s > /dev/null 2>&1 ; then SED=$s ; break ; fi
+done
+build=`$SED -n 's/.*"\([[:digit:]]\{8\}\)".*/\1/p' $srcdatefile`
 date="$build"
 #shortdate=`echo ${date} | sed s/^...//`
 shortdate=${date/???/}

@@ -31,8 +31,8 @@
 namespace ini
 {
 
-typedef std::map<std::string, std::string> Variables;
-typedef std::map<std::string, Variables> Sections;
+typedef std::map<std::string, std::string, std::less<std::string> > Variables;
+typedef std::map<std::string, Variables, std::less<std::string> > Sections;
 
 bool ReadIniFile(const char* fileName, Sections& sections);
 

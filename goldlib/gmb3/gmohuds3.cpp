@@ -28,7 +28,7 @@
 
 //  ------------------------------------------------------------------
 
-template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
 msgn_t _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::get_hdr_idx(gmsg* __msg, char* __file__, int __line__)
 {
 
@@ -95,7 +95,7 @@ msgn_t _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::get_hdr_idx(
 
 //  ------------------------------------------------------------------
 
-template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
 int _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::load_message(int __mode, gmsg* __msg, HudsHdr& __hdr)
 {
 
@@ -223,7 +223,7 @@ int _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::load_message(in
 
 //  ------------------------------------------------------------------
 
-template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
 int _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::load_hdr(gmsg* __msg)
 {
 
@@ -236,7 +236,7 @@ int _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::load_hdr(gmsg* 
 
 //  ------------------------------------------------------------------
 
-template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
 int _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::load_msg(gmsg* __msg)
 {
 

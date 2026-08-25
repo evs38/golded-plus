@@ -25,6 +25,7 @@
 //  ------------------------------------------------------------------
 
 #include <golded.h>
+#include <gutf8.h>
 
 
 //  ------------------------------------------------------------------
@@ -1558,7 +1559,7 @@ void GotoReplies()
     GMsg* msg = reader_msg;
     const int list_max = msg->link.list_max();
 
-    char buf[200];
+    char buf[200*4];
     size_t replies = 0;
     int cursorbar = -1;
     uint maxname = 0;
@@ -1625,11 +1626,15 @@ void GotoReplies()
             if (n >= replies)
                 break;
 
-            sprintf(buf, "%c %c %*s : %-*.*s  %-*s  %-*s ",
+            //  maxname is a column count; fit the name to it here,
+            //  since "%-*.*s" would measure it in bytes.
+            std::string _rname = g_utf8_fit(rlist[n].name, maxname);
+
+            sprintf(buf, "%c %c %*s : %s  %-*s  %-*s ",
                     rlist[n].isread,
                     rlist[n].msgno[0],
                     maxmsgno, rlist[n].msgno+1,
-                    (int) maxname, (int) maxname, rlist[n].name,
+                    _rname.c_str(),
                     maxaddr, rlist[n].addr,
                     maxwritten, rlist[n].written
                    );

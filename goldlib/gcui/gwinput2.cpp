@@ -30,6 +30,7 @@
 #include <gkbdcode.h>
 #include <gmemdbg.h>
 #include <gstrall.h>
+#include <gutf8.h>
 #include <gwinall.h>
 #include <gwinhelp.h>
 #include <gwinput.h>
@@ -613,12 +614,21 @@ void gwinput::go_right_word()
 void gwinput::enter_char(char ch)
 {
 
-    if(ch)
+    enter_char(&ch, 1);
+}
+
+
+//  ------------------------------------------------------------------
+
+void gwinput::enter_char(const char* chars, int len)
+{
+
+    if(len > 0 and chars[0])
     {
         if(insert_mode)
-            current->insert_char(ch);
+            current->insert_char(chars, len);
         else
-            current->overwrite_char(ch);
+            current->overwrite_char(chars, len);
     }
 }
 
@@ -806,7 +816,15 @@ bool gwinput::handle_key(gkey key)
         break;
     default:
         if(not handle_other_keys(key))
-            enter_char(KCodAsc(key));
+            {
+                int _len = 0;
+                const char* _chars = gkbd_keychars(key, &_len);
+
+                if(_chars)
+                    enter_char(_chars, _len);
+                else
+                    enter_char(KCodAsc(key));
+            }
     }
 
     return not done;
@@ -960,12 +978,79 @@ void gwinput::field::move_cursor()
 
 
 //  ------------------------------------------------------------------
+//  Byte offsets and screen columns.
 
-void gwinput::field::draw(int from_pos)
+int gwinput::field::next_off(int off) const
+{
+    if(off >= buf_end_pos)
+        return buf_end_pos;
+    return (int)(g_utf8_next(buf + off) - buf);
+}
+
+
+int gwinput::field::prev_off(int off) const
+{
+    if(off <= 0)
+        return 0;
+    return (int)(g_utf8_prev(buf, buf + off) - buf);
+}
+
+
+int gwinput::field::col_of(int off) const
+{
+    if(off <= buf_left_pos)
+        return 0;
+    return (int)g_utf8_width(buf + buf_left_pos, off - buf_left_pos);
+}
+
+
+int gwinput::field::off_at_col(int col) const
+{
+    return buf_left_pos + (int)g_utf8_bytes_for_cols(buf + buf_left_pos, col);
+}
+
+
+//  ------------------------------------------------------------------
+//  Put the cursor where buf_pos says, scrolling the field sideways if
+//  that would otherwise be off its left or right edge.
+
+void gwinput::field::resync()
+{
+    bool scrolled = false;
+
+    if(buf_pos < buf_left_pos)
+    {
+        buf_left_pos = buf_pos;
+        scrolled = true;
+    }
+
+    while(col_of(buf_pos) > max_pos)
+    {
+        buf_left_pos = next_off(buf_left_pos);
+        scrolled = true;
+    }
+
+    pos = col_of(buf_pos);
+
+    if(scrolled)
+        draw();
+    move_cursor();
+}
+
+
+//  ------------------------------------------------------------------
+
+void gwinput::field::draw(int from_col)
 {
 
     if(visible())
-        form->window.printns(row, column+from_pos, attr, buf+buf_left_pos+from_pos, 1+max_pos-from_pos, fill, attr | (fill_acs ? ACSET : 0));
+    {
+        //  from_col is a screen column; the text to draw from starts at
+        //  the byte that column falls on.
+        int off = off_at_col(from_col);
+        form->window.printns(row, column+from_col, attr, buf+off,
+                             1+max_pos-from_col, fill, attr | (fill_acs ? ACSET : 0));
+    }
 }
 
 
@@ -1002,17 +1087,8 @@ void gwinput::field::conditional()
 void gwinput::field::move_left()
 {
 
-    buf_pos--;
-    if(pos > 0)
-    {
-        pos--;
-        move_cursor();
-    }
-    else
-    {
-        buf_left_pos--;
-        draw();
-    }
+    buf_pos = prev_off(buf_pos);
+    resync();
 }
 
 
@@ -1021,17 +1097,8 @@ void gwinput::field::move_left()
 void gwinput::field::move_right()
 {
 
-    buf_pos++;
-    if(pos < max_pos)
-    {
-        pos++;
-        move_cursor();
-    }
-    else
-    {
-        buf_left_pos++;
-        draw();
-    }
+    buf_pos = next_off(buf_pos);
+    resync();
 }
 
 
@@ -1176,8 +1243,12 @@ bool gwinput::field::delete_char()
     {
         if(buf_pos < buf_end_pos)
         {
-            buf_end_pos--;
-            memmove(buf+buf_pos, buf+buf_pos+1, buf_len-buf_pos);
+            //  Remove the whole character, however many bytes it is.
+            int nxt = next_off(buf_pos);
+            int gone = nxt - buf_pos;
+            memmove(buf+buf_pos, buf+nxt, buf_len-nxt+1);
+            buf_end_pos -= gone;
+            buf[buf_end_pos] = NUL;
             draw(pos);
             move_cursor();
             return true;
@@ -1216,7 +1287,7 @@ bool gwinput::field::delete_word(bool left)
 
 //  ------------------------------------------------------------------
 
-bool gwinput::field::insert_char(char ch)
+bool gwinput::field::insert_char(const char* chars, int len)
 {
 
     if(entry != gwinput::entry_noedit)
@@ -1224,12 +1295,18 @@ bool gwinput::field::insert_char(char ch)
 
         conditional();
 
-        if(buf_end_pos < buf_len)
+        if(buf_end_pos + len <= buf_len)
         {
-            int len = buf_end_pos - buf_pos;
-            memmove(buf+buf_pos+1, buf+buf_pos, len+1);
-            buf_end_pos++;
-            return overwrite_char(ch);
+            int tail = buf_end_pos - buf_pos;
+            memmove(buf+buf_pos+len, buf+buf_pos, tail+1);
+            buf_end_pos += len;
+            //  The room is made; overwrite_char() now just fills it in,
+            //  and must not push the end out a second time.
+            int saved_end = buf_end_pos;
+            bool rc = overwrite_char(chars, len);
+            buf_end_pos = saved_end;
+            buf[buf_end_pos] = NUL;
+            return rc;
         }
     }
     return false;
@@ -1238,7 +1315,7 @@ bool gwinput::field::insert_char(char ch)
 
 //  ------------------------------------------------------------------
 
-bool gwinput::field::overwrite_char(char ch)
+bool gwinput::field::overwrite_char(const char* chars, int len)
 {
 
     if(entry != gwinput::entry_noedit)
@@ -1246,22 +1323,45 @@ bool gwinput::field::overwrite_char(char ch)
 
         conditional();
 
-        switch(conversion)
+        //  Case conversion is a property of the character, so it is done
+        //  on the codepoint rather than on each byte.
+        std::string text(chars, len);
+
+        if(conversion == gwinput::cvt_lowercase or conversion == gwinput::cvt_uppercase)
         {
-        case gwinput::cvt_lowercase:
-            ch = (char)g_tolower(ch);
-            break;
-        case gwinput::cvt_uppercase:
-            ch = (char)g_toupper(ch);
-            break;
+            if(g_utf8_mode())
+            {
+                int used = 1;
+                uint32_t cp = g_utf8_decode(text.c_str(), &used);
+                cp = (conversion == gwinput::cvt_lowercase) ? g_cp_tolower(cp)
+                                                            : g_cp_toupper(cp);
+                text = g_utf8_encode(cp);
+            }
+            else
+            {
+                text[0] = (char)((conversion == gwinput::cvt_lowercase)
+                                 ? g_tolower(text[0]) : g_toupper(text[0]));
+            }
         }
 
-        buf[buf_pos] = ch;
-        if(buf_pos == buf_end_pos)
+        //  A replacement of a different length has to move the tail.
+        int old = (buf_pos < buf_end_pos) ? next_off(buf_pos) - buf_pos : 0;
+        int now = (int)text.length();
+
+        if(buf_end_pos - old + now > buf_len)
+            return false;
+
+        if(old != now)
         {
-            buf_end_pos++;
-            buf[buf_end_pos] = NUL;
+            memmove(buf+buf_pos+now, buf+buf_pos+old, buf_end_pos-buf_pos-old+1);
+            buf_end_pos += now - old;
         }
+
+        memcpy(buf+buf_pos, text.data(), now);
+
+        if(buf_pos + now > buf_end_pos)
+            buf_end_pos = buf_pos + now;
+        buf[buf_end_pos] = NUL;
 
         if(conversion == gwinput::cvt_mixedcase)
         {
@@ -1302,10 +1402,20 @@ bool gwinput::field::end()
     adjust_mode();
 
     buf_pos = buf_end_pos;
-    if(buf_pos == buf_len)
-        buf_pos--;
-    pos = minimum_of_two(max_pos, buf_pos);
-    buf_left_pos = buf_pos - pos;
+    if(buf_pos >= buf_len)
+        buf_pos = prev_off(buf_len);
+
+    //  Show as much of the tail as the field is wide, measured in
+    //  columns, and start it on a character boundary.
+    buf_left_pos = 0;
+    int width = (int)g_utf8_width(buf, buf_pos);
+    while(width > max_pos)
+    {
+        buf_left_pos = next_off(buf_left_pos);
+        width = (int)g_utf8_width(buf+buf_left_pos, buf_pos-buf_left_pos);
+    }
+    pos = width;
+
     draw();
     move_cursor();
     return true;

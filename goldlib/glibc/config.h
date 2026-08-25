@@ -6,13 +6,14 @@
 
 #define HAVE_DIRENT_H 1
 #define STDC_HEADERS  1
-#ifndef _MSC_VER
+#if !defined(_MSC_VER) && !defined(__BORLANDC__)
     #define HAVE_UNISTD_H 1
 #endif
 #define HAVE_STRING_H 1
 #define HAVE_MEMORY_H 1
 #define HAVE_STRCOLL  1
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__BORLANDC__)
+    /*  Where alloca() is declared on these two.  */
     #define HAVE_MALLOC_H 1
 #endif
 

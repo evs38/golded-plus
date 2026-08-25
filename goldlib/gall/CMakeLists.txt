@@ -36,6 +36,7 @@ set(gall_SOURCES
   gmemutil.cpp
   gmsgattr.cpp
   gprnutil.cpp
+  grecode.cpp
   gregex.cpp
   gsearch.cpp
   gsnd.cpp
@@ -47,6 +48,7 @@ set(gall_SOURCES
   gtimjuld.cpp
   gtimutil.cpp
   gtxtpara.cpp
+  gutf8.cpp
   gusrbase.cpp
   gusrezyc.cpp
   gusrgold.cpp
@@ -70,12 +72,24 @@ if (UNIX)
     gsigunix.cpp
     gutlunix.cpp
   )
-elseif (MSVC)
+elseif (WIN32)
+  #  WIN32, not MSVC: mingw builds a native Windows binary too, and it
+  #  needs the same g_init_os()/clipboard/sound layer. Cygwin is not
+  #  WIN32 for CMake, so it keeps taking the UNIX branch above.
   list(APPEND gall_SOURCES
     gutlwin.cpp
     gutlwinm.cpp
   )
 endif()
 ADD_LIBRARY(gall STATIC ${gall_SOURCES})
-include_directories(.. ../glibc)
+#  BEFORE, because gespell.cpp includes the bundled hunspell as
+#  <hunspell/hunspell.hxx> and that is resolved against this directory's
+#  parent. A system with hunspell of its own installed - FreeBSD ports
+#  put one in /usr/local/include/hunspell - would otherwise supply the
+#  header while we link the copy built here, which is a version mismatch
+#  waiting to misbehave at run time.
+include_directories(BEFORE .. ../glibc)
 target_link_libraries(gall hunspell)
+if (GOLD_ICONV_LIBS)
+  target_link_libraries(gall ${GOLD_ICONV_LIBS})
+endif()

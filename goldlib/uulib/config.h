@@ -16,7 +16,10 @@
 #define STDC_HEADERS 1
 
 /* Define if you can safely include both <sys/time.h> and <time.h>.  */
-#ifndef _MSC_VER
+/* Open Watcom's Win32 runtime has no <sys/time.h> at all, the same as
+   MSVC's and Borland's; mingw does, which is why the test is by
+   compiler.  */
+#if !defined(_MSC_VER) && !defined(__WATCOMC__) && !defined(__BORLANDC__)
     #define TIME_WITH_SYS_TIME 1
 #endif
 
@@ -65,7 +68,7 @@
 #define HAVE_FCNTL_H 1
 
 /* Define if you have the <io.h> header file.  */
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__BORLANDC__)
     #define HAVE_IO_H
 #endif
 
@@ -73,18 +76,24 @@
 #undef HAVE_MALLOC_H
 
 /* Define if you have the <memory.h> header file.  */
-#define HAVE_MEMORY_H 1
+/* Open Watcom's Linux headers do not carry that old SysV name; what
+   uulib wants from it is in <string.h>, which it includes anyway.  */
+#if !(defined(__WATCOMC__) && defined(__LINUX__))
+    #define HAVE_MEMORY_H 1
+#endif
 
 /* Define if you have the <stdarg.h> header file.  */
 /* #undef HAVE_STDARG_H */
 
 /* Define if you have the <sys/time.h> header file.  */
-#ifndef _MSC_VER
+#if !defined(_MSC_VER) && !defined(__WATCOMC__) && !defined(__BORLANDC__)
     #define HAVE_SYS_TIME_H 1
 #endif
 
 /* Define if you have the <unistd.h> header file.  */
-#ifndef _MSC_VER
+/* Open Watcom has one, and unlink() and close() come from it. Borland
+   does not; io.h above carries the same names.  */
+#if !defined(_MSC_VER) && !defined(__BORLANDC__)
     #define HAVE_UNISTD_H 1
 #endif
 

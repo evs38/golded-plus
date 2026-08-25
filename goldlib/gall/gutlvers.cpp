@@ -24,18 +24,30 @@
 //  ------------------------------------------------------------------
 //  Get operating system version.
 //  ------------------------------------------------------------------
+//  x86_64 port notes:
+//    * The old hand-written 32-bit inline assembler (pushfl/popfl, %eax
+//      register names, "=m" operands) cannot be assembled in 64-bit mode.
+//      All CPU identification now goes through a single portable helper
+//      built on <cpuid.h> (GCC/Clang) or __cpuidex() (MSVC).
+//    * Extended family/model fields (CPUID.1:EAX[27:20] and [19:16]) are
+//      now decoded, otherwise every modern CPU is reported as an
+//      Athlon 64 or a Pentium III.
+//    * Unknown/modern CPUs fall back to the CPUID brand string
+//      (leaves 0x80000002..0x80000004), compacted to fit the name buffer.
+//    * Non-x86 targets (aarch64, riscv64, ppc64le...) leave the name
+//      empty so that ggetosstring() uses uname().machine instead.
+//    * All sprintf() calls are bounded (snprintf).
+//  ------------------------------------------------------------------
 
 #include <cstdio>
+#include <cstring>
+#include <cstddef>
 #include <gstrall.h>
 #include <gutlmisc.h>
 
-#if defined(__WIN32__)
+#if defined(__WIN32__) || defined(_WIN32)
     #include <windows.h>
-    #if __VISUAL_C_NOT_LESS(14,0)
-        //#if defined(_MSC_VER) && (_MSC_VER >= 1400)
-        #include <intrin.h>
-    #endif
-#elif defined(__GNUC__)
+#elif defined(__GNUC__) || (defined(__WATCOMC__) && defined(__LINUX__))
     #include <sys/utsname.h>
 #endif
 
@@ -46,61 +58,225 @@
 
 
 //  ------------------------------------------------------------------
-
-#define _MAX_VNAME_LEN  12
-#define _MAX_MNAME_LEN  30
-
-#ifdef GCFG_NO_CPUID
-# define gcpuid(pstr) (pstr)
-# define HaveCPUID()  (0)
-#else
+//  Architecture detection
 //  ------------------------------------------------------------------
 
-#if __VISUAL_C_LESS(14,0)
-//#if defined(_MSC_VER) && (_MSC_VER < 1400)
-static void __cpuid(int CPUInfo[4], int cpuidfun)
-{
-    __asm
-    {
-        mov eax, cpuidfun
-        cpuid
+#if defined(__x86_64__) || defined(__amd64__) || defined(_M_X64) || defined(_M_AMD64)
+    #define GX86_64 1
+#endif
 
-        mov esi, CPUInfo
-        mov [esi + 0], eax
-        mov [esi + 4], ebx
-        mov [esi + 8], ecx
-        mov [esi + 12], edx
-    }
-}
-#elif defined(__GNUC__) && defined(__x86_64__)
-static void __cpuid(int CPUInfo[4], int cpuidfun)
-{
-    asm volatile
-      ("cpuid" : "=a" (CPUInfo[0]), "=b" (CPUInfo[1]), "=c" (CPUInfo[2]), "=d" (CPUInfo[3])
-       : "a" (cpuidfun), "c" (0));
-}
+#if defined(__i386__) || defined(__i386) || defined(_M_IX86) || defined(__X86__)
+    #define GX86_32 1
+#endif
+
+#if defined(GX86_64) || defined(GX86_32)
+    #define GX86 1
+#endif
+
+//  MSVC intrinsics / GCC-Clang cpuid header
+
+#if defined(GX86) && defined(_MSC_VER)
+  //  <intrin.h> and the __cpuid/__cpuidex intrinsics arrived with Visual
+  //  C++ 2005. Visual C++ 6.0 has neither, but it targets 32-bit x86 only
+  //  and its inline assembler knows the instruction, so the older compiler
+  //  gets the same thing spelled out by hand - see gcpuid_msvc() below.
+  #if (_MSC_VER >= 1400)
+    #include <intrin.h>
+  #endif
+#elif defined(GX86) && (defined(__GNUC__) || defined(__clang__))
+    #include <cpuid.h>
 #endif
 
 
 //  ------------------------------------------------------------------
 
-inline static bool HaveCPUID()
-{
-//  TO_PORT_TAG: CPUID
+//  MSVC before 2015 has no C99 snprintf.
+#if defined(_MSC_VER) && (_MSC_VER < 1900) && !defined(snprintf)
+    #define snprintf _snprintf
+#endif
+
+//  ------------------------------------------------------------------
+
+#define _MAX_VNAME_LEN  12
+#define _MAX_MNAME_LEN  30
+
+//  Character used to join the words of a CPU name taken from the CPUID
+//  brand string ("Linux 6.8.0 Intel Core i7-9750H"). Define it as '_'
+//  before including to keep the processor field a single word in the
+//  resulting OS string.
+#ifndef GCFG_CPUNAME_SEP
+    #define GCFG_CPUNAME_SEP  ' '
+#endif
+
+#ifdef GCFG_NO_CPUID
+# define gcpuid(pstr) (pstr)
+# define HaveCPUID()  (0)
+#else
+
+//  ------------------------------------------------------------------
+//  Portable CPUID access.
+//
+//  gcpuid_max()  - highest supported leaf in the given range
+//                  (0 = standard, 0x80000000 = extended);
+//                  returns 0 when CPUID is not usable at all.
+//  gcpuid_call() - execute CPUID/CPUIDEX, false if the leaf is
+//                  not supported.
+//  ------------------------------------------------------------------
+
+#if defined(GX86)
+
+//  One CPUID call, whichever way this compiler can make it.
+
 #if defined(_MSC_VER)
-    __try
+
+static void gcpuid_msvc(int regs[4], int leaf, int subleaf)
+{
+  #if (_MSC_VER >= 1400)
+
+    __cpuidex(regs, leaf, subleaf);
+
+  #else
+
+    //  Visual C++ 6.0. ebx and esi belong to the caller, so save them
+    //  around the instruction; nothing here is an alternative token, so
+    //  the macro dance the EFLAGS probe below needs is not repeated.
+    __asm
     {
-        int CPUInfo[4];
-        __cpuid(CPUInfo, 0);
-    }
-    __except(EXCEPTION_EXECUTE_HANDLER)
-    {
-        return false;
+        push    ebx
+        push    esi
+        mov     eax, leaf
+        mov     ecx, subleaf
+        cpuid
+        mov     esi, regs
+        mov     [esi],      eax
+        mov     [esi + 4],  ebx
+        mov     [esi + 8],  ecx
+        mov     [esi + 12], edx
+        pop     esi
+        pop     ebx
     }
 
+  #endif
+}
+
+#endif
+
+
+static unsigned gcpuid_max(unsigned range)
+{
+#if defined(_MSC_VER)
+
+  #if defined(GX86_32)
+    //  On a 386 the ID flag (EFLAGS bit 21) cannot be toggled and
+    //  the CPUID instruction is absent.
+    //
+    //  'and', 'xor', 'or' and 'not' are instruction mnemonics inside the
+    //  block below, but they are also C++ alternative tokens, and MSVC
+    //  supplies them as macros - the compiler would see '&&' in the
+    //  middle of the assembly and stop with "bad token". Make them plain
+    //  words again for the length of the block.
+    #pragma push_macro("and")
+    #pragma push_macro("or")
+    #pragma push_macro("xor")
+    #pragma push_macro("not")
+    #undef and
+    #undef or
+    #undef xor
+    #undef not
+
+    int has_id = 0;
+    __asm
+    {
+        pushfd
+        pop     eax
+        mov     ecx, eax
+        xor     eax, 0x00200000
+        push    eax
+        popfd
+        pushfd
+        pop     eax
+        xor     eax, ecx
+        and     eax, 0x00200000
+        mov     has_id, eax
+        push    ecx
+        popfd
+    }
+
+    #pragma pop_macro("not")
+    #pragma pop_macro("xor")
+    #pragma pop_macro("or")
+    #pragma pop_macro("and")
+
+    if(!has_id)
+        return 0;
+  #endif
+
+    int regs[4];
+    gcpuid_msvc(regs, (int)range, 0);
+    unsigned maxleaf = (unsigned)regs[0];
+    //  Sanity check: the returned value must belong to the range asked for.
+    if((maxleaf & 0x80000000u) != (range & 0x80000000u))
+        return 0;
+    return maxleaf;
+
+#elif defined(__GNUC__) || defined(__clang__)
+
+    //  __get_cpuid_max() also performs the EFLAGS.ID check on i386
+    //  and is PIC-safe (it saves/restores %ebx itself).
+    return __get_cpuid_max(range, 0);
+
+#else
+
+    (void)range;
+    return 0;
+
+#endif
+}
+
+
+static bool gcpuid_call(unsigned leaf, unsigned subleaf, unsigned regs[4])
+{
+    regs[0] = regs[1] = regs[2] = regs[3] = 0;
+
+    unsigned maxleaf = gcpuid_max(leaf & 0x80000000u);
+    if(!maxleaf || leaf > maxleaf)
+        return false;
+
+#if defined(_MSC_VER)
+
+    int r[4];
+    gcpuid_msvc(r, (int)leaf, (int)subleaf);
+    regs[0] = (unsigned)r[0];
+    regs[1] = (unsigned)r[1];
+    regs[2] = (unsigned)r[2];
+    regs[3] = (unsigned)r[3];
     return true;
-#elif defined(__GNUC__)
+
+#elif defined(__GNUC__) || defined(__clang__)
+
+    __cpuid_count(leaf, subleaf, regs[0], regs[1], regs[2], regs[3]);
     return true;
+
+#else
+
+    (void)subleaf;
+    return false;
+
+#endif
+}
+
+#endif // GX86
+
+
+//  ------------------------------------------------------------------
+
+#if defined(__GNUC__)
+__attribute__((unused))
+#endif
+inline static bool HaveCPUID()
+{
+#if defined(GX86)
+    return gcpuid_max(0) != 0;
 #else
     return false;
 #endif
@@ -108,10 +284,176 @@ inline static bool HaveCPUID()
 
 
 //  ------------------------------------------------------------------
+//  Compact the CPUID brand string into something that fits into
+//  _MAX_MNAME_LEN bytes, e.g.
+//    "Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz" -> "Intel_Core_i7-9750H"
+//    "AMD Ryzen 7 5800X 8-Core Processor"       -> "AMD_Ryzen_7_5800X"
+//  ------------------------------------------------------------------
 
-static void cpuname(int family, int model, const char *v_name, char *m_name)
+#if defined(GX86)
+
+//  Remove every occurrence of "what" from "s" (case sensitive).
+
+static void gvstrdel(char *s, const char *what)
 {
-    if (!strcmp("AuthenticAMD", v_name))
+    size_t len = strlen(what);
+    if(!len)
+        return;
+
+    char *p;
+    while((p = strstr(s, what)) != NULL)
+        memmove(p, p + len, strlen(p + len) + 1);
+}
+
+
+static bool brand_token_is_noise(const char *tok, size_t len)
+{
+    static const char *noise[] =
+    {
+        "CPU", "Processor", "processor", "Genuine", "Technologies",
+        "Technology", "Inc", "Corp", "Family", "Dual-Core", "Quad-Core",
+        "Six-Core", "Eight-Core", "Core(TM)2", "version", "Version", 0
+    };
+
+    if(!len)
+        return true;
+
+    for(int i = 0; noise[i]; i++)
+        if((strlen(noise[i]) == len) && !strncmp(noise[i], tok, len))
+            return true;
+
+    //  "8-Core", "16-Core", ...
+    if((len > 5) && !strncmp(tok + len - 5, "-Core", 5))
+        return true;
+
+    //  A bare clock speed - "3.00GHz", "800MHz" (the "@ x.xxGHz" form is
+    //  already cut off earlier).
+    if((len > 3) && (!strncmp(tok + len - 3, "GHz", 3) || !strncmp(tok + len - 3, "MHz", 3)))
+        return true;
+
+    return false;
+}
+
+
+static bool brand_compact(char *brand, char *dest, size_t size)
+{
+    if(!size)
+        return false;
+
+    *dest = NUL;
+
+    //  Strip the (R)/(TM) marks.
+    gvstrdel(brand, "(R)");
+    gvstrdel(brand, "(r)");
+    gvstrdel(brand, "(TM)");
+    gvstrdel(brand, "(tm)");
+
+    //  Cut off the clock speed ("... @ 2.60GHz") and the errata/feature
+    //  list that hypervisors append to the model name, e.g. QEMU's
+    //  "Intel Core Processor (Haswell, no TSX, IBRS)". Everything from
+    //  the first comma on is noise.
+    char *cut = strchr(brand, '@');
+    if(cut)
+        *cut = NUL;
+
+    cut = strchr(brand, ',');
+    if(cut)
+        *cut = NUL;
+
+    //  Parentheses become token separators, so that the codename inside
+    //  them survives: "Core Processor (Haswell" -> "Core" + "Haswell".
+    for(char *q = brand; *q; q++)
+        if((*q == '(') || (*q == ')') || (*q == '\t'))
+            *q = ' ';
+
+    //  Tokenize on whitespace, dropping noise words.
+    size_t out = 0;
+    const char *p = brand;
+
+    while(*p)
+    {
+        while(*p == ' ')
+            p++;
+
+        if(!*p)
+            break;
+
+        const char *tok = p;
+        while(*p && (*p != ' '))
+            p++;
+
+        size_t len = (size_t)(p - tok);
+
+        if(brand_token_is_noise(tok, len))
+            continue;
+
+        //  "with Radeon Graphics" and everything after it is dropped.
+        if((len == 4) && !strncmp(tok, "with", 4))
+            break;
+
+        //  A token is taken whole or not at all - never cut a word in
+        //  half and never leave a trailing separator behind. The only
+        //  exception is a first token that is longer than the whole
+        //  buffer: a truncated name still beats an empty one.
+        size_t need = len + (out ? 1 : 0);
+        if(out + need >= size)
+        {
+            if(out)
+                break;
+            len = size - 1;
+        }
+
+        if(out)
+            dest[out++] = GCFG_CPUNAME_SEP;
+
+        memcpy(dest + out, tok, len);
+        out += len;
+    }
+
+    dest[out] = NUL;
+
+    return out != 0;
+}
+
+
+static bool compact_brandstring(char *dest, size_t size)
+{
+    unsigned regs[4];
+    char brand[3 * 4 * sizeof(unsigned) + 1];
+    size_t n = 0;
+
+    if(gcpuid_max(0x80000000u) < 0x80000004u)
+        return false;
+
+    for(unsigned leaf = 0x80000002u; leaf <= 0x80000004u; leaf++)
+    {
+        if(!gcpuid_call(leaf, 0, regs))
+            return false;
+
+        for(int r = 0; r < 4; r++)
+            for(int b = 0; b < 4; b++)
+                brand[n++] = (char)((regs[r] >> (8 * b)) & 0xFF);
+    }
+    brand[n] = NUL;
+
+    return brand_compact(brand, dest, size);
+}
+
+#endif // GX86
+
+
+//  ------------------------------------------------------------------
+//  Build a short CPU name from vendor/family/model.
+//  Returns true when the CPU was recognized exactly, false when only
+//  a generic F<n>M<n> name could be produced (the caller then tries
+//  the brand string instead).
+//  ------------------------------------------------------------------
+
+static bool cpuname(unsigned family, unsigned model, const char *v_name, char *m_name, size_t size)
+{
+    bool known = true;
+
+    if(!strcmp("AuthenticAMD", v_name) || !strcmp("HygonGenuine", v_name))
     {
         switch (family)
         {
@@ -120,19 +462,18 @@ static void cpuname(int family, int model, const char *v_name, char *m_name)
             {
             case 3:
             case 7:
-                strcpy(m_name, "AMD486DX2");
+                strxcpy(m_name, "AMD486DX2", size);
                 break;
             case 8:
             case 9:
-                strcpy(m_name, "AMD486DX4");
+                strxcpy(m_name, "AMD486DX4", size);
                 break;
             case 14:
             case 15:
-                strcpy(m_name, "AMD5x86");
+                strxcpy(m_name, "AMD5x86", size);
                 break;
             default:
-                sprintf(m_name, "AMD486_M%d", model);
-
+                snprintf(m_name, size, "AMD486_M%u", model);
             }
             break;
 
@@ -143,71 +484,78 @@ static void cpuname(int family, int model, const char *v_name, char *m_name)
             case 1:
             case 2:
             case 3:
-                strcpy(m_name, "AMD_K5");
+                strxcpy(m_name, "AMD_K5", size);
                 break;
             case 6:
             case 7:
-                strcpy(m_name, "AMD_K6");
+                strxcpy(m_name, "AMD_K6", size);
                 break;
             case 8:
-                strcpy(m_name, "AMD_K6-2");
+                strxcpy(m_name, "AMD_K6-2", size);
                 break;
             case 9:
             case 10:
             case 11:
             case 12:
-                strcpy(m_name, "AMD_K6-3");
+                strxcpy(m_name, "AMD_K6-3", size);
                 break;
             case 13:
             case 14:
             case 15:
-                strcpy(m_name, "AMD_K6-3+");
+                strxcpy(m_name, "AMD_K6-3+", size);
                 break;
             default:
-                sprintf(m_name, "AMD_F%dM%d", family, model);
+                snprintf(m_name, size, "AMD_F%uM%u", family, model);
             }
             break;
 
         case 6:
-            switch (model)
-            {
-            /* need full F/M/S/Rev for identification
-                  case 1:
-                  case 2:
-                  case 4:
-                  case 6:
-                  case 8:
-                    strcpy(m_name, "AMD_Athlon");   // (S:0) & (S:1; Rev:80)
-                    strcpy(m_name, "AMD_Sempron");  // (S:1; Rev:B0)
-                    break;
-                  case 3:
-                  case 7:
-                    strcpy(m_name, "AMD_Duron");
-                    break;
-            */
-            default:
-                sprintf(m_name, "AMD_K7_M%u", model);
-            }
+            /* need full F/M/S/Rev to tell Athlon/Duron/Sempron apart */
+            snprintf(m_name, size, "AMD_K7_M%u", model);
             break;
 
         case 15:
-            switch (model)
-            {
-            /* need full F/M/S/Rev for identification
-                  case 12:
-                    strcpy(m_name, "AMD_Sempron");
-                    break;
-            */
-            default:
-                sprintf(m_name, "AMD_K8_M%u", model);
-            }
+            snprintf(m_name, size, "AMD_K8_M%u", model);
+            break;
+
+        //  Everything below needs the extended family field.
+        case 0x10:
+            snprintf(m_name, size, "AMD_K10_M%u", model);
+            break;
+        case 0x11:
+            snprintf(m_name, size, "AMD_K8L_M%u", model);
+            break;
+        case 0x12:
+            snprintf(m_name, size, "AMD_Llano_M%u", model);
+            break;
+        case 0x14:
+            snprintf(m_name, size, "AMD_Bobcat_M%u", model);
+            break;
+        case 0x15:
+            snprintf(m_name, size, "AMD_Bulldozer_M%u", model);
+            break;
+        case 0x16:
+            snprintf(m_name, size, "AMD_Jaguar_M%u", model);
+            break;
+        case 0x17:
+            snprintf(m_name, size, "AMD_Zen_M%u", model);
+            break;
+        case 0x18:
+            snprintf(m_name, size, "Hygon_M%u", model);
+            break;
+        case 0x19:
+            snprintf(m_name, size, "AMD_Zen3_M%u", model);
+            break;
+        case 0x1A:
+            snprintf(m_name, size, "AMD_Zen5_M%u", model);
             break;
 
         default:
-            sprintf(m_name, "AMD_F%dM%d", family, model);
+            snprintf(m_name, size, "AMD_F%uM%u", family, model);
+            known = false;
         }
     }
-    else if (!strcmp("GenuineIntel", v_name))
+    else if(!strcmp("GenuineIntel", v_name))
     {
         switch (family)
         {
@@ -216,28 +564,28 @@ static void cpuname(int family, int model, const char *v_name, char *m_name)
             {
             case 0:
             case 1:
-                strcpy(m_name, "i486DX");
+                strxcpy(m_name, "i486DX", size);
                 break;
             case 2:
-                strcpy(m_name, "i486SX");
+                strxcpy(m_name, "i486SX", size);
                 break;
             case 3:
-                strcpy(m_name, "i486DX2");
+                strxcpy(m_name, "i486DX2", size);
                 break;
             case 4:
-                strcpy(m_name, "i486SL");
+                strxcpy(m_name, "i486SL", size);
                 break;
             case 5:
-                strcpy(m_name, "i486SX2O");
+                strxcpy(m_name, "i486SX2O", size);
                 break;
             case 7:
-                strcpy(m_name, "i486DX2E");
+                strxcpy(m_name, "i486DX2E", size);
                 break;
             case 8:
-                strcpy(m_name, "i486DX4");
+                strxcpy(m_name, "i486DX4", size);
                 break;
             default:
-                sprintf(m_name, "i486_M%d", model);
+                snprintf(m_name, size, "i486_M%u", model);
             }
             break;
 
@@ -245,19 +593,19 @@ static void cpuname(int family, int model, const char *v_name, char *m_name)
             switch (model)
             {
             case 1:
-                strcpy(m_name, "iP");
+                strxcpy(m_name, "iP", size);
                 break;
             case 2:
-                strcpy(m_name, "iP54C");
+                strxcpy(m_name, "iP54C", size);
                 break;
             case 3:
-                strcpy(m_name, "iP_OverDrive");
+                strxcpy(m_name, "iP_OverDrive", size);
                 break;
             case 4:
-                strcpy(m_name, "iP55C");
+                strxcpy(m_name, "iP55C", size);
                 break;
             default:
-                sprintf(m_name, "iF%dM%d", family, model);
+                snprintf(m_name, size, "iF%uM%u", family, model);
             }
             break;
 
@@ -265,304 +613,186 @@ static void cpuname(int family, int model, const char *v_name, char *m_name)
             switch (model)
             {
             case 1:
-                strcpy(m_name, "iP-Pro");
+                strxcpy(m_name, "iP-Pro", size);
                 break;
             case 3:
             case 5:
-                strcpy(m_name, "iP-II");
+                strxcpy(m_name, "iP-II", size);
                 break;
             case 6:
-                strcpy(m_name, "iCeleron");
+                strxcpy(m_name, "iCeleron", size);
                 break;
             case 7:
             case 8:
             case 11:
-                strcpy(m_name, "iP-III");
+                strxcpy(m_name, "iP-III", size);
                 break;
+            case 9:
             case 13:
-                strcpy(m_name, "iP-M");  // Pentium M "Centrino" (Pentium Mobile)
+                strxcpy(m_name, "iP-M", size);  // Pentium M "Centrino"
                 break;
             default:
-                sprintf(m_name, "iF%dM%d", family, model);
+                //  Family 6 model >= 14 is Core/Core2/Nehalem/.../Raptor Lake.
+                //  There are far too many of them to table - the brand
+                //  string is used instead.
+                snprintf(m_name, size, "iF%uM%u", family, model);
+                known = false;
             }
             break;
 
         case 15:
-            switch (model)
-            {
-            /*      case 2:  // 15-2-7, 15-4-1
-                    strcpy(m_name, "iXeon");
-                    break;
-            */
-            default:
-                strcpy(m_name, "iP-IV");
-                break;
-            }
+            strxcpy(m_name, "iP-IV", size);
             break;
 
         default:
-            sprintf(m_name, "iF%dM%d", family, model);
+            snprintf(m_name, size, "iF%uM%u", family, model);
+            known = false;
         }
     }
-    else if (!strcmp("GenuineTMx86", v_name))
+    else if(!strcmp("GenuineTMx86", v_name) || !strcmp("TransmetaCPU", v_name))
     {
-        switch (family)
-        {
-        case 15:
-            switch(model)
-            {
-            case 2:       // Transmeta Efficeon(tm) Processor TM8000
-                strcpy(m_name, "TM8000");
-                break;
-            default:
-                sprintf(m_name, "TM F%dM%d", family, model);
-            }
-            break;
-        default:
-            sprintf(m_name, "TM F%dM%d", family, model);
-        }
+        if((family == 15) && (model == 2))
+            strxcpy(m_name, "TM8000", size);    // Transmeta Efficeon TM8000
+        else
+            snprintf(m_name, size, "TM F%uM%u", family, model);
     }
-    else if (!strcmp("CyrixInstead", v_name))
-        sprintf(m_name, "CyrF%dM%d", family, model);
-    else if (!strcmp("CentaurHauls", v_name))
+    else if(!strcmp("CyrixInstead", v_name))
+        snprintf(m_name, size, "CyrF%uM%u", family, model);
+    else if(!strcmp("CentaurHauls", v_name))
     {
         switch (family)
         {
         case 6:  //  VIA C3 Nehemiah = F6M9; VIA C3 Samuel 2 = F6M7
-            strcpy(m_name, "VIA_C3");
+            strxcpy(m_name, "VIA_C3", size);
+            break;
+        case 7:
+            strxcpy(m_name, "VIA_Zhaoxin", size);
             break;
         default:
-            sprintf(m_name, "VIA F%dM%d", family, model);
+            snprintf(m_name, size, "VIA F%uM%u", family, model);
+            known = false;
         }
+    }
+    else if(!strcmp("KVMKVMKVM", v_name) || !strcmp("TCGTCGTCGTCG", v_name)
+            || !strcmp("VMwareVMware", v_name) || !strcmp("XenVMMXenVMM", v_name)
+            || !strcmp("Microsoft Hv", v_name))
+    {
+        //  Hypervisor vendor leaf leaked into leaf 0 (rare, but happens).
+        snprintf(m_name, size, "VM F%uM%u", family, model);
+        known = false;
     }
     else
     {
-        if (model)
+        known = false;
+
+        if(model)
         {
-            sprintf(m_name, "CPU %3s-F%dM%d", v_name, family, model);
+            snprintf(m_name, size, "CPU %.12s-F%uM%u", v_name, family, model);
         }
         else
         {
             switch (family)
             {
             case 0:
-                sprintf(m_name, "CPU %s", v_name);
+                snprintf(m_name, size, "CPU %.12s", v_name);
                 break;
             case 3:
             case 4:
-                sprintf(m_name, "%s%s%u86", v_name, v_name[0]?"-":"", family);
+                snprintf(m_name, size, "%.12s%s%u86", v_name, v_name[0] ? "-" : "", family);
                 break;
             default:
-                sprintf(m_name, "CPU %3s-F%dM%d", v_name, family, model);
+                snprintf(m_name, size, "CPU %.12s-F%uM%u", v_name, family, model);
             }
         }
     }
+
+    return known;
 }
 
 
 //  ------------------------------------------------------------------
+//  Fill _cpuname (a buffer of _MAX_MNAME_LEN bytes) with a short
+//  processor description. On non-x86 targets the buffer is left empty
+//  so that the caller can fall back to uname().machine.
+//  ------------------------------------------------------------------
 
 char *gcpuid(char *_cpuname)
 {
-#if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__)) || defined(_MSC_VER)
-    static struct scpuid_t
+    *_cpuname = NUL;
+
+#if defined(GX86)
+
+    unsigned regs[4];
+
+    if(!gcpuid_call(0, 0, regs))
     {
-        dword         cpu;           /* x86, where x=cpu */
-        dword         cpu_high;      /* highest CPUID capability */
-        union
-        {
-#if defined(_MSC_VER)
-            char vendor[_MAX_VNAME_LEN+1];
-#else
-            char vendor[3*sizeof(dword)+1]; /* CPU vendor string 12 bytes, 13th byte is zero */
-#endif
-            struct
-            {
-                dword dw0;
-                dword dw1;
-                dword dw2;
-            } dw;
-        };
-        uint8_t family;        /* CPU stepping number, 4 bits */
-        uint8_t model;         /* CPU model number, 4 bits */
-        uint8_t stepping;      /* CPU stepping value, 4 bits */
-        //  unsigned cpu_id;        /* stepping ID, 12 bits: 0x0FMS */
-        //  unsigned features;      /* CPU features info */
-    } scpuid;  /* ISO C: static variabled is initialised with 0 */
-#endif
+        //  No CPUID at all: a 386 or a very early 486.
+    #if defined(GX86_32)
+        cpuname(0, 0, "x86", _cpuname, _MAX_MNAME_LEN);
+    #else
+        strxcpy(_cpuname, "x86_64", _MAX_MNAME_LEN);
+    #endif
+        return _cpuname;
+    }
 
-#if defined(__GNUC__) && defined(__x86_64__) || defined(_MSC_VER)
+    //  Vendor string: EBX, EDX, ECX (12 bytes + terminator).
+    char vendor[_MAX_VNAME_LEN + 1];
+    unsigned vreg[3];
+    vreg[0] = regs[1];
+    vreg[1] = regs[3];
+    vreg[2] = regs[2];
 
-    int CPUInfo[4];
+    for(int r = 0; r < 3; r++)
+        for(int b = 0; b < 4; b++)
+            vendor[r * 4 + b] = (char)((vreg[r] >> (8 * b)) & 0xFF);
 
-    // get the vendor string
-    __cpuid(CPUInfo, 0);
-    scpuid.dw.dw0 = CPUInfo[1];
-    scpuid.dw.dw1 = CPUInfo[3];
-    scpuid.dw.dw2 = CPUInfo[2];
+    vendor[_MAX_VNAME_LEN] = NUL;
 
-    // get the CPU family, model, stepping, features bits
-    __cpuid(CPUInfo, 1);
-    scpuid.stepping = CPUInfo[0] & 0x0F;
-    scpuid.model = (CPUInfo[0] >> 4) & 0x0F;
-    scpuid.family = (CPUInfo[0] >> 8) & 0x0F;
+    unsigned family = 0, model = 0;
 
-    cpuname(scpuid.family, scpuid.model, scpuid.vendor, _cpuname);
+    if(gcpuid_call(1, 0, regs))
+    {
+        unsigned eax = regs[0];
 
-#elif defined(__GNUC__) && defined(__i386__)
+        family = (eax >> 8) & 0x0F;
+        model  = (eax >> 4) & 0x0F;
+        //  stepping = eax & 0x0F;   -- not used for the name
 
-    asm(  /* assembler code is based on code of FreeBSD kernel sources */
-        /* uses AT&T assembler notation */
+        //  Extended family/model (Intel SDM vol.2, CPUID.EAX=1):
+        //  DisplayFamily = Family + ExtFamily          when Family == 0x0F
+        //  DisplayModel  = (ExtModel << 4) + Model     when Family == 0x06 or 0x0F
+        if(family == 0x0F)
+            family += (eax >> 20) & 0xFF;
 
-        /* Step 1. Try to toggle alignment check flag; does not exist on 386. */
-        "pushfl\n\t"
-        "popl %%eax\n\t"
-        "movl %%eax,%%ecx\n\t"
-        "orl  $0x00040000,%%eax\n\t"   /* sets a alignment check flag */
-        "pushl    %%eax\n\t"
-        "popfl\n\t"
-        "pushfl\n\t"
-        "popl %%eax\n\t"
-        "xorl %%ecx,%%eax\n\t"
-        "andl $0x00040000,%%eax\n\t"   /* test alignment check flag */
-        "pushl    %%ecx\n\t"
-        "popfl\n\t"
+        if((family == 0x06) || (family >= 0x0F))
+            model += ((eax >> 16) & 0x0F) << 4;
+    }
 
-        "testl    %%eax,%%eax\n\t"         /* alignment check flag is set? */
-        "jnz  try486\n\t"
+    if(!cpuname(family, model, vendor, _cpuname, _MAX_MNAME_LEN))
+    {
+        //  Unknown/modern CPU - the marketing name is far more useful.
+        char brand[_MAX_MNAME_LEN];
 
-        /* NexGen CPU does not have aligment check flag. */
-        "pushfl\n\t"
-        "movl $0x5555, %%eax\n\t"
-        "xorl %%edx, %%edx\n\t"
-        "movl $2, %%ecx\n\t"
-        "clc\n\t"
-        "divl %%ecx\n\t"
-        "jz   nexgen\n\t"
-        "popfl\n\t"
-        "movl $3,%0\n\t"              /* CPU 386 */
-        "jmp  end\n"
+        if(compact_brandstring(brand, sizeof(brand)))
+            strxcpy(_cpuname, brand, _MAX_MNAME_LEN);
+    }
 
-        "nexgen:"
-        "popfl\n\t"
-        "movl $5,%0\n\t"              /* CPU NX586 */
-        "movl $0x4778654e,%1\n\t"     /* store vendor string */
-        "movl $0x72446e65,%6\n\t"   /* "NexGenDriven"      */
-        "movl $0x6e657669,%7\n\t"
-        "jmp  end\n"
-
-        /* Step2. Try to toggle identification flag; does not exist on early 486s.*/
-        "try486:"
-        "pushfl\n\t"
-        "popl %%eax\n\t"
-        "movl %%eax,%%ecx\n\t"
-        "xorl $0x00200000,%%eax\n\t" /* sets a identification bit */
-        "pushl    %%eax\n\t"
-        "popfl\n\t"
-        "pushfl\n\t"
-        "popl %%eax\n\t"
-        "xorl %%ecx,%%eax\n\t"
-        "andl $0x00200000,%%eax\n\t"  /* test identification bit */
-        "pushl    %%ecx\n\t"
-        "popfl\n\t"
-
-        "testl    %%eax,%%eax\n\t"        /* if identification flag is set then cpuid CPU's command may be used */
-        "jnz  trycpuid\n\t"
-        "movl $4,%0\n\t"              /* CPU 486 */
-
-        /*
-         * Check Cyrix CPU
-         * Cyrix CPUs do not change the undefined flags following
-         * execution of the divide instruction which divides 5 by 2.
-         *
-         * Note: CPUID is enabled on M2, so it passes another way.
-         */
-        "pushfl\n\t"
-        "movl $0x5555, %%eax\n\t"
-        "xorl %%edx, %%edx\n\t"
-        "movl $2, %%ecx\n\t"
-        "clc\n\t"
-        "divl %%ecx\n\t"
-        "jnc  trycyrix\n\t"
-        "popfl\n\t"
-        "jmp  end\n"                  /* You may use Intel CPU */
-
-        "trycyrix:"
-        "popfl\n\t"
-        /*
-         * IBM Bluelighting CPU also doesn't change the undefined flags.
-         * Because IBM doesn't disclose the information for Bluelighting
-         * CPU, we couldn't distinguish it from Cyrix's (including IBM
-         * brand of Cyrix CPUs).
-         */
-        "movl $0x69727943,%1\n\t"     /* store vendor string */
-        "movl $0x736e4978,%6\n\t"   /* "CyrixInstead"      */
-        "movl $0x64616574,%7\n\t"
-        "jmp  end\n"
-
-        /* Step 3. Use the `cpuid' instruction. */
-        "trycpuid:"
-        "xorl %%eax,%%eax\n\t"
-        ".byte    0x0f,0xa2\n\t"      /* cpuid 0 */
-        "movl %%eax,%2\n\t"       /* "cpuid 1" capability */
-        "movl %%ebx,%1\n\t"       /* store vendor string */
-        "movl %%edx,%6\n\t"
-        "movl %%ecx,%7\n\t"
-
-        "andl     %%eax,%%eax\n\t"        /* "cpuid 1" is allowed? (eax==1?) */
-        "jz       i586\n\t"               /* no, skip "cpuid 1"  */
-
-        "movl $1,%%eax\n\t"
-        ".byte    0x0f,0xa2\n\t"      // cpuid 1
-//      "movl   %%eax,%6\n\t"       // store cpu_id
-//      "movl   %%edx,%7\n\t"       // store cpu_feature
-
-        "movb %%al,%%bl\n\t"
-        "shrb $4,%%bl\n\t"        // extract CPU model
-        "movb %%bl,%4\n\t"        // store model
-
-        "andl $0x0F0F,%%eax\n\t"      // extract CPU family type and stepping
-        "movb %%al,%5\n\t"        // store stepping
-        "movb %%ah,%3\n\t"        // store family
-        "cmpb $5,%%ah\n\t"
-        "jae  i586\n\t"
-
-        /* less than Pentium; must be 486 */
-        "movl $4,%0\n\t"    /* CPU 486 */
-        "jmp  end\n"
-        "i586:\n\t"  /* Pentium and greater. Store family type into CPU type var */
-        "movb %%ah,%0\n"
-        "end:\n\t"
-        "nop\n\t"
-
-        : /* output */
-        "=m" (scpuid.cpu)         /* %0 */
-        ,"=m" (scpuid.vendor)      /* %1 */
-        ,"=m" (scpuid.cpu_high)    /* %2 */
-        ,"=m" (scpuid.family)      /* %3 */
-        ,"=m" (scpuid.model)       /* %4 */
-        ,"=m" (scpuid.stepping)    /* %5 */
-        ,"=m" (scpuid.dw.dw1)      /* %6 */
-        ,"=m" (scpuid.dw.dw2)      /* %7 */
-        : /* no input */
-        : /* modified registers */
-        "eax", "ebx", "ecx", "edx"
-    );
-
-    cpuname(scpuid.family?scpuid.family:scpuid.cpu, scpuid.model, scpuid.vendor, _cpuname);
-
-#else
-#if defined(MSDOS) || defined(DOS) || defined(__MSDOS__) || defined(_DOS) \
+#elif defined(MSDOS) || defined(DOS) || defined(__MSDOS__) || defined(_DOS) \
    || defined(WIN32) || defined(__WIN32__) || defined(_WIN) || defined(WINNT) \
    || defined(__OS2__) || defined(OS2)
-    cpuname(0, 0, "x86", _cpuname);
+
+    cpuname(0, 0, "x86", _cpuname, _MAX_MNAME_LEN);
+
 #else
-    cpuname(0, 0, "UNKNOWN", _cpuname);
-#endif
+
+    //  aarch64, riscv64, ppc64le, ... - let uname() name the machine.
+    //  (An empty string tells ggetosstring() to use info.machine.)
+
 #endif
 
     return _cpuname;
 }
+
 #endif // ifdef GCFG_NO_CPUID
 
 //  ------------------------------------------------------------------
@@ -581,58 +811,88 @@ char* ggetosstring(void)
 
         struct utsname info;
 
-        gcpuid(processor);
+        (void)gcpuid(processor);
 
         if(uname(&info) != -1)
         {
             if(!processor[0])
-                strcpy(processor,info.machine);
+                strxcpy(processor, info.machine, sizeof(processor));
 
 #if defined(__EMX__)
-            sprintf(osstring, "%s %s.%s %s", info.sysname, info.version, info.release, processor);
+            snprintf(osstring, sizeof(osstring), "%s %s.%s %s", info.sysname, info.version, info.release, processor);
 #elif defined(__DJGPP__)
-            sprintf(osstring, "%s %s.%s %s", info.sysname, info.release, info.version, processor);
+            snprintf(osstring, sizeof(osstring), "%s %s.%s %s", info.sysname, info.release, info.version, processor);
 #elif defined(__BEOS__)
             BAppFileInfo appFileInfo;
             version_info sys_ver = {0};
             BFile file("/boot/beos/system/lib/libbe.so", B_READ_ONLY);
             appFileInfo.SetTo(&file);
             appFileInfo.GetVersionInfo(&sys_ver, B_APP_VERSION_KIND);
-            sprintf(osstring, "%s %s %s", info.sysname, sys_ver.short_info, processor);
+            snprintf(osstring, sizeof(osstring), "%s %s %s", info.sysname, sys_ver.short_info, processor);
 #else
-            sprintf(osstring, "%s %s %s", info.sysname, info.release, processor);
+            snprintf(osstring, sizeof(osstring), "%s %s %s", info.sysname, info.release, processor);
 #endif
         }
         else
-            strcpy(osstring, "unknown");
+            strxcpy(osstring, "unknown", sizeof(osstring));
 
-#elif defined (__WIN32__)
+#elif defined(__WIN32__) || defined(_WIN32)
 
         OSVERSIONINFO info;
         SYSTEM_INFO si;
         char ostype[16];
 
-        GetSystemInfo(&si);
+        //  GetNativeSystemInfo() reports the real architecture for a
+        //  32-bit binary running under WOW64; it exists on every OS
+        //  that can run a 64-bit CPU, so resolve it dynamically.
+        typedef void (WINAPI *PGNSI)(LPSYSTEM_INFO);
+        PGNSI pGNSI = (PGNSI)GetProcAddress(GetModuleHandleA("kernel32.dll"), "GetNativeSystemInfo");
+        if(pGNSI)
+            pGNSI(&si);
+        else
+            GetSystemInfo(&si);
+
+        memset(&info, 0, sizeof(info));
         info.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable: 4996)  // GetVersionEx is deprecated since Win8.1 SDK
+#endif
         if(GetVersionEx(&info))
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
         {
             switch(info.dwPlatformId)
             {
             case VER_PLATFORM_WIN32_NT:
-                strcpy(ostype, "WinNT");
+                strxcpy(ostype, "WinNT", sizeof(ostype));
                 break;
             case VER_PLATFORM_WIN32_WINDOWS:
-                strcpy(ostype, "Win9x");
+                strxcpy(ostype, "Win9x", sizeof(ostype));
                 break;
             default:
-                strcpy(ostype, "Win32s");
+                strxcpy(ostype, "Win32s", sizeof(ostype));
                 break;
             }
-            switch(*((WORD*)&si))
+
+            //  The original code read the architecture through
+            //  *((WORD*)&si), which breaks strict aliasing; the field
+            //  is right there.
+            //  Borland C++ 5.02's <winbase.h> predates the named union
+            //  member and carries only dwOemId; the architecture is its
+            //  low word, which is what the original code read.
+#if defined(__BORLANDC__) && (__BORLANDC__ < 0x0550)
+            const WORD gsi_arch = (WORD)(si.dwOemId & 0xFFFF);
+#else
+            const WORD gsi_arch = si.wProcessorArchitecture;
+#endif
+            switch(gsi_arch)
             {
             case PROCESSOR_ARCHITECTURE_INTEL:
             {
-                if (HaveCPUID())
+                if(HaveCPUID())
                 {
                     gcpuid(processor);
                 }
@@ -659,10 +919,12 @@ char* ggetosstring(void)
                         case PROCESSOR_INTEL_PENTIUM:
                             cpu = 5;
                             break;
-                        case 6:   /* Pentium Pro or Pentim II */
+                        case 6:   /* Pentium Pro or Pentium II */
                             cpu = 6;
-                        case 15:   /* Pentium 4 */
+                            break;    // <- fall-through bug in the original
+                        case 15:  /* Pentium 4 */
                             cpu = 8;
+                            break;    // <- fall-through bug in the original
                         default:
                             cpu = 7;
                             break;
@@ -671,40 +933,49 @@ char* ggetosstring(void)
                     switch(cpu)
                     {
                     case 15:
-                        sprintf(processor, "i886");
+                        snprintf(processor, sizeof(processor), "i886");
                         break;
                     default:
-                        if( cpu>9 ) cpu= cpu%10+int(cpu/10)+2;
-                        sprintf(processor, "i%d86", cpu);
+                        if( cpu>9 ) cpu = cpu%10 + int(cpu/10) + 2;
+                        snprintf(processor, sizeof(processor), "i%d86", cpu);
                     }
                 }
             }
             break;
+#ifdef PROCESSOR_ARCHITECTURE_IA64
             case PROCESSOR_ARCHITECTURE_IA64:
-                sprintf(processor, "IA64-%d", si.wProcessorLevel);
+                snprintf(processor, sizeof(processor), "IA64-%u", unsigned(si.wProcessorLevel));
                 break;
+#endif
 #ifdef PROCESSOR_ARCHITECTURE_AMD64
             case PROCESSOR_ARCHITECTURE_AMD64:
-                if (HaveCPUID())
+                if(HaveCPUID())
                     gcpuid(processor);
-                else
-                    sprintf(processor, "AMD64-%d", si.wProcessorLevel);
+                if(!processor[0])
+                    snprintf(processor, sizeof(processor), "AMD64-%u", unsigned(si.wProcessorLevel));
+                break;
+#endif
+#ifdef PROCESSOR_ARCHITECTURE_ARM64
+            case PROCESSOR_ARCHITECTURE_ARM64:
+                snprintf(processor, sizeof(processor), "ARM64-%u", unsigned(si.wProcessorLevel));
                 break;
 #endif
             case PROCESSOR_ARCHITECTURE_MIPS:
                 /* si.wProcessorLevel is of the form 00xx, where xx is an 8-bit
                    implementation number (bits 8-15 of the PRId register). */
-                sprintf(processor, "MIPS R%u000", si.wProcessorLevel);
+                snprintf(processor, sizeof(processor), "MIPS R%u000", unsigned(si.wProcessorLevel));
                 break;
             case PROCESSOR_ARCHITECTURE_ALPHA:
                 /* si.wProcessorLevel is of the form xxxx, where xxxx is a 16-bit
                    processor version number (the low-order 16 bits of a version
                    number from the firmware). */
-                sprintf(processor, "Alpha%d", si.wProcessorLevel);
+                snprintf(processor, sizeof(processor), "Alpha%u", unsigned(si.wProcessorLevel));
                 break;
+#ifdef PROCESSOR_ARCHITECTURE_ALPHA64
             case PROCESSOR_ARCHITECTURE_ALPHA64:
-                sprintf(processor, "Alpha%d", si.wProcessorLevel);
+                snprintf(processor, sizeof(processor), "Alpha%u", unsigned(si.wProcessorLevel));
                 break;
+#endif
             case PROCESSOR_ARCHITECTURE_PPC:
                 /* si.wProcessorLevel is of the form xxxx, where xxxx is a 16-bit
                    processor version number (the high-order 16 bits of the Processor
@@ -712,67 +983,79 @@ char* ggetosstring(void)
                 switch(si.wProcessorLevel)
                 {
                 case 1:
-                    strcpy(processor, "PPC601");
+                    strxcpy(processor, "PPC601", sizeof(processor));
                     break;
                 case 3:
-                    strcpy(processor, "PPC603");
+                    strxcpy(processor, "PPC603", sizeof(processor));
                     break;
                 case 4:
-                    strcpy(processor, "PPC604");
+                    strxcpy(processor, "PPC604", sizeof(processor));
                     break;
                 case 6:
-                    strcpy(processor, "PPC603+");
+                    strxcpy(processor, "PPC603+", sizeof(processor));
                     break;
                 case 9:
-                    strcpy(processor, "PPC604+");
+                    strxcpy(processor, "PPC604+", sizeof(processor));
                     break;
                 case 20:
-                    strcpy(processor, "PPC620");
+                    strxcpy(processor, "PPC620", sizeof(processor));
                     break;
                 default:
-                    sprintf(processor, "PPC l%u", si.wProcessorLevel);
+                    snprintf(processor, sizeof(processor), "PPC l%u", unsigned(si.wProcessorLevel));
                     break;
                 }
                 break;
 #ifdef PROCESSOR_ARCHITECTURE_SHX
             case PROCESSOR_ARCHITECTURE_SHX:
-                sprintf(processor, "SH-%d", si.wProcessorLevel);
+                snprintf(processor, sizeof(processor), "SH-%u", unsigned(si.wProcessorLevel));
                 break;
 #endif
 #ifdef PROCESSOR_ARCHITECTURE_ARM
             case PROCESSOR_ARCHITECTURE_ARM:
-                sprintf(processor, "ARM-%d", si.wProcessorLevel);
+                snprintf(processor, sizeof(processor), "ARM-%u", unsigned(si.wProcessorLevel));
                 break;
 #endif
             default:
-                strcpy(processor, "CPU-unknown");
+                strxcpy(processor, "CPU-unknown", sizeof(processor));
                 break;
             }
+
             if(info.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS)
                 info.dwBuildNumber = info.dwBuildNumber & 0x0000ffffl;
-            if(info.dwPlatformId == VER_PLATFORM_WIN32_NT and *info.szCSDVersion != NUL)
+
+            if(info.dwPlatformId == VER_PLATFORM_WIN32_NT && *info.szCSDVersion != NUL)
             {
                 char _tmp[128];
-                strcpy(_tmp, info.szCSDVersion);
+                strxcpy(_tmp, info.szCSDVersion, sizeof(_tmp));
                 strchg(_tmp, ' ', '_');
                 strisrep(_tmp, "Service_Pack_", "SP");
-                sprintf(osstring, "%s %u.%u.%u-%s %s", ostype, unsigned(info.dwMajorVersion), unsigned(info.dwMinorVersion), unsigned(info.dwBuildNumber), _tmp, processor);
+                snprintf(osstring, sizeof(osstring), "%s %u.%u.%u-%s %s", ostype,
+                         unsigned(info.dwMajorVersion), unsigned(info.dwMinorVersion),
+                         unsigned(info.dwBuildNumber), _tmp, processor);
             }
             else
-                sprintf(osstring, "%s %u.%u.%u %s", ostype, unsigned(info.dwMajorVersion), unsigned(info.dwMinorVersion), unsigned(info.dwBuildNumber), processor);
+                snprintf(osstring, sizeof(osstring), "%s %u.%u.%u %s", ostype,
+                         unsigned(info.dwMajorVersion), unsigned(info.dwMinorVersion),
+                         unsigned(info.dwBuildNumber), processor);
         }
         else
-            strcpy(osstring, "Win32-unknown");
+            strxcpy(osstring, "Win32-unknown", sizeof(osstring));
 
-#else
+#elif defined(__MSDOS__) || defined(__OS2__)
 
 #if defined(__MSDOS__)
         const char* osname = "DOS";
-#elif defined(__OS2__)
+#else
         const char* osname = "OS/2";
 #endif
 
-        sprintf(osstring, "%s %d.%02d %s", osname, _osmajor, _osminor, gcpuid(processor));
+        snprintf(osstring, sizeof(osstring), "%s %d.%02d %s", osname, _osmajor, _osminor, gcpuid(processor));
+
+#else
+
+        //  Unknown OS - at least report the CPU.
+        (void)gcpuid(processor);
+        snprintf(osstring, sizeof(osstring), "unknown %s", processor[0] ? processor : "CPU");
 
 #endif
     }

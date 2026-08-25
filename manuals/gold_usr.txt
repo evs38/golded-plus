@@ -635,6 +635,36 @@ You will also need this line:
 The XLATLOCALSET keyword tells GoldED which codepage your computer is
 configured to use.
 
+On a modern unix-like system that is usually UTF-8:
+
+  XLATLOCALSET UTF-8
+
+which lets GoldED hold text in UTF-8 internally and show any character
+the locale can show. The charset messages are written in is a separate
+matter, and stays whatever XLATEXPORT says - CP866 by default in the
+Cyrillic setup, so nothing changes for the people you write to.
+
+One thing to watch when moving to UTF-8: everything read from a file is
+assumed to be in the local charset too, and is shown on screen as it
+stands. Two of those are worth naming.
+
+GoldED+'s own files - golded.cfg and the language file beside it - are
+covered by XLATCONFIGSET. If you keep the CP866 language file while the
+session runs in UTF-8, say
+
+  XLATCONFIGSET CP866
+
+and every label and menu is converted on the way in.
+
+Area descriptions are a separate matter, because they usually come out
+of an area file the tosser writes and follow whatever the tosser is set
+to. That is XLATAREASET:
+
+  XLATAREASET KOI8-R
+
+Left out, it follows XLATCONFIGSET, so a setup where everything came
+from the same place needs only the one keyword.
+
 
 #page
 #---------------------------------------------------------------------
@@ -2451,13 +2481,15 @@ versions:
   visually similar character before being written to the screen.
   Characters in the range 128-159 are remapped from CP865 to Latin-1.
   
-* The default XLATLOCALSET is LATIN-1 for the Linux version, as
-  opposed to IBMPC for the other OS'es. You should setup character
-  translation between IBMPC and LATIN-1 and use the correct XLATEXPORT
-  for each echo. See the GoldED manual for details. Most FidoNet
-  echoes assume IBMPC or another IBMPC-based sets as default if there
-  is no CHRS or CHARSET kludge. For areas where IBMPC is assumed, you
-  should set both XLATIMPORT and XLATEXPORT to IBMPC or CP850.
+* The default XLATLOCALSET is taken from the locale, so a UTF-8 locale
+  gives a UTF-8 session with no configuration at all. Only the charset
+  messages are written in still needs deciding: XLATEXPORT stays at
+  IBMPC, since most FidoNet echoes assume IBMPC or an IBMPC-based set
+  when there is no CHRS or CHARSET kludge. For areas where IBMPC is
+  assumed, set both XLATIMPORT and XLATEXPORT to IBMPC or CP850.
+
+  Older versions defaulted to LATIN-1 here, as opposed to IBMPC on the
+  other OS'es, and needed a translation table between the two.
 
 * Screen color changes and cursor movements are made with ANSI
   sequences. GoldED for Linux will also work in X terminals, but this

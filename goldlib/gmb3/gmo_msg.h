@@ -35,6 +35,7 @@
 //  ------------------------------------------------------------------
 
 #include <gftnall.h>
+#include <gutf8.h>
 #include <gtimall.h>
 #include <gvidall.h>
 #include <gmsgattr.h>
@@ -257,7 +258,7 @@ public:
     void reset()
     {
         reply_to = reply_first = reply_next = 0;
-        reply_list.clear();
+        gclear(reply_list);
     }
 
     int list_max() const
@@ -375,6 +376,31 @@ struct gmsg_ezycom_fields
 //  ------------------------------------------------------------------
 //  Base class
 
+//  ------------------------------------------------------------------
+//  How many bytes of a header field may be kept when at most __max are
+//  allowed. The message base's header fields are a fixed width -
+//  FTS-0001 gives the two names 36 bytes and the subject 72 - so a long
+//  one is cut whatever anyone does; this only decides where. With
+//  __utf8 the cut stops short of a character it would split.
+
+inline size_t g_fit_field_len(const char* __src, size_t __max, bool __utf8)
+{
+    size_t _len = strlen(__src);
+    if(_len <= __max)
+        return _len;
+
+    _len = __max;
+    if(__utf8 and _len)
+    {
+        const char* _last = g_utf8_prev(__src, __src + _len);
+        int _need = g_utf8_seqlen((unsigned char)*_last);
+        if((_need > 1) and ((__src + _len - _last) < _need))
+            _len = (size_t)(_last - __src);
+    }
+    return _len;
+}
+
+
 class gmsg
 {
 
@@ -411,6 +437,21 @@ public:
 
     char        pid[80];          // PID kludge string
 
+    //  The charset the message itself declares, as told by the message
+    //  base driver when it can do so without reading the message text.
+    //  Empty when the base keeps CHRS in the text, where only a full
+    //  load can find it.
+    char        hdrchrs[64];      // CHRS/CHARSET from the base's header
+
+    //  True when the header fields are held in a multi-byte charset.
+    //  The message base's header fields are a fixed width - FTS-0001
+    //  gives the two names 36 bytes and the subject 72 - so a long
+    //  field is cut whatever anyone does; this is what decides that the
+    //  cut falls between characters rather than through one. Set on the
+    //  way out by whatever converted the fields, which is the only
+    //  place that knows what charset they are now in.
+    bool        hdrutf8;
+
     int32_t        txtstart;         // Text starting position or record
     int32_t        txtlength;        // Text length or number of records
     uint        txtblocks;        // Number of msg text blocks
@@ -429,10 +470,14 @@ public:
         , link()
         , oorig()
         , orig()
+#if !defined(__WATCOMC__)
         , odom()
+#endif
         , odest()
         , dest()
+#if !defined(__WATCOMC__)
         , ddom()
+#endif
         , written(0)
         , arrived(0)
         , received(0)
@@ -448,11 +493,71 @@ public:
         msgids[0] = 0;
         replys[0] = 0;
         pid[0] = 0;
+        hdrchrs[0] = 0;
+        hdrutf8 = false;
         memset(&jam, 0, sizeof(jam));
         memset(&pcboard, 0, sizeof(pcboard));
         memset(&wildcat, 0, sizeof(wildcat));
         memset(&adeptxbbs, 0, sizeof(adeptxbbs));
         memset(&ezycom, 0, sizeof(ezycom));
+#if defined(__WATCOMC__)
+        //  Open Watcom will not value-initialise an array member from the
+        //  initialiser list, so these two are cleared here instead.
+        memset(odom, 0, sizeof(odom));
+        memset(ddom, 0, sizeof(ddom));
+#endif
+    }
+
+    //  Take the message's own charset out of one kludge line, when
+    //  that is what the line is. Used by the drivers whose message
+    //  base keeps its kludges in the header, where the list can have
+    //  the charset without reading the text - see hdrchrs above.
+    //
+    //  The value ends at a CR, a LF, a NUL or a Ctrl-A: a Squish
+    //  control block puts the next kludge straight after this one with
+    //  no separator but the Ctrl-A that starts it.
+    //  Store a charset name that is already on its own - Smb has it as
+    //  a header field rather than as a kludge.
+    void set_hdrchrs(const char* __val)
+    {
+        while((*__val == ' ') or (*__val == '\t'))
+            __val++;
+        char* _dst = hdrchrs;
+        char* _end = hdrchrs + sizeof(hdrchrs) - 1;
+        while(*__val and (*__val != '\r') and (*__val != '\n') and (*__val != '\001') and (_dst < _end))
+            *_dst++ = *__val++;
+        *_dst = 0;
+    }
+
+    //  How many bytes of a header field may be kept when at most __max
+    //  are allowed and a character must not be split.
+    size_t fit_hdr_len(const char* __src, size_t __max) const
+    {
+        return g_fit_field_len(__src, __max, hdrutf8);
+    }
+
+    //  strxcpy() for a header field: __n counts the terminator too.
+    char* fit_hdr(char* __dst, const char* __src, size_t __n) const
+    {
+        size_t _keep = __n ? fit_hdr_len(__src, __n - 1) : 0;
+        memcpy(__dst, __src, _keep);
+        __dst[_keep] = NUL;
+        return __dst;
+    }
+
+    void set_hdrchrs_from_kludge(const char* __p)
+    {
+        if(*__p == '\001')
+            __p++;
+        //  Case-insensitively, and on the same two spellings the text
+        //  scanner in geline.cpp accepts. The two have to agree: if one
+        //  recognises a kludge the other does not, the list and the
+        //  reader decode the same message differently, which is the
+        //  fault hdrchrs exists to remove.
+        if(strnieql(__p, "CHRS:", 5))
+            set_hdrchrs(__p + 5);
+        else if(strnieql(__p, "CHARSET:", 8))
+            set_hdrchrs(__p + 8);
     }
 
     void reset()
@@ -479,6 +584,8 @@ public:
         msgids[0] = 0;
         replys[0] = 0;
         pid[0] = 0;
+        hdrchrs[0] = 0;
+        hdrutf8 = false;
         txtstart = 0;
         txtlength = 0;
         txtblocks = 0;

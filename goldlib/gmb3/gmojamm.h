@@ -302,7 +302,7 @@ protected:
 
     int load_message(int __mode, gmsg* __msg, JamHdr& __hdr);
 
-    void add_subfield(JamHdr& __hdr, byte*& __subfield, word __loid, word __hiid, char* __data, uint32_t maxlen);
+    void add_subfield(JamHdr& __hdr, byte*& __subfield, word __loid, word __hiid, char* __data, uint32_t maxlen, bool __utf8 = false);
 
     void save_message(int __mode, gmsg* __msg, JamHdr& __hdr);
 

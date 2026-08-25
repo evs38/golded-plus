@@ -445,9 +445,15 @@ void SquishArea::save_message(int __mode, gmsg* __msg)
         if(__msg->attr.dir() and wide->direct)
             __hdr.attr |= MSGCRASH | MSGHOLD;
 
-        memcpy(__hdr.from, __msg->by, 36);
-        memcpy(__hdr.to,   __msg->to, 36);
-        memcpy(__hdr.subj, __msg->re, 72);
+        //  Fixed-width fields, so a long one is cut - but not through
+        //  a character, and not past the end of the string either: the
+        //  copy used to take 36 bytes whatever the name's length was.
+        memset(__hdr.from, 0, sizeof(__hdr.from));
+        memset(__hdr.to,   0, sizeof(__hdr.to));
+        memset(__hdr.subj, 0, sizeof(__hdr.subj));
+        memcpy(__hdr.from, __msg->by, __msg->fit_hdr_len(__msg->by, sizeof(__hdr.from)));
+        memcpy(__hdr.to,   __msg->to, __msg->fit_hdr_len(__msg->to, sizeof(__hdr.to)));
+        memcpy(__hdr.subj, __msg->re, __msg->fit_hdr_len(__msg->re, sizeof(__hdr.subj)));
 
         __hdr.orig.zone  = __msg->oorig.zone;
         __hdr.orig.net   = __msg->oorig.net;

@@ -31,6 +31,127 @@
 #define __gdefs_h
 
 /*  ------------------------------------------------------------------
+ *  Solaris.
+ *
+ *  Only the GNU makefile used to define __SUNOS__, so a CMake build did
+ *  not know where it was and went on to define types the system already
+ *  has. The compiler knows; ask it.
+ */
+#if defined(__sun) && defined(__SVR4) && !defined(__SUNOS__)
+    #define __SUNOS__
+#endif
+
+/*  ------------------------------------------------------------------
+ *  Open Watcom.
+ *
+ *  Its C++ library puts the C names in namespace std and nowhere else,
+ *  so <cstdio> on its own leaves FILE, printf, va_list and the rest
+ *  unreachable unqualified - and this tree spells them unqualified
+ *  throughout. The .h forms do declare them globally, so pull those in
+ *  once, early, and let every later <cstdio> add its std:: names on top.
+ */
+#if defined(__WATCOMC__) && defined(__cplusplus)
+    #include <stddef.h>
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <string.h>
+    #include <ctype.h>
+    #include <stdarg.h>
+    #include <time.h>
+    #include <signal.h>
+    #include <locale.h>
+
+    /*  And the one C name it spells differently. The Linux target has
+     *  it under neither name - that runtime does not carry it - so a
+     *  replacement stands in; see gfilutl1.cpp. */
+    #if !defined(__LINUX__)
+        #define mktemp _mktemp
+    #else
+        #define mktemp gwatcom_mktemp
+        char *gwatcom_mktemp(char *tmpl);
+    #endif
+
+    /*  Its library also has no operator<< for std::string, so every
+     *  `cerr << some_string' in the tree would be read as a shift on an
+     *  integer. One inline function covers the lot; it has to be
+     *  declared before any of them, which this header is.
+     */
+    #include <string>
+    #include <ostream>
+
+    inline std::ostream& operator<<(std::ostream& os, const std::string& s)
+    {
+        return os << s.c_str();
+    }
+#endif
+
+/*  ------------------------------------------------------------------
+ *  Borland C++.
+ *
+ *  Its iostreams are older than namespace std and declare cin, cout,
+ *  cerr and the rest at global scope only, while the container part of
+ *  the same library does use std. The tree writes std::cerr, so give
+ *  that name somewhere to resolve to. 0x0550 is C++Builder 5, the
+ *  first Borland release whose iostreams are already in std.
+ */
+#if defined(__BORLANDC__) && (__BORLANDC__ < 0x0550) && defined(__cplusplus)
+    #include <iostream.h>
+    #include <fstream.h>
+    #include <iomanip.h>
+
+    namespace std
+    {
+        using ::istream;
+        using ::ostream;
+        using ::ifstream;
+        using ::ofstream;
+        using ::fstream;
+        using ::cin;
+        using ::cout;
+        using ::cerr;
+        using ::clog;
+        using ::setw;
+        using ::setfill;
+        using ::setprecision;
+        using ::setiosflags;
+        using ::resetiosflags;
+        using ::endl;
+        using ::ends;
+        using ::flush;
+    }
+
+#endif
+
+/*  ------------------------------------------------------------------
+ *  Borland C++, both releases.
+ */
+#if defined(__BORLANDC__)
+    /*  <ctime> and <time.h> here each declare struct tm, and the
+     *  compiler rejects whichever it sees second. The .h form first
+     *  settles it: <ctime> then adds its std:: name on top.
+     */
+    #include <time.h>
+
+    /*  Borland C++ 5.5.1 dies with an internal compiler error on the
+     *  _wsopen() declaration in its own <io.h> when that header arrives
+     *  after some combination of the tree's own - gmemdbg.h and
+     *  gfile.h together are enough to provoke it. Reading it here,
+     *  before anything else, avoids the whole thing.
+     */
+    #include <io.h>
+
+    /*  And the one POSIX name the tree leans on that neither runtime
+     *  has under any spelling. int is right for every target either of
+     *  them builds: Win32 and the 32-bit DOS extender are both flat and
+     *  32-bit.
+     */
+    #if !defined(_SSIZE_T_DEFINED)
+        #define _SSIZE_T_DEFINED
+        typedef int ssize_t;
+    #endif
+#endif
+
+/*  ------------------------------------------------------------------
  *  Convenience macros to test the version of GNU C and C++ compiler
  * Use them like this:
  *  #if __GNUC_NOT_LESS (4,0)
@@ -100,10 +221,36 @@
 #ifdef __cplusplus
     #include <cstddef>
 #endif
-#ifdef _MSC_VER
+/*  TCHAR is not in <tchar.h> on every Win32 toolchain - Borland's
+ *  declares only _TCHAR there, and the plain name arrives with
+ *  <winnt.h>. So the Borland Win32 targets take the same route MSVC
+ *  does and pull <windows.h> in here, early, which is also where the
+ *  note below says it has to be.
+ */
+#if defined(_MSC_VER) || (defined(__BORLANDC__) && defined(__WIN32__))
     #include <windows.h>
-#elif defined(__MINGW32__) || defined(__CYGWIN__) || defined(__DJGPP__)
+#elif defined(__MINGW32__) || defined(__CYGWIN__) || defined(__DJGPP__) \
+      || defined(__WATCOMC__)
     #include <stdint.h>
+#endif
+
+//  A native Win32 build has to see <windows.h> before the control-code
+//  macros further down: winnt.h declares a struct member called CR, and
+//  the CR macro would rewrite it into a character constant. MSVC gets it
+//  above already; mingw pulled it in only from the few sources that need
+//  the Win32 API, which is too late.
+#ifdef __MINGW32__
+    //  WIN32_LEAN_AND_MEAN keeps the RPC headers out. rpcndr.h typedefs
+    //  `byte', which is ambiguous against std::byte the moment any
+    //  translation unit has opened namespace std. The few sources that
+    //  want mmsystem, shellapi or the like already include them by name.
+    #ifndef WIN32_LEAN_AND_MEAN
+        #define WIN32_LEAN_AND_MEAN
+        #include <windows.h>
+        #undef WIN32_LEAN_AND_MEAN
+    #else
+        #include <windows.h>
+    #endif
 #endif
 
 #if !defined(ARRAYSIZE)
@@ -132,12 +279,18 @@
 /*  ------------------------------------------------------------------
 //  Define portability and shorthand notation */
 
-/* GCC after 2.95.x have "and", "not", and "or" predefined */
-#if __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 96)
-    #ifndef and
-        #define not      !
-        #define and      &&
-        #define or       ||
+/* GCC after 2.95.x have "and", "not", and "or" predefined.
+ * Watcom's C++ has them too - they are the standard alternative tokens,
+ * so they are keywords there and #defining one is a hard error. Its C
+ * compiler does not, and neither does MSVC, which is why this is still
+ * here at all. */
+#if !(defined(__WATCOMC__) && defined(__cplusplus))
+    #if __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 96)
+        #ifndef and
+            #define not      !
+            #define and      &&
+            #define or       ||
+        #endif
     #endif
 #endif
 
@@ -189,7 +342,9 @@
 /*  ------------------------------------------------------------------
 //  Supplements for the built-in types   */
 
-#ifdef _MSC_VER
+/*  Borland C++ 5.2 predates <stdint.h> as much as MSVC 6 did, so it
+ *  takes the same spelled-out typedefs. */
+#if defined(_MSC_VER) || defined(__BORLANDC__)
     #if (UCHAR_MAX == 0xFF)
         typedef   signed char    int8_t;
         typedef unsigned char   uint8_t;
@@ -208,7 +363,7 @@
     #else
         #error Dont know how to define 32 bit integers
     #endif
-#endif  /*#ifdef _MSC_VER */
+#endif  /*#if defined(_MSC_VER) || defined(__BORLANDC__) */
 
 #if defined(__GNUC__) && !defined(__MINGW32__) && !defined(__CYGWIN__) && !defined(__DJGPP__)
     typedef unsigned char  uint8_t;
@@ -233,7 +388,15 @@ typedef unsigned int uint;
 /*#endif*/
 
 typedef uint8_t   bits;
+
+/*  Solaris has time32_t of its own, in <sys/types32.h>, and defines it
+ *  as int32_t. Redefining it here is a hard error there, and the two
+ *  agree on everything that matters short of dates past 2038 - which
+ *  this program cannot represent either way.
+ */
+#if !defined(__SUNOS__)
 typedef uint32_t  time32_t;   /* 32-bit time_t type */
+#endif
 
 /*  ------------------------------------------------------------------  */
 

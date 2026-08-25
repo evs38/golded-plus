@@ -145,9 +145,6 @@ int wdrag(int direction)
     int   vert_movement, horz_movement;
     vsavebuf* win_image;
     vsavebuf* wp;
-    vatch* p;
-    vatch* src;
-    vatch* dest;
 
     // check for active window
     if(!gwin.total)
@@ -203,80 +200,29 @@ int wdrag(int direction)
     if(win_image==NULL)
         return(gwin.werrno=W_ALLOCERR);
 
+    //  Put back what the window was covering before moving it, rather
+    //  than shuffling the saved buffers around afterwards. That used to
+    //  be done by walking the arrays, which only works while a cell is
+    //  one array element - not once a character may be two columns wide.
+    vrestore(gwin.active->wbuf);
+    vfreesave(gwin.active->wbuf);
+    gwin.active->wbuf = NULL;
+
     // save the area where the window will relocate to
     wp = vsave(nsrow,nscol,nerow,necol);
     if(wp==NULL)
     {
-        throw_xfree(win_image);
+        vfreesave(win_image);
         return(gwin.werrno=W_ALLOCERR);
     }
 
     // restore window to new coordinates
     vrestore(win_image, nsrow, nscol, nerow, necol);
-    throw_xfree(win_image);
+    vfreesave(win_image);
 
-    // start buffer positions past coordinates
-    src  = gwin.active->wbuf->data;
-    dest = wp->data;
-
-    if(direction==D_DOWN)
-        src  += chars_per_line;
-    if(direction==D_UP)
-        dest += chars_per_line;
-
-    // do the transfer of buffer contents
-    for(i=0; i < lines_per_win; i++)
-    {
-
-        if(direction==D_LEFT)
-            dest++;
-        if(direction==D_RIGHT)
-            src++;
-
-        // move 1 line
-        memmove(dest, src, chars_per_line*sizeof(vatch));
-        src  += chars_per_line;
-        dest += chars_per_line;
-
-        if(direction==D_LEFT)
-            src++;
-        if(direction==D_RIGHT)
-            dest++;
-    }
-
-    // erase the trail that was left-over
-    p = gwin.active->wbuf->data;
-    if(vert_movement)
-    {
-        if(direction==D_DOWN)
-            fill_row=srow;
-        else
-        {
-            p += (lines_per_win * chars_per_line);
-            fill_row=erow;
-        }
-
-        vputx(fill_row, scol, vgattr(*p), vgchar(*p), ecol-scol+1);
-    }
-    else
-    {
-        if(direction==D_RIGHT)
-            fill_col=scol;
-        else
-        {
-            p += chars_per_line;
-            fill_col=ecol;
-        }
-
-        for(i=srow; i<=erow; i++,p+=chars_per_line+1)
-            vputc(i, fill_col, vgattr(*p), vgchar(*p));
-    }
-
-    // free old window buffer
-    throw_xfree(gwin.active->wbuf);
+    gwin.active->wbuf   = wp;
 
     // update window record
-    gwin.active->wbuf   = wp;
     gwin.active->row    = gwin.active->row    - gwin.active->srow + nsrow;
     gwin.active->column = gwin.active->column - gwin.active->scol + nscol;
     gwin.active->srow   = nsrow;

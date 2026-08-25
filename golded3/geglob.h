@@ -30,9 +30,7 @@
 #ifndef __GEGLOB_H
 #define __GEGLOB_H
 
-#ifdef HAS_ICONV
-    #include <iconv.h>
-#endif
+#include <grecode.h>
 
 #include "gelang.h"
 
@@ -135,9 +133,10 @@ extern EscTab* I51TP;
 extern EscTab* MNETP;
 extern ChsTab* ChsTP;
 
-#ifdef HAS_ICONV
-    extern iconv_t iconv_cd;
-#endif
+//  The conversion in force for the message being read or written. NULL
+//  when the charsets match, or when no recoder could be built and the
+//  .chs tables are doing the work instead.
+extern GRecoder* CharRecoder;
 
 //extern char gversion[];
 

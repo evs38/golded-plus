@@ -1,5 +1,7 @@
 //  This may look like C code, but it is really -*- C++ -*-
 
+
+
 //  ------------------------------------------------------------------
 //  The Goldware Library
 //  Copyright (C) 1990-1999 Odinn Sorensen
@@ -31,7 +33,10 @@
 #include <gfile.h>
 #include <stdlib.h>
 
-#if defined(__MINGW32__) || defined(_MSC_VER)
+//  Open Watcom's Linux target has the unix <utime.h>; its DOS, OS/2 and
+//  Windows ones have the Microsoft <sys/utime.h>.
+#if defined(__MINGW32__) || defined(_MSC_VER) \
+    || (defined(__WATCOMC__) && !defined(__LINUX__))
     #include <sys/utime.h>
 #else
     #include <utime.h>
@@ -50,10 +55,48 @@
     #include <dos.h>
 #endif
 
+//  Open Watcom's Linux headers have no <pwd.h>; the passwd database is
+//  not part of what its runtime offers.
 #if defined(__UNIX__)
+  #if !defined(__WATCOMC__)
     #include <pwd.h>
+  #endif
     #include <sys/types.h>
 #endif
+
+#if defined(__WATCOMC__) && defined(__LINUX__)
+
+//  Open Watcom's Linux runtime has no mktemp() under either spelling.
+//  This is the same contract: the trailing XXXXXX of the template is
+//  replaced until the name is one that does not exist, and the template
+//  is returned. On failure it is emptied, as mktemp() does.
+char *gwatcom_mktemp(char *tmpl)
+{
+    size_t len = strlen(tmpl);
+    if(len < 6 or strcmp(tmpl + len - 6, "XXXXXX") != 0)
+    {
+        *tmpl = NUL;
+        return tmpl;
+    }
+
+    char *tail = tmpl + len - 6;
+    unsigned long seed = (unsigned long)getpid();
+
+    for(int tries = 0; tries < 0x10000; tries++, seed += 7777)
+    {
+        sprintf(tail, "%06lu", seed % 1000000ul);
+
+        struct stat st;
+        if(stat(tmpl, &st) != 0)
+            return tmpl;
+    }
+
+    *tmpl = NUL;
+    return tmpl;
+}
+
+#endif
+
 
 //  ------------------------------------------------------------------
 //  Adds the directory-delimiter character into end of string ('\\' in DOS-based, '/' in unix-based OS)
@@ -113,9 +156,17 @@ long GetFilesize(const char* file)
 //  ------------------------------------------------------------------
 //  Convert time returned with stat to FFTime
 
+//  Cygwin used to be handled like old MinGW: take the time as UTC, build
+//  a DOS date and time out of it, and walk that through
+//  DosDateTimeToFileTime / FileTimeToLocalFileTime / FileTimeToSystemTime
+//  to get local time back. That is what glocaltime() does in one step,
+//  and it needs no Win32 headers - which a Cygwin build does not have to
+//  hand, and cannot pull in without turning on every __WIN32__ branch in
+//  the program.
+
 time32_t gfixstattime(time32_t st_time)
 {
-#if (defined(__MINGW32__) && !defined(__MSVCRT__)) || defined(__CYGWIN__)
+#if defined(__MINGW32__) && !defined(__MSVCRT__)
     struct tm f;
     ggmtime(&f, &st_time);
 #else
@@ -129,7 +180,7 @@ time32_t gfixstattime(time32_t st_time)
     t.ft_hour  = f.tm_hour;
     t.ft_min   = f.tm_min;
     t.ft_tsec  = f.tm_sec / 2;
-#if (defined(__MINGW32__) && !defined(__MSVCRT__)) || defined(__CYGWIN__)
+#if defined(__MINGW32__) && !defined(__MSVCRT__)
     union
     {
         DWORD t;
@@ -510,6 +561,11 @@ int gchdir(const char* dir)
     {
 #if defined(__EMX__)
         _chdrive(*dir);
+#elif defined(__WATCOMC__) && defined(__OS2__)
+        //  Open Watcom's OS/2 runtime has no _dos_setdrive() - that is a
+        //  DOS call - so ask OS/2 itself. DosSetDefaultDisk numbers A
+        //  as 1, the same as the DOS call did.
+        DosSetDefaultDisk((ULONG)(g_toupper(*dir) - '@'));
 #else
         uint drives;
         _dos_setdrive(g_toupper(*dir)-'@', &drives);

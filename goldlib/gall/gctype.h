@@ -51,11 +51,14 @@
 #ifdef __cplusplus
 extern "C" {
 extern char tl[256], tu[256];
-__inline__ int g_tolower(int c)
+//  Plain `inline': this block is inside #ifdef __cplusplus, so the
+//  keyword is the right one everywhere, and Borland's compiler will not
+//  take __inline inside an extern "C" block at all.
+inline int g_tolower(int c)
 {
     return tl[c];
 }
-__inline__ int g_toupper(int c)
+inline int g_toupper(int c)
 {
     return tu[c];
 }
@@ -97,7 +100,11 @@ int isxalnum(int c);
 }
 #endif
 
-#ifdef __BEOS__
+#if defined(__BEOS__) && !defined(__HAIKU__)
+    /* Haiku is excluded: its ctype and locales behave, and redefining
+     * iscntrl() as a two-argument macro collides with the std::iscntrl
+     * template in libstdc++'s <locale>.
+     */
     /* sz: there are some problems under BeOS with that function - symbols
     * from second half of ASCII table are assumed as control ones ...
     * This is a real disaster for cyrillic users ...

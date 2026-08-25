@@ -25,6 +25,17 @@ NULL=
 NULL=nul
 !ENDIF 
 
+
+#  The UTF-8 internal representation is on by default, the same as in the
+#  CMake and GNU makefile builds. To get the single-byte behaviour these
+#  Win32 builds had before it, define the macro empty on the command line:
+#
+#      NMAKE /f gedwin.mak CFG=Release GOLD_UTF8_FLAGS=
+#
+!IFNDEF GOLD_UTF8_FLAGS
+GOLD_UTF8_FLAGS=/D "GOLD_UTF8"
+!ENDIF
+
 !IF  "$(CFG)" == "goldnode - Win32 Release"
 
 OUTDIR=.\bin\release\win32
@@ -33,7 +44,7 @@ INTDIR=.\obj\release\win32
 OutDir=.\bin\release\win32
 # End Custom Macros
 
-CPP_PROJ=/nologo /MD /W3 /Gm /GX /Zi /O1 /I ".\golded3" /I ".\goldlib" /I ".\goldlib\gall" /I ".\goldlib\gcfg" /I ".\goldlib\glibc" /I ".\goldlib\gmb3" /I ".\goldlib\msgidlib" /I ".\goldlib\smblib" /I ".\goldlib\uulib" /I "..\golded3" /I "..\goldlib" /I "..\goldlib\gall" /I "..\goldlib\gcfg" /I "..\goldlib\glibc" /I "..\goldlib\gmb3" /I "..\goldlib\smblib" /I "..\goldlib\uulib" /I "..\goldlib" /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "HAVE_STDARG_H" /Fo"$(INTDIR)\\" /Fd"$(INTDIR)\\" /J /FD /c
+CPP_PROJ=/nologo /MD /W3 /Gm /GX /Zi /O1 /I ".\golded3" /I ".\goldlib" /I ".\goldlib\gall" /I ".\goldlib\gcfg" /I ".\goldlib\glibc" /I ".\goldlib\gmb3" /I ".\goldlib\msgidlib" /I ".\goldlib\smblib" /I ".\goldlib\uulib" /I "..\golded3" /I "..\goldlib" /I "..\goldlib\gall" /I "..\goldlib\gcfg" /I "..\goldlib\glibc" /I "..\goldlib\gmb3" /I "..\goldlib\smblib" /I "..\goldlib\uulib" /I "..\goldlib" /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "HAVE_STDARG_H" $(GOLD_UTF8_FLAGS) /Fo"$(INTDIR)\\" /Fd"$(INTDIR)\\" /J /FD /c
 
 LINK32_FLAGS=winmm.lib user32.lib "$(INTDIR)\golded3.obj" /nologo /subsystem:console /incremental:no /pdb:"$(OUTDIR)\gnwin.pdb" /debug /machine:I386 /out:"$(OUTDIR)\gnwin.exe" 
 
@@ -45,7 +56,7 @@ INTDIR=.\obj\debug\win32
 OutDir=.\bin\debug\win32
 # End Custom Macros
 
-CPP_PROJ=/nologo /MDd /W3 /Gm /Gi /GX /ZI /Od /I ".\golded3" /I ".\goldlib" /I ".\goldlib\gall" /I ".\goldlib\gcfg" /I ".\goldlib\glibc" /I ".\goldlib\gmb3" /I ".\goldlib\msgidlib" /I ".\goldlib\smblib" /I ".\goldlib\uulib" /I "..\golded3" /I "..\goldlib" /I "..\goldlib\gall" /I "..\goldlib\gcfg" /I "..\goldlib\glibc" /I "..\goldlib\gmb3" /I "..\goldlib\smblib" /I "..\goldlib\uulib" /I "..\goldlib" /D "WIN32" /D "_DEBUG" /D "_CONSOLE" /D "HAVE_STDARG_H" /Fo"$(INTDIR)\\" /Fd"$(INTDIR)\\" /J /FD /GZ /c
+CPP_PROJ=/nologo /MDd /W3 /Gm /Gi /GX /ZI /Od /I ".\golded3" /I ".\goldlib" /I ".\goldlib\gall" /I ".\goldlib\gcfg" /I ".\goldlib\glibc" /I ".\goldlib\gmb3" /I ".\goldlib\msgidlib" /I ".\goldlib\smblib" /I ".\goldlib\uulib" /I "..\golded3" /I "..\goldlib" /I "..\goldlib\gall" /I "..\goldlib\gcfg" /I "..\goldlib\glibc" /I "..\goldlib\gmb3" /I "..\goldlib\smblib" /I "..\goldlib\uulib" /I "..\goldlib" /D "WIN32" /D "_DEBUG" /D "_CONSOLE" /D "HAVE_STDARG_H" $(GOLD_UTF8_FLAGS) /Fo"$(INTDIR)\\" /Fd"$(INTDIR)\\" /J /FD /GZ /c
 
 LINK32_FLAGS=winmm.lib user32.lib "$(INTDIR)\golded3.obj" /nologo /subsystem:console /incremental:yes /pdb:"$(OUTDIR)\gnwin.pdb" /debug /machine:I386 /out:"$(OUTDIR)\gnwin.exe" /pdbtype:sept 
 

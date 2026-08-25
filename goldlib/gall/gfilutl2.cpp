@@ -26,7 +26,10 @@
 //  ------------------------------------------------------------------
 
 #include <gfilutil.h>
-#ifndef __HAVE_DRIVES__
+#include <gstrall.h>
+//  Open Watcom's Linux headers have no <pwd.h>; the passwd database is
+//  not part of what its runtime offers.
+#if !defined(__HAVE_DRIVES__) && !defined(__WATCOMC__)
     #include <pwd.h>
 #endif
 #ifdef __WIN32__
@@ -140,6 +143,20 @@ int strschg_environ(std::string& s)
     }
 
 #ifndef __HAVE_DRIVES__
+#if defined(__WATCOMC__)
+    //  Open Watcom's Linux headers have no <pwd.h> and its runtime no
+    //  passwd database, so "~" is what $HOME says and "~someone" cannot
+    //  be resolved - it is left as written.
+    if( s[0] == '~' and (s.length() == 1 or isslash(s[1])) )
+    {
+        const char* home = getenv("HOME");
+        if(home and *home)
+        {
+            s = std::string(home) + s.substr(1);
+            replaced++;
+        }
+    }
+#else
     if( s[0] == '~' )
     {
         struct passwd *pe=NULL;
@@ -164,7 +181,8 @@ int strschg_environ(std::string& s)
             replaced++;
         }
     }
-#endif
+#endif  //  __WATCOMC__
+#endif  //  __HAVE_DRIVES__
 
     return replaced;
 }
@@ -272,10 +290,32 @@ bool maketruepath(std::string &dirname)
         }
         else
         {
+#if defined(__WATCOMC__)
+            //  No getlogin() in this runtime either; the environment is
+            //  all there is to go on.
+            lname = getenv("LOGNAME");
+            if(lname == NULL)
+                lname = getenv("USER");
+#else
             if ((lname = getlogin()) == NULL)
                 lname = getenv("LOGNAME");
+#endif
             ndirname = lname; // get current user name
         }
+#if defined(__WATCOMC__)
+        //  No passwd database here - see the note further up. $HOME is
+        //  the only home directory this runtime can name.
+        const char* home = getenv("HOME");
+        if(home and *home)
+        {
+            ndirname = home;
+            ndirname += GOLD_SLASH_CHR;
+            if(isslash(*p))
+                ++p;
+            ndirname += p;
+            dirname = ndirname;
+        }
+#else
         struct passwd *pe = getpwnam(ndirname.c_str()); // get home
         if(pe != NULL)
         {
@@ -286,6 +326,7 @@ bool maketruepath(std::string &dirname)
             ndirname += p;
             dirname = ndirname;
         }
+#endif
         else
         {
             dirname = cwd;
@@ -308,7 +349,7 @@ bool maketruepath(std::string &dirname)
     if(dirname.length() > 1)
     {
         while((skipfrom=dirname.find("\\\\", 1)) != dirname.npos)
-            dirname.erase(skipfrom, 1);
+            strerase(dirname, skipfrom, 1);
     }
 #endif
     size_t len = dirname.length();
@@ -317,7 +358,7 @@ bool maketruepath(std::string &dirname)
 #else
     while((len > 1) and isslash(dirname[--len]))
 #endif
-        dirname.erase(len, 1);
+        strerase(dirname, len, 1);
     if(access(dirname.c_str(), R_OK))
     {
         dirname = cwd;
@@ -335,20 +376,20 @@ bool maketruepath(std::string &dirname)
     {
         skipfrom = (skipto == 0) ? 0 : dirname.rfind('/', skipto-1);
         skipto += 2;
-        dirname.erase(skipfrom, skipto-skipfrom+1);
+        strerase(dirname, skipfrom, skipto-skipfrom+1);
     }
     while((skipfrom=dirname.find("/./")) != dirname.npos)
-        dirname.erase(skipfrom, 2);
+        strerase(dirname, skipfrom, 2);
     len = dirname.length();
     if(len > 2 and not strcmp(&(dirname.c_str()[len-2]), "/."))
-        dirname.erase(len-2, 2);
+        strerase(dirname, len-2, 2);
     len = dirname.length();
 #ifdef __HAVE_DRIVES__
     if((len > 3) and isslash(dirname[--len]))
 #else
     if((len > 1) and isslash(dirname[--len]))
 #endif
-        dirname.erase(len, 1);
+        strerase(dirname, len, 1);
     return ok;
 }
 

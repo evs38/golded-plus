@@ -899,7 +899,7 @@ struct Esc
 //  Charset mapping files
 
 typedef std::pair<std::string, std::string> ImpExp;
-typedef std::map<ImpExp, std::string> ChrsMap;
+typedef std::map<ImpExp, std::string, std::less<ImpExp> > ChrsMap;
 
 //  ------------------------------------------------------------------
 

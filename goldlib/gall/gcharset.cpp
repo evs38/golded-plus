@@ -43,11 +43,30 @@
     #include <sys/farptr.h>
 #endif
 #include <gcharset.h>
+#include <grecode.h>
 
 static char charsetbuf[256];
 
 const char *get_charset(void)
 {
+    //  g_detect_console_charset() asks the same questions this function
+    //  used to ask itself, but also recognises UTF-8 consoles and returns
+    //  a canonical name. Keep the old code below reachable only if it
+    //  ever comes up empty.
+    //
+    //  Not on DOS: there is no UTF-8 console to recognise, and that
+    //  function's DOS branch answers by calling this one - asking it
+    //  here would be a loop with no bottom to it. The code below is
+    //  where the DOS answer actually comes from.
+#if !defined(__MSDOS__)
+    const char *detected = g_detect_console_charset();
+    if(detected and *detected)
+    {
+        strxcpy(charsetbuf, detected, sizeof(charsetbuf));
+        return charsetbuf;
+    }
+#endif
+
 #if defined(__DJGPP__)
     int segment, selector;
     __dpmi_regs regs;
@@ -131,17 +150,32 @@ const char *get_dos_charset(const char *cpfrom)
         if(strieql(cpfrom, cpmap[i].from))
             return cpmap[i].to;
     }
-#if defined(__unix__)
-    char* lang = getenv("LANG");
-    if( lang && !strncmp(lang,"ru_RU",5) )
+
+    //  What goes into the message base is a transport charset, and in
+    //  FidoNet that is a DOS codepage - UTF-8 is accepted in very few
+    //  echoes. So the answer here is always single-byte: the caller asks
+    //  precisely because the local charset (nowadays usually UTF-8) is
+    //  not what should be written out.
+    //
+    //  The guess comes from the language, which is the only hint there
+    //  is. The environment is read directly rather than through
+    //  setlocale(), because the interesting part is the language, not
+    //  the charset the console happens to be in.
+    const char* lang = getenv("LC_ALL");
+    if(lang == NULL or *lang == NUL)
+        lang = getenv("LC_CTYPE");
+    if(lang == NULL or *lang == NUL)
+        lang = getenv("LANG");
+
+    if(lang)
     {
-        return "CP866";
+        if(!strncmp(lang, "uk", 2))
+            return "CP1125";                // Ukrainian
+        if(!strncmp(lang, "ru", 2) or !strncmp(lang, "be", 2) or
+           !strncmp(lang, "bg", 2))
+            return "CP866";                 // Cyrillic
     }
-    else
-    {
-        return "CP437";
-    }
-#endif
-    return "";
+
+    return GOLDED_DEFAULT_CHARSET;          // CP437
 #endif
 }

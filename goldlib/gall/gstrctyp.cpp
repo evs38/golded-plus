@@ -26,6 +26,7 @@
 
 #include <gstrall.h>
 #include <gutlmisc.h>
+#include <gutf8.h>
 
 
 //  ------------------------------------------------------------------
@@ -87,10 +88,68 @@ static char touplow(char* str, char* pos, char ch)
 
 
 //  ------------------------------------------------------------------
+//  True after a character that starts a new word
+
+static bool is_name_separator(char c)
+{
+    switch(c)
+    {
+    case ' ':
+    case '-':
+    case '_':
+    case ',':
+    case '.':
+    case '/':
+        return true;
+    default:
+        return false;
+    }
+}
+
+
+//  ------------------------------------------------------------------
 //  Converts a string to mixed upper & lower case
+//
+//  In UTF-8 mode this has to walk characters. Byte by byte it would hand
+//  the lead byte of a two-byte character to tolower(), and in a UTF-8
+//  locale that byte still has a Latin-1 case mapping - 0xC3 becomes 0xE3
+//  - which turns the character into an ill-formed sequence. Nodelist
+//  names go through here, so a UTF-8 nodelist came out corrupted.
+//
+//  The replacement is written back only when it occupies the same number
+//  of bytes, so the string keeps its length and can be folded in place,
+//  the same rule g_utf8_fold() follows.
 
 char* struplow(char* str)
 {
+
+    if(g_utf8_mode())
+    {
+        char* p = str;
+        char* prev = NULL;
+
+        while(*p)
+        {
+            int used;
+            uint32_t cp = g_utf8_decode(p, &used);
+
+            uint32_t out = ((prev == NULL) or is_name_separator(*prev)) ?
+                           g_cp_toupper(cp) : g_cp_tolower(cp);
+
+            if(out != cp)
+            {
+                char buf[GUTF8_MAXLEN];
+                int len = g_utf8_encode(out, buf);
+                if(len == used)
+                    memcpy(p, buf, used);
+            }
+
+            prev = p;
+            p += used;
+        }
+
+        return str;
+    }
 
     int i;
 

@@ -52,6 +52,7 @@
 #include <gctype.h>
 #include <gstrall.h>
 #include <gmemdbg.h>
+#include <gutf8.h>
 #include <gfuzzy.h>
 
 
@@ -81,7 +82,16 @@ void gfuzzy::init(const char* pat, int fuzzydegree, bool case_sensitive)
 
     casing = case_sensitive;
     degree = fuzzydegree;
-    pattern = pat;
+
+    fold = not case_sensitive;
+    if(fold)
+    {
+        foldpat = g_utf8_fold(pat);
+        pattern = foldpat.c_str();
+    }
+    else
+        pattern = pat;
+
     plen = strlen(pattern);
 
     ldiffs = new int [(plen+1)*4];
@@ -95,7 +105,13 @@ bool gfuzzy::findfirst(const char* string)
 {
 
     textloc = -1;
-    text  = string;
+    if(fold)
+    {
+        foldtext = g_utf8_fold(string);
+        text = foldtext.c_str();
+    }
+    else
+        text = string;
     start = text;
 
     ldiff = ldiffs;
@@ -146,7 +162,7 @@ bool gfuzzy::findnext()
 
                 // Compute a, b, & c as the three adjacent cells ...
                 bool charmatch;
-                if(casing)
+                if(casing or fold)
                     charmatch = pattern[i] == text[textloc];
                 else
                     charmatch = g_toupper(pattern[i]) == g_toupper(text[textloc]);

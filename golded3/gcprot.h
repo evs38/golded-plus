@@ -393,6 +393,8 @@
     void CfgXlatescset       ();
     void CfgXlatexport       ();
     void CfgXlatimport       ();
+    void CfgXlatareaset      ();
+    void CfgXlatconfigset    ();
     void CfgXlatlocalset     ();
     void CfgXlatpath         ();
     void CfgZonegating       ();

@@ -38,6 +38,52 @@
     #include <sys/farptr.h>
 #endif
 
+#if defined(__WATCOMC__) || (defined(__BORLANDC__) && defined(__DPMI32__))
+
+//  This file is written against DJGPP's names for a handful of DOS
+//  primitives. Open Watcom and Borland have their own, and under a DOS
+//  extender the
+//  first megabyte is mapped one to one, so the selector games become
+//  plain addressing: a segment of zero means "the offset is already a
+//  flat address", which is what both _my_ds() and _dos_ds stand for
+//  here, and any other segment is turned into one by multiplying by 16.
+//
+//  __dpmi_allocate_dos_memory() and __dpmi_free_dos_memory() come from
+//  gmemi86.h and hand back a real-mode segment, not a selector, which is
+//  what makes the arithmetic below work.
+
+#define _dos_ds  0u
+
+inline unsigned _my_ds(void)
+{
+    return 0u;
+}
+
+inline void* gdos_addr(unsigned seg, unsigned long off)
+{
+    return (void*)(seg ? (unsigned long)seg * 16ul + off : off);
+}
+
+inline word _farpeekw(unsigned seg, unsigned long off)
+{
+    return *(word*)gdos_addr(seg, off);
+}
+
+inline void movedata(unsigned srcseg, unsigned long srcoff,
+                     unsigned dstseg, unsigned long dstoff, unsigned len)
+{
+    memcpy(gdos_addr(dstseg, dstoff), gdos_addr(srcseg, srcoff), len);
+}
+
+inline void __dpmi_yield(void)
+{
+    i86 cpu;                    //  INT 2Fh AX=1680h - give up a timeslice
+    cpu.ax(0x1680);
+    cpu.genint(0x2F);
+}
+
+#endif
+
 
 //  ------------------------------------------------------------------
 

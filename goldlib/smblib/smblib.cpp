@@ -41,8 +41,11 @@
     #include <memory.h>
 #endif
 
-#ifdef __WATCOMC__
+#if defined(__WATCOMC__) && !defined(__LINUX__)
     #include <dos.h>
+    //  usleep() comes from gtimall.h below - the DOS and Windows Watcom
+    //  runtimes have none of their own, the same as MSVC. The Linux one
+    //  does, and has no <dos.h> either.
 #elif defined __TURBOC__
     #include <dir.h>
 #endif

@@ -32,6 +32,7 @@
 //  ------------------------------------------------------------------
 
 #include <limits.h>
+#include <string>
 #include <gdefs.h>
 
 
@@ -46,7 +47,17 @@ protected:
     int   skip2;       // skip-ahead after non-match with matching final char
     char* pat;
     int   patlen;
-    bool  ignore_case;
+    //  Case-insensitive matching of multibyte text cannot be done a
+    //  byte at a time, because the case of a character is a property of
+    //  the whole character. So when case is ignored both sides are
+    //  folded first and the match itself stays a plain byte comparison.
+    //
+    //  Folding preserves byte length (see g_utf8_fold), which is what
+    //  lets the skip table built from the pattern keep working.
+    bool         ignore_case;
+    std::string  foldbuf;   // reused across calls to keep find() cheap
+
+    bool find_raw(const char* buffer) const;
 
 public:
 

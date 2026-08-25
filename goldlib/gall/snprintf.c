@@ -74,7 +74,9 @@
     #endif
 #endif
 
-#ifdef _MSC_VER
+/*  Borland C++ 5.2 spells the 64-bit type the Microsoft way and has no
+    `long long' at all. */
+#if defined(_MSC_VER) || defined(__BORLANDC__)
     typedef __int64 int64_t;
     typedef unsigned __int64 uint64_t;
     typedef __int64* pint64_t;
@@ -552,7 +554,7 @@ static long double abs_val (long double value)
     return result;
 }
 
-static long double pow10 (int exp)
+static long double gsnprintf_pow10 (int exp)
 {
     long double result = 1;
 
@@ -624,12 +626,12 @@ static void fmtfp (char *buffer, size_t *currlen, size_t maxlen,
     /* We "cheat" by converting the fractional part to integer by
      * multiplying by a factor of 10
      */
-    fracpart = round ((pow10 (max)) * (ufvalue - intpart));
+    fracpart = round ((gsnprintf_pow10 (max)) * (ufvalue - intpart));
 
-    if (fracpart >= pow10 (max))
+    if (fracpart >= gsnprintf_pow10 (max))
     {
         intpart++;
-        fracpart -= (long) pow10 (max);
+        fracpart -= (long) gsnprintf_pow10 (max);
     }
 
 #ifdef DEBUG_SNPRINTF

@@ -26,6 +26,7 @@
 
 #include <golded.h>
 #include <gutlos.h>
+#include <gutf8.h>
 
 
 //  ------------------------------------------------------------------
@@ -174,49 +175,69 @@ void GPickArealist::close_all()
 
 //  ------------------------------------------------------------------
 
+//  One column-aligned field of the arealist line.
+
+struct Field
+{
+    int         pos;
+    int         width;
+    std::string text;
+    bool        rightalign;
+};
+
+
+//  Fields the format string left out have a width of zero (and a position
+//  of -1), and are simply not part of the line.
+
+static void add_field(Field* field, int& n, int pos, int width, const char* text, bool rightalign)
+{
+    if((width <= 0) or (pos < 0))
+        return;
+
+    field[n].pos        = pos;
+    field[n].width      = width;
+    field[n].text       = text;
+    field[n].rightalign = rightalign;
+    n++;
+}
+
+
+//  ------------------------------------------------------------------
+
 void GPickArealist::dispbuf(char* buf, int areano)
 {
 
     Area* area = AL.AreaNoToPtr(areano);
 
-    memset(buf, ' ', MAXCOL-2);
-    buf[MAXCOL-2] = NUL;
-
     char areabuf[33];
     gsprintf(PRINTF_DECLARE_BUFFER(areabuf), "%u", CFG->switches.get(arealistnos) ? area->board() : areanumbers[areano]);
-    int areawidth = strlen(areabuf);
 
     char markedbuf[2] = { " " };
     *markedbuf = area->ismarked() ? marked_char : ' ';
-    int markedwidth = 1;
 
     char descbuf[100];
-    int descwidth = strlen(strcpy(descbuf, area->desc()));
+    strxcpy(descbuf, area->desc(), sizeof(descbuf));
 
     char countbuf[33];
     if (area->isscanned)
         gsprintf(PRINTF_DECLARE_BUFFER(countbuf), "%u", (uint)area->Msgn.Count());
     else
         strcpy(countbuf,  "-");
-    int countwidth = strlen(countbuf);
 
     char pmarkbuf[2] = { " " };
     *pmarkbuf = area->PMrk.Count() ? pmark_char : ' ';
-    int pmarkwidth = 1;
 
     char unreadbuf[33];
     if (area->isscanned)
         gsprintf(PRINTF_DECLARE_BUFFER(unreadbuf), "%u", (uint)((CFG->arealisttype == AL_TOTNEW) ? area->unread : area->lastread()));
     else
         strcpy(unreadbuf, "-");
-    int unreadwidth = strlen(unreadbuf);
 
     char changedbuf[2] = { " " };
     *changedbuf = area->isunreadchg ? changed_char : ' ';
-    int changedwidth = 1;
 
     char echoidbuf[100];
-    int echoidwidth = strlen(strcpy(echoidbuf, area->echoid()));
+    strxcpy(echoidbuf, area->echoid(), sizeof(echoidbuf));
 
     char groupidbuf[10] = { "" };
     if (groupid_width)
@@ -229,27 +250,68 @@ void GPickArealist::dispbuf(char* buf, int areano)
         else if (g_isupper(area->groupid()))
             gsprintf(PRINTF_DECLARE_BUFFER(groupidbuf), "%c", (char)area->groupid());
     }
-    int groupidwidth = strlen(groupidbuf);
 
-    areawidth    = MinV(areawidth,    area_width);
-    markedwidth  = MinV(markedwidth,  marked_width);
-    descwidth    = MinV(descwidth,    desc_width);
-    countwidth   = MinV(countwidth,   count_width);
-    pmarkwidth   = MinV(pmarkwidth,   pmark_width);
-    unreadwidth  = MinV(unreadwidth,  unread_width);
-    changedwidth = MinV(changedwidth, changed_width);
-    echoidwidth  = MinV(echoidwidth,  echoid_width);
-    groupidwidth = MinV(groupidwidth, groupid_width);
+    //  The *_pos and *_width above are screen columns, but the line used
+    //  to be laid out by memcpy() into a byte buffer. That is the same
+    //  thing only while one byte is one column: as soon as a description
+    //  holds a multibyte character it takes more bytes than columns, and
+    //  every field to its right is written at the wrong column - the tail
+    //  of the line slides left by the difference. So assemble the line by
+    //  walking the columns instead, padding up to each field's position.
 
-    memcpy(buf+area_pos+area_width-areawidth,          areabuf,    areawidth);
-    memcpy(buf+marked_pos,                             markedbuf,  markedwidth);
-    memcpy(buf+desc_pos,                               descbuf,    descwidth);
-    memcpy(buf+count_pos+count_width-countwidth,       countbuf,   countwidth);
-    memcpy(buf+pmark_pos,                              pmarkbuf,   pmarkwidth);
-    memcpy(buf+unread_pos+unread_width-unreadwidth,    unreadbuf,  unreadwidth);
-    memcpy(buf+changed_pos,                            changedbuf, changedwidth);
-    memcpy(buf+echoid_pos,                             echoidbuf,  echoidwidth);
-    memcpy(buf+groupid_pos+groupid_width-groupidwidth, groupidbuf, groupidwidth);
+    Field field[9];
+    int nfields = 0;
+
+    add_field(field, nfields, area_pos,    area_width,    areabuf,    true);
+    add_field(field, nfields, marked_pos,  marked_width,  markedbuf,  false);
+    add_field(field, nfields, desc_pos,    desc_width,    descbuf,    false);
+    add_field(field, nfields, count_pos,   count_width,   countbuf,   true);
+    add_field(field, nfields, pmark_pos,   pmark_width,   pmarkbuf,   false);
+    add_field(field, nfields, unread_pos,  unread_width,  unreadbuf,  true);
+    add_field(field, nfields, changed_pos, changed_width, changedbuf, false);
+    add_field(field, nfields, echoid_pos,  echoid_width,  echoidbuf,  false);
+    add_field(field, nfields, groupid_pos, groupid_width, groupidbuf, true);
+
+    //  The format string may name the fields in any order, so sort them
+    //  into the order they appear on screen before laying them out.
+    //  One declaration for both loops - Visual C++ 6.0 lets a for-scoped
+    //  variable outlive its loop and would call the second one a
+    //  redefinition.
+
+    int i;
+
+    for(i = 1; i < nfields; i++)
+    {
+        Field f = field[i];
+        int j = i;
+        for(; j and (field[j-1].pos > f.pos); j--)
+            field[j] = field[j-1];
+        field[j] = f;
+    }
+
+    std::string line;
+    int col = 0;
+
+    for(i = 0; i < nfields; i++)
+    {
+        for(; col < field[i].pos; col++)
+            line += ' ';
+
+        std::string text = g_utf8_truncate(field[i].text, field[i].width);
+        int width = (int)g_utf8_width(text);
+
+        if(field[i].rightalign)
+            for(int n = field[i].width - width; n > 0; n--, col++)
+                line += ' ';
+
+        line += text;
+        col += width;
+    }
+
+    for(; col < MAXCOL-2; col++)
+        line += ' ';
+
+    strxcpy(buf, line.c_str(), (MAXCOL-2)*GUTF8_MAXLEN + 1);
 }
 
 //  ------------------------------------------------------------------
@@ -473,7 +535,7 @@ void GPickArealist::precursor()
 
 void GPickArealist::print_line(uint idx, uint pos, bool isbar)
 {
-    CREATEBUFFER(char, buf, MAXCOL);
+    CREATEBUFFER(char, buf, (MAXCOL-2)*GUTF8_MAXLEN + 1);
     CREATEBUFFER(vchar, vbuf, MAXCOL*2);
 
     if(AL[idx]->isseparator())
@@ -490,7 +552,7 @@ void GPickArealist::print_line(uint idx, uint pos, bool isbar)
         wprintvs(pos, 0, battr|ACSET, vbuf);
         wprints(pos, sep_pos, tattr, area->desc());
 
-        int l = strlen(area->desc());
+        int l = (int)g_utf8_width(area->desc());
         int n = MAXCOL-2-sep_pos-l;
 
         {
@@ -869,9 +931,34 @@ bool GPickArealist::handle_key()
                     if(n == ' ')
                         n = '_';
                     if(key != Key_BS)
-                        area_maybe[area_fuzidx++] = (char)n;
+                    {
+                        //  The key carries only the first byte of what
+                        //  was typed; the whole character is waiting in
+                        //  the keyboard's side channel. Storing the byte
+                        //  alone put a fragment of a UTF-8 sequence into
+                        //  the search string, and it was drawn as
+                        //  rubbish.
+
+                        //  Without the first-byte check the others
+                        //  make: the picker case-folds before it gets
+                        //  here - see gkbd_keychars().
+                        int _len = 0;
+                        const char* _chars = gkbd_keychars(key, &_len, false);
+
+                        if(_chars and ((area_fuzidx + (uint)_len) < sizeof(Echo)))
+                        {
+                            memcpy(area_maybe+area_fuzidx, _chars, _len);
+                            area_fuzidx += (uint)_len;
+                        }
+                        else
+                            area_maybe[area_fuzidx++] = (char)n;
+                    }
                     else if(area_fuzidx)
-                        area_fuzidx--;
+                    {
+                        //  Back over a whole character, not a byte.
+                        char* prev = g_utf8_prev(area_maybe, area_maybe+area_fuzidx);
+                        area_fuzidx = (uint)(prev - area_maybe);
+                    }
                     area_maybe[area_fuzidx] = NUL;
                     strcpy(stpcpy(buf, title), area_maybe);
                     strsetsz(strcpy(tmp, buf), MAXCOL);

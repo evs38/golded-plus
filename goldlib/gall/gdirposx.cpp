@@ -32,7 +32,9 @@
 #else
     #include <io.h>
 #endif
-#ifndef __HAVE_DRIVES__
+//  Open Watcom's Linux headers have no <pwd.h>; the passwd database is
+//  not part of what its runtime offers.
+#if !defined(__HAVE_DRIVES__) && !defined(__WATCOMC__)
     #include <pwd.h>
 #endif
 
@@ -90,7 +92,7 @@ void gposixdir::cd(const char *name, bool relative)
     else
         dirname = name;
     ok = maketruepath(dirname);
-    entries.clear();
+    gclear(entries);
     DIR *d = opendir(dirname.c_str());
     if(d == NULL)
         ok = false;
@@ -125,7 +127,7 @@ void gposixdir::cd(const char *name, bool relative)
     else
         dirname = name;
     ok = maketruepath(dirname);
-    entries.clear();
+    gclear(entries);
     ndirname = dirname;
     if ((ndirname.end() > ndirname.begin()) && (*(ndirname.end()-1) == '/'))
         ndirname += "*";
@@ -183,7 +185,7 @@ const gdirentry *gposixdir::nextentry(const char *mask, bool nameonly)
             pn += ret.name;
             size_t skipfrom;
             while((skipfrom=pn.find("//")) != pn.npos)
-                pn.erase(skipfrom, 1);
+                strerase(pn, skipfrom, 1);
             stat(pn.c_str(), &ret.stat_info);
         }
         ++last_entry;

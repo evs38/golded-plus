@@ -28,7 +28,7 @@
 
 //  ------------------------------------------------------------------
 
-template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
 char* _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::user_lookup(char* __lookfor)
 {
     wide->user->gufh = wide->fhusr.fh;
@@ -43,7 +43,7 @@ char* _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::user_lookup(c
 
 //  ------------------------------------------------------------------
 
-template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
 int _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::renumber()
 {
 
@@ -53,7 +53,7 @@ int _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::renumber()
 
 //  ------------------------------------------------------------------
 
-template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
 Line* _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::make_dump_msg(Line*& lin, gmsg* msg, char* lng_head)
 {
 

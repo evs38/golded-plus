@@ -63,6 +63,20 @@
 
 
 //  ------------------------------------------------------------------
+//  A few places below read or poke the BIOS data area at 0040:xxxx
+//  directly. Borland's 32-bit DOS extender maps the first megabyte
+//  nowhere this program can address - unlike DOS/4GW, which maps it one
+//  to one - so on that target those places are skipped and the BIOS
+//  calls beside them stand in.
+
+#if defined(__BORLANDC__) && defined(__DPMI32__)
+    #define GVID_NO_BDA 1
+#else
+    #define GVID_NO_BDA 0
+#endif
+
+
+//  ------------------------------------------------------------------
 //  Check if Borland C++ for OS/2 1.0 header has been fixed
 
 #if defined(__OS2__) && defined(__BORLANDC__)
@@ -132,16 +146,44 @@ GVid::GVid()
 
 
 //  ------------------------------------------------------------------
-//  Video Class destructor
+//  Put the screen back the way we found it
+//
+//  Whatever is printed while curses is up goes onto the alternate screen,
+//  and the terminal throws that away the moment it switches back. So a
+//  message saying why GoldED cannot start was written, and never seen -
+//  the window just flickered and the program was gone. Say this first and
+//  the message lands where the user is actually looking. Safe to call
+//  more than once.
 
-GVid::~GVid()
+static bool gvid_screen_is_down = false;
+
+//  True once vshutdown() has given the terminal back.
+bool vscreendown()
 {
+    return gvid_screen_is_down;
+}
+
+
+void vshutdown()
+{
+    if(gvid_screen_is_down)
+        return;
+
+    gvid_screen_is_down = true;
 
 #if defined(__USE_NCURSES__)
 
     attrset(A_NORMAL);
-    if(0 == (--curses_initialized))
+
+    //  The screen and the keyboard each counted themselves in, so one
+    //  step down would leave curses up. We are on the way out; close it
+    //  outright. The destructors then find the count at zero and leave
+    //  it alone.
+    if(curses_initialized > 0)
+    {
+        curses_initialized = 0;
         endwin();
+    }
 
 #elif defined(__UNIX__)
 
@@ -152,6 +194,19 @@ GVid::~GVid()
     gvid_printf("\033<\033[?5l\033[0m");
 
 #endif
+
+    fflush(stdout);
+}
+
+
+//  ------------------------------------------------------------------
+//  Video Class destructor
+
+GVid::~GVid()
+{
+
+    vshutdown();
+
 #ifndef __DJGPP__
     if(dmaptr != dmadir)  throw_xfree(dmaptr);
 #endif
@@ -187,18 +242,42 @@ void GVid::init()
     detectinfo(&orig);
     memcpy(&curr, &orig, sizeof(GVidInfo));
 
-#if defined(__MSDOS__)
+#if defined(__USE_NCURSES__)
+    //  curses draws the screen, whatever the platform underneath is.
+    //  This has to be asked first: OS/2 and Win32 both have a screen
+    //  layer of their own further down, and every other conditional in
+    //  this file already lets curses win, so leaving this one to fall
+    //  through to them gave a build that drew through two of them at
+    //  once. GVID_DMA is what the unix builds have always used here.
+    device = GVID_DMA;
+#elif defined(__BORLANDC__) && defined(__DPMI32__)
+    //  Writing to video memory directly needs the first megabyte at its
+    //  own address, which this extender does not provide - see the note
+    //  on the DMA pointer below. The BIOS path draws the same screen.
+    device = GVID_BIO;
+#elif defined(__MSDOS__)
     device = GVID_DMA;
 #elif defined(__OS2__)
     device = GVID_OS2;
 #elif defined(__WIN32__)
     device = GVID_W32;
+#elif defined(__UNIX__)
+    //  Output goes into the buffer dmaptr points at below and is
+    //  flushed from there, which is what GVID_DMA means here. Left
+    //  unset, this was whatever the stack held.
+    device = GVID_DMA;
 #endif
 
 #if defined(__USE_NCURSES__)
     dmaptr = dmadir = NULL;
-#elif defined(__WATCOMC__) && defined(__386__)
+#elif defined(__WATCOMC__) && defined(__386__) && defined(__MSDOS__)
     dmaptr = dmadir = (gdma)(videoseg << 4);
+#elif defined(__BORLANDC__) && defined(__DPMI32__)
+    //  DOS/4GW maps the low megabyte one to one and the line above is
+    //  enough for it. Borland's extender does not: absolute memory is
+    //  reachable only through peek()/poke(), so there is no pointer to
+    //  hand out and the BIOS path is used instead.
+    dmaptr = dmadir = NULL;
 #elif defined(__DJGPP__)
     dmaptr = dmadir = ScreenPrimary;
 #elif defined(__OS2__) || defined(__WIN32__)
@@ -330,11 +409,10 @@ int GVid::detectadapter()
 #ifndef __DJGPP__
 
     // Set video segment
-#if defined(__BORLANDC__) && defined(__DPMI32__)
-    videoseg = (word)((adapter & V_MONO) ? __SegB000 : __SegB800);
-#else
+    //  __SegB000 and __SegB800 are 16-bit Borland pseudo-variables and
+    //  do not exist in its 32-bit DOS target; the numbers they stand
+    //  for are the same everywhere.
     videoseg = (word)((adapter & V_MONO) ? 0xB000 : 0xB800);
-#endif
 
     // check for presence of DESQview by using the DOS Set
     // System Date function and trying to set an invalid date
@@ -352,18 +430,13 @@ int GVid::detectadapter()
 
         __gdvdetected = true;
 
-#if defined(__WATCOMC__) && defined(__386__)
-        memset(&RMI, 0, sizeof(RMI));
-        RMI.EAX = 0x0000FE00;
-        RMI.ES = videoseg;
-        cpu.ax(0x0300);
-        cpu.bl(0x10);
-        cpu.bh(0);
-        cpu.cx(0);
-        cpu.es(FP_SEG(&RMI));
-        cpu.edi(FP_OFF(&RMI));
-        cpu.genint(0x31);
-        videoseg = RMI.ES;
+//  There used to be a Watcom-only variant here that asked DPMI to
+//  simulate the real-mode interrupt (INT 31h, AX=0300h). It cannot ever
+//  have been built: it named an RMI structure this file does not
+//  declare, and an i86::edi() that class does not have. Open Watcom now
+//  takes the same direct INT 10h as every other DOS compiler here -
+//  which is what i86::genint() does for it anyway.
+#if 0
 #else
         cpu.ah(0xFE);        // DV get alternate video buffer
         cpu.es(videoseg);
@@ -498,7 +571,22 @@ void GVid::detectinfo(GVidInfo* _info)
     _info->screen.columns = cpu.ah();
 
     // Get the number of screen rows
+#if defined(__BORLANDC__) && defined(__DPMI32__)
+    //  Not here. INT 10h AH=11h AL=30h hands back a font pointer in
+    //  ES:BP as well as the row count in DL, and Borland's int386x uses
+    //  BP as its own frame pointer: it comes back from the interrupt
+    //  with a real-mode value in EBP and faults on its next local. The
+    //  row count lives at 0040:0084 too, but the extender maps the BIOS
+    //  data area nowhere this program can reach. 25 rows is what the
+    //  branch below assumes for everything older than EGA, and it is
+    //  what a DOS box gives unless someone has asked for 43 or 50.
+    _info->screen.rows = 25;
+    _info->screen.cheight = 8;
+    _info->screen.cwidth = 8;
+    if(false)
+#else
     if(adapter >= V_EGA)
+#endif
     {
         cpu.ax(V_GET_FONT_INFO);
         cpu.dx(0);
@@ -546,6 +634,11 @@ void GVid::detectinfo(GVidInfo* _info)
         // Check bit 5 at 0000:0465
 #if defined(__DJGPP__)
         _info->color.intensity = (_farpeekb (_dos_ds, 0x465) & 0x20) ? 0 : 1;
+#elif GVID_NO_BDA
+        //  Unreachable here - see the note by GVID_NO_BDA. Bright
+        //  background rather than blinking is what this asks for, and
+        //  what a DOS box gives by default.
+        _info->color.intensity = 1;
 #else
         byte* _bptr = (byte*)0x0465;
         _info->color.intensity = (*_bptr & 0x20) ? 0 : 1;
@@ -842,9 +935,11 @@ void GVid::setrows(int _rows)
             cpu.genint(0x10);
             if(adapter & V_EGA)
             {
+#if !GVID_NO_BDA
                 // Disable cursor size emulation
                 byte* _bptr = (byte*)0x0487;
                 *_bptr |= (byte)0x01;
+#endif
                 // Set cursor size
                 cpu.ah(0x01);
                 cpu.al((byte)orig.screen.mode);
@@ -856,9 +951,11 @@ void GVid::setrows(int _rows)
         {
             if(adapter & V_EGA)
             {
+#if !GVID_NO_BDA
                 // Enable cursor size emulation
                 byte* _bptr = (byte*)0x0487;
                 *_bptr &= (byte)0xFE;
+#endif
             }
             // Set cursor size
             cpu.ah(0x01);
@@ -946,7 +1043,10 @@ void GVid::setintensity(int _intensity)
 
 #else
 
-    if(adapter & V_CGA)
+    //  The CGA path needs the CRT port and mode byte from the BIOS data
+    //  area; where that is out of reach the BIOS call below does the
+    //  same job.
+    if((adapter & V_CGA) and not GVID_NO_BDA)
     {
         word* _wptr = (word*)0x0463;
         byte* _bptr = (byte*)0x0465;

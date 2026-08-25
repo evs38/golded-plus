@@ -115,15 +115,17 @@ void JamArea::unlock()
 
 //  ------------------------------------------------------------------
 
-void JamArea::add_subfield(JamHdr& __hdr, byte*& __subfield, word __loid, word __hiid, char* __data, uint32_t __maxlen)
+void JamArea::add_subfield(JamHdr& __hdr, byte*& __subfield, word __loid, word __hiid, char* __data, uint32_t __maxlen, bool __utf8)
 {
 
-    uint32_t _datlen = strlen(__data);
+    //  A subfield has a maximum of its own, and cutting to it must not
+    //  split a character.
+    uint32_t _datlen = (uint32_t)g_fit_field_len(__data, __maxlen, __utf8);
     __subfield = (byte*)throw_realloc(__subfield, (uint)__hdr.subfieldlen+sizeof(JamSubFieldHdr)+_datlen);
     JamSubField* _subfieldptr = (JamSubField*)(__subfield + (uint)__hdr.subfieldlen);
     _subfieldptr->loid = __loid;
     _subfieldptr->hiid = __hiid;
-    _subfieldptr->datlen = MinV(_datlen, __maxlen);
+    _subfieldptr->datlen = _datlen;
     memcpy(_subfieldptr->buffer, __data, _subfieldptr->datlen);
     __hdr.subfieldlen += sizeof(JamSubFieldHdr) + _subfieldptr->datlen;
 }
@@ -215,7 +217,7 @@ void JamArea::save_message(int __mode, gmsg* __msg, JamHdr& __hdr)
         }
 
         if(*__msg->by)
-            add_subfield(__hdr, _subfield, JAMSUB_SENDERNAME, 0, __msg->by, JAMSUB_SENDERNAME_LEN);
+            add_subfield(__hdr, _subfield, JAMSUB_SENDERNAME, 0, __msg->by, JAMSUB_SENDERNAME_LEN, __msg->hdrutf8);
 
         if(__msg->orig.net)
         {
@@ -224,7 +226,7 @@ void JamArea::save_message(int __mode, gmsg* __msg, JamHdr& __hdr)
         }
 
         if(*__msg->to)
-            add_subfield(__hdr, _subfield, JAMSUB_RECEIVERNAME, 0, __msg->to, JAMSUB_RECEIVERNAME_LEN);
+            add_subfield(__hdr, _subfield, JAMSUB_RECEIVERNAME, 0, __msg->to, JAMSUB_RECEIVERNAME_LEN, __msg->hdrutf8);
 
         if(__msg->dest.net)
         {
@@ -233,7 +235,7 @@ void JamArea::save_message(int __mode, gmsg* __msg, JamHdr& __hdr)
         }
 
         if(*__msg->re)
-            add_subfield(__hdr, _subfield, JAMSUB_SUBJECT, 0, __msg->re, JAMSUB_SUBJECT_LEN);
+            add_subfield(__hdr, _subfield, JAMSUB_SUBJECT, 0, __msg->re, JAMSUB_SUBJECT_LEN, __msg->hdrutf8);
 
         // Convert kludges
         _line = 0;

@@ -302,6 +302,12 @@ function it is called in.  */
         #if HAVE_MALLOC_H
             #include <malloc.h>
         #endif /* HAVE_MALLOC_H */
+        #if defined(__BORLANDC__)
+            /*  Borland declares alloca() there too, and the config.h
+                that gets found first on the include path is uulib's,
+                which does not say so.  */
+            #include <malloc.h>
+        #endif
     #endif /* not __GNUC__ */
 
 #endif /* not alloca */

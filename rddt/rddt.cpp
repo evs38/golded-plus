@@ -181,15 +181,15 @@ void nodetree::add(node& anode)
 
     for(list_node::iterator n=nodes.begin(); n != nodes.end(); n++)
     {
-        if(equals2d(anode.address, n->address))
+        if(equals2d(anode.address, (*n).address))
         {
             if(anode.address.zone)
             {
-                n->address.zone = anode.address.zone;
-                n->name = anode.name;
+                (*n).address.zone = anode.address.zone;
+                (*n).name = anode.name;
             }
             for(int l=0; l<anode.links.size(); l++)
-                n->add(anode.links[l]);
+                (*n).add(anode.links[l]);
             return;
         }
     }
@@ -219,18 +219,18 @@ void nodetree::prepare(ftn_addr& previous, ftn_addr& current, int depth)
     // Find top node
     for(list_node::iterator n=nodes.begin(); n != nodes.end(); n++)
     {
-        if(not n->used)
+        if(not (*n).used)
         {
-            if(equals2d(n->address, current))
+            if(equals2d((*n).address, current))
             {
-                n->order = ++order;
-                n->depth = depth;
-                n->used = true;
-                for(int l=0; l<n->links.size(); l++)
+                (*n).order = ++order;
+                (*n).depth = depth;
+                (*n).used = true;
+                for(int l=0; l<(*n).links.size(); l++)
                 {
-                    //if(not equals2d(n->links[l], previous))
-                    if(n->links[l] != previous)
-                        prepare(current, n->links[l], depth+1);
+                    //if(not equals2d((*n).links[l], previous))
+                    if((*n).links[l] != previous)
+                        prepare(current, (*n).links[l], depth+1);
                 }
                 break;
             }
@@ -253,12 +253,24 @@ bool _compare_nodes(const node& a, const node& b)
     return (a.address.compare(b.address) < 0);
 }
 
-#if defined(_MSC_VER)
+//  Neither MSVC's library nor the RogueWave one Borland C++ 5.02 ships
+//  has a list::sort() that takes a predicate; both sort on operator<.
+#if defined(GOLD_LIST_SORT_NO_PRED)
 
 inline bool operator<(const node& A,const node& B)
 {
     return _compare_nodes(A,B);
 }
+#endif
+
+#if defined(GOLD_TEMPLATE_EAGER)
+inline bool operator==(const node& A,const node& B)
+{
+    return A.address.equals(B.address);
+}
+#endif
+
+#if defined(GOLD_LIST_SORT_NO_PRED)
 
 #define compare_nodes
 #else
@@ -284,11 +296,11 @@ void nodetree::print()
     for(n=nodes.begin(); n != nodes.end(); n++)
     {
         char buf[100];
-        strsetsz(strcpy(buf, n->name.c_str()), maxname+indent);
-        n->display = buf;
+        strsetsz(strcpy(buf, (*n).name.c_str()), maxname+indent);
+        (*n).display = buf;
         list_node::iterator x;
         bool above, below;
-        for(int d=1; d<n->depth; d++)
+        for(int d=1; d<(*n).depth; d++)
         {
             above = false;
             below = false;
@@ -296,9 +308,9 @@ void nodetree::print()
             {
                 for(x=n; x-- != nodes.begin();)
                 {
-                    if(x->depth < d)
+                    if((*x).depth < d)
                         break;
-                    else if(x->depth == d)
+                    else if((*x).depth == d)
                     {
                         above = true;
                         break;
@@ -306,9 +318,9 @@ void nodetree::print()
                 }
                 for(x=n; ++x != nodes.end();)
                 {
-                    if(x->depth < d)
+                    if((*x).depth < d)
                         break;
-                    else if(x->depth == d)
+                    else if((*x).depth == d)
                     {
                         below = true;
                         break;
@@ -327,10 +339,10 @@ void nodetree::print()
             else
                 *buf = NUL;
             strsetsz(buf, indent);
-            n->display += buf;
+            (*n).display += buf;
         }
 
-        if(n->depth)
+        if((*n).depth)
         {
 #ifdef KOI8
             strcpy(buf, "„");
@@ -343,12 +355,12 @@ void nodetree::print()
 #else
             strchg(buf, ' ', 'Ä');
 #endif
-            n->display += buf;
+            (*n).display += buf;
         }
 
-        n->display += n->address.make_string(buf);
+        (*n).display += (*n).address.make_string(buf);
 
-        maxdisp = maximum_of_two((size_t)maxdisp, n->display.length());
+        maxdisp = maximum_of_two((size_t)maxdisp, (*n).display.length());
     }
 
     for(n=nodes.begin(); n != nodes.end(); n++)
@@ -357,30 +369,30 @@ void nodetree::print()
         if(++x != nodes.end())
         {
 #ifdef KOI8
-            const char* p = strchr(n->display.c_str(), '„');
+            const char* p = strchr((*n).display.c_str(), '„');
 #else
-            const char* p = strchr(n->display.c_str(), 'À');
+            const char* p = strchr((*n).display.c_str(), 'À');
 #endif
             if(p)
             {
-                int len = p - n->display.c_str();
+                int len = p - (*n).display.c_str();
 #ifdef KOI8
-                if((x->display[len] == '') or (x->display[len] == '„'))
-                    n->display[len] = '†';
+                if(((*x).display[len] == '') or ((*x).display[len] == '„'))
+                    (*n).display[len] = '†';
 #else
-                if((x->display[len] == '³') or (x->display[len] == 'À'))
-                    n->display[len] = 'Ã';
+                if(((*x).display[len] == '³') or ((*x).display[len] == 'À'))
+                    (*n).display[len] = 'Ã';
 #endif
             }
         }
-        n->display.resize(maxdisp, ' ');
+        (*n).display.resize(maxdisp, ' ');
         char buf[40];
-        sprintf(buf, "%*s[%i]", indent, "", n->depth);
-        n->display += buf;
+        sprintf(buf, "%*s[%i]", indent, "", (*n).depth);
+        (*n).display += buf;
     }
 
     for(n=nodes.begin(); n != nodes.end(); n++)
-        cout << n->display.c_str() << endl;
+        cout << (*n).display.c_str() << endl;
 }
 
 
@@ -553,10 +565,10 @@ int main(int argc, char** argv)
             ftn_addr match = top;
             for(list_node::iterator n=atree.nodes.begin(); n != atree.nodes.end(); n++)
             {
-                if(n->address.match(match))
+                if((*n).address.match(match))
                 {
                     xnode = *n;
-                    address = n->address;
+                    address = (*n).address;
                     break;
                 }
             }
@@ -565,10 +577,10 @@ int main(int argc, char** argv)
         {
             for(list_node::iterator n=atree.nodes.begin(); n != atree.nodes.end(); n++)
             {
-                if(n->name.find(top) != n->name.npos)
+                if((*n).name.find(top) != (*n).name.npos)
                 {
                     xnode = *n;
-                    address = n->address;
+                    address = (*n).address;
                     break;
                 }
             }

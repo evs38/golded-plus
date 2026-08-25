@@ -343,7 +343,7 @@ void GotoMsgno()
         }
         else
         {
-            ptr += sprintf(ptr, " %-5.5s:       %s %u", LNG->Msg, LNG->of, AA->Msgn.Count());
+            ptr += sprintf(ptr, " %s:       %s %u", g_utf8_fit(LNG->Msg, 5).c_str(), LNG->of, AA->Msgn.Count());
             replyto = AA->Msgn.ToReln(reader_msg->link.to());
             replies[0] = AA->Msgn.ToReln(reader_msg->link.first());
             replynext = AA->Msgn.ToReln(reader_msg->link.next());

@@ -67,13 +67,22 @@
 
 //  ------------------------------------------------------------------
 
-#if defined(__USE_NCURSES__)
+#if defined(__USE_NCURSES__) && defined(__USE_WIDE_NCURSES__)
+    //  The wide curses API carries a Unicode codepoint (plus its
+    //  combining marks) and the attributes in one cchar_t, which is what
+    //  lets a screen cell hold something outside the 8-bit range.
+    typedef uint32_t vchar;   // Type of characters on-screen: a codepoint
+    typedef int      vattr;   // Type of screen attributes
+    typedef cchar_t  vatch;   // Type of character-attribute groups
+#elif defined(__USE_NCURSES__)
     typedef chtype vchar;     // Type of characters on-screen
     typedef int    vattr;     // Type of screen attributes
     typedef chtype vatch;     // Type of character-attribute groups
 #elif defined(__WIN32__)
-    typedef char vchar;       // Type of characters on-screen
-    typedef int  vattr;       // Type of screen attributes
+    //  A console cell already carries a UTF-16 character, so it can hold
+    //  a codepoint as it stands; vchar has to widen to match.
+    typedef uint32_t  vchar;  // Type of characters on-screen: a codepoint
+    typedef int       vattr;  // Type of screen attributes
     typedef CHAR_INFO vatch;  // Type of character-attribute groups
 #else
     typedef char vchar;       // Type of characters on-screen
@@ -377,11 +386,25 @@ extern GVid *gvid;
 #if !defined(__USE_NCURSES__)
 
     extern char* __box_table[];
-    #define _box_table(i,j) (__box_table[i][j])
+
+    //  A function rather than a bare lookup: the table holds CP437
+    //  bytes, and in UTF-8 mode a byte is not a character, so those have
+    //  to come back as the codepoints they stand for.
+    vchar _box_table(int type, int c);
+
+    //  The solid block the scrollbar thumb is drawn with. Same story as
+    //  the box characters: CP437 calls it 0xDB, Unicode U+2588.
+    vchar _block_char();
+
+#elif defined(__USE_WIDE_NCURSES__)
+
+    vchar _box_table(int type, int c);
+    vchar _block_char();
 
 #else
 
     chtype _box_table(int type, int c);
+    chtype _block_char();
 
 #endif
 
@@ -423,10 +446,42 @@ void vclrscr    (vattr atr);     // Overloaded
 typedef struct _vsavebuf
 {
     int top, left, right, bottom;
+#if defined(__USE_NCURSES__)
+    //  curses copies the cells for us - see vsave() - so there is
+    //  nothing in data[] on those builds. padl/padr are the extra
+    //  columns taken so the rectangle never cuts a character in half.
+    void* win;
+    int   padl, padr;
+#endif
+#if defined(__WATCOMC__) || defined(__BORLANDC__)
+    //  Open Watcom and Borland C++ both reject a zero-length array. One element costs one
+    //  cell of over-allocation and nothing else - the buffer is sized as
+    //  sizeof(vsavebuf) + rows * cols * sizeof(vatch) either way.
+    vatch data[1];
+#else
     __extension__ vatch data[0];
+#endif
 } vsavebuf;
 vsavebuf* vsave (int srow=-1, int scol=-1, int erow=-1, int ecol=-1);
 void vrestore   (vsavebuf* buf, int srow=-1, int scol=-1, int erow=-1, int ecol=-1);
+
+//  Release a buffer from vsave(). Not plain free(): on curses there is a
+//  window behind it.
+void vfreesave  (vsavebuf* buf);
+
+//  Recolour one cell without touching the character in it.
+//
+//  The window shadow used to read each cell, change its attribute and
+//  write it back. A double-width character lives in two cells, and half
+//  of one written back on its own is not a character at all - curses
+//  blanks both - so the shadow erased whatever wide character it fell
+//  across. Changing the attribute in place leaves the character alone.
+void vsetattr   (int row, int col, vattr atr);
+
+//  Give the terminal back before printing something the user has to
+//  read - see vshutdown() in gvidinit.cpp. Safe to call twice.
+void vshutdown  ();
+bool vscreendown();
 
 void vcurget    (int* sline, int* eline);
 void vcurset    (int sline, int eline);
@@ -446,6 +501,66 @@ void vfill      (int srow, int scol, int erow, int ecol, vchar chr, vattr atr);
 
 int gvid_dosattrcalc (int ourattr);
 int gvid_attrcalc (int dosattr);
+
+#if defined(__USE_WIDE_NCURSES__)
+
+//  A cchar_t is opaque, so these go through setcchar()/getcchar()
+//  rather than masking bits. The curses attributes and the colour pair
+//  travel together in the int that gvid_attrcalc() produces, and have to
+//  be split apart again on the way in.
+
+inline vchar vgchar (vatch chat)
+{
+    wchar_t wch[CCHARW_MAX];
+    attr_t  attrs;
+    short   pair;
+
+    if(getcchar(&chat, wch, &attrs, &pair, NULL) == ERR or wch[0] == L'\0')
+        return (vchar)' ';      // an untouched cell reads as a blank
+
+    return (vchar)wch[0];
+}
+inline vattr vgattr (vatch chat)
+{
+    wchar_t wch[CCHARW_MAX];
+    attr_t  attrs;
+    short   pair;
+
+    if(getcchar(&chat, wch, &attrs, &pair, NULL) == ERR)
+        return BLACK_|_BLACK;
+
+    return gvid_dosattrcalc((int)attrs | COLOR_PAIR(pair));
+}
+//  True when this character has to be drawn from the alternate character
+//  set instead, because the C library calls it two columns wide. See
+//  gvid_acs_box() in gvidbase.cpp.
+bool gvid_acs_box(vchar chr, wchar_t* key);
+
+inline vatch vcatch (vchar chr, vattr atr)
+{
+    vatch   chat;
+    wchar_t wch[2];
+    int     attr = gvid_attrcalc(atr);
+
+    wch[0] = (wchar_t)chr;
+    wch[1] = L'\0';
+
+    if(gvid_acs_box(chr, &wch[0]))
+        attr |= A_ALTCHARSET;
+
+    setcchar(&chat, wch, (attr_t)(attr & ~A_COLOR), (short)PAIR_NUMBER(attr), NULL);
+    return chat;
+}
+inline vatch vschar (vatch chat, vchar chr)
+{
+    return vcatch(chr, vgattr(chat));
+}
+inline vatch vsattr (vatch chat, vattr atr)
+{
+    return vcatch(vgchar(chat), atr);
+}
+
+#else
 
 inline vchar vgchar (vatch chat)
 {
@@ -468,32 +583,38 @@ inline vatch vcatch (vchar chr, vattr atr)
     return chr | gvid_attrcalc(atr);
 }
 
+#endif
+
 #elif defined(__WIN32__)
+
+//  Cells hold Unicode, so that the console can be written with
+//  WriteConsoleOutputW. What arrives here is a codepoint in UTF-8 mode
+//  and a byte in the local charset otherwise; gvid_tcpr() settles the
+//  difference in one place.
+WCHAR gvid_tcpr(vchar chr);
 
 inline vchar vgchar (vatch chat)
 {
-    return chat.Char.AsciiChar;
+    return chat.Char.UnicodeChar;
 }
 inline vattr vgattr (vatch chat)
 {
     return chat.Attributes;
 }
+inline vatch vcatch (vchar chr, vattr atr)
+{
+    vatch chat;
+    chat.Char.UnicodeChar = gvid_tcpr(chr);
+    chat.Attributes = WORD(atr);
+    return chat;
+}
 inline vatch vschar (vatch chat, vchar chr)
 {
-    chat.Char.UnicodeChar = 0;
-    chat.Char.AsciiChar = chr;
+    chat.Char.UnicodeChar = gvid_tcpr(chr);
     return chat;
 }
 inline vatch vsattr (vatch chat, vattr atr)
 {
-    chat.Attributes = WORD(atr);
-    return chat;
-}
-inline vatch vcatch (vchar chr, vattr atr)
-{
-    vatch chat;
-    chat.Char.UnicodeChar = 0;
-    chat.Char.AsciiChar = chr;
     chat.Attributes = WORD(atr);
     return chat;
 }
@@ -531,6 +652,10 @@ inline vchar vgetc (int row, int col)
 typedef void (*VidPutStrCP)(int,int,int,const char*);
 
 void gvid_boxcvt(char* s);
+
+#if defined(__UNIX__) || defined(__USE_NCURSES__)
+vchar gvid_boxcvtc(vchar c);
+#endif
 
 
 //  ------------------------------------------------------------------

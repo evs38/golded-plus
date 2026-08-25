@@ -55,7 +55,20 @@ int Area::LoadHdr(GMsg* msg, uint32_t msgno, bool enable_recode)
         // Use default translation by default
         int table = GetCurrentTable();
         if((table == -1) or not CFG->ignorecharset)
-            msg->charsetlevel = LoadCharset(AA->Xlatimport(), CFG->xlatlocalset);
+        {
+            //  A CHRS kludge normally lives in the message text, and
+            //  reading every message just to build a list would be far
+            //  too slow. Some bases keep the kludges in the header
+            //  instead - there the driver has already handed us the
+            //  charset for nothing, and the list can decode the header
+            //  fields exactly as the reader does. Where it has not, the
+            //  area's own import charset is all we know.
+            msg->charsetlevel = 0;
+            if(*msg->hdrchrs)
+                msg->charsetlevel = LoadCharset(msg->hdrchrs, CFG->xlatlocalset);
+            if(not msg->charsetlevel)
+                msg->charsetlevel = LoadCharset(AA->Xlatimport(), CFG->xlatlocalset);
+        }
         else
             msg->charsetlevel = LoadCharset(table);
 

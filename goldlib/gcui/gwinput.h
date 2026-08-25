@@ -89,8 +89,18 @@ public:
         bool delete_left();
         bool delete_char();
         bool delete_word(bool left);
-        bool insert_char(char ch);
-        bool overwrite_char(char ch);
+        //  A character, not a byte: 'chars' holds its whole encoding.
+        bool insert_char(const char* chars, int len);
+        bool overwrite_char(const char* chars, int len);
+
+        bool insert_char(char ch)
+        {
+            return insert_char(&ch, 1);
+        }
+        bool overwrite_char(char ch)
+        {
+            return overwrite_char(&ch, 1);
+        }
         bool home();
         bool end();
 
@@ -106,7 +116,20 @@ public:
         void conditional();
 
         void move_cursor();
-        void draw(int from_pos=0);
+        void draw(int from_col=0);
+
+        //  buf_pos, buf_left_pos and buf_end_pos are byte offsets into
+        //  buf; pos and max_pos are screen columns. They coincided while
+        //  a character was a byte, and these convert between them now
+        //  that it is not.
+        int  next_off(int off) const;
+        int  prev_off(int off) const;
+        int  col_of(int off) const;         // column of 'off' within the field
+        int  off_at_col(int col) const;     // the reverse
+
+        //  Recompute pos from buf_pos, scrolling the field sideways if
+        //  the cursor would otherwise fall outside it.
+        void resync();
 
         void clear_field();
 
@@ -201,6 +224,7 @@ public:
     void go_left_word();
     void go_right_word();
     void enter_char(char ch);
+    void enter_char(const char* chars, int len);
 
     void prepare_form();
     void finish_form();

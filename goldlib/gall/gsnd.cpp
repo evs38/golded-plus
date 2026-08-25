@@ -53,7 +53,8 @@ gsnd::gsnd()
 
 #if defined(__MSDOS__)
     mpx = -1;
-#if (defined(__WATCOMC__) && defined(__386__)) || defined(__DJGPP__)
+#if (defined(__WATCOMC__) && defined(__386__)) || defined(__DJGPP__) \
+ || (defined(__BORLANDC__) && defined(__DPMI32__))
     buffer = -1;
 #else
     buffer = NULL;
@@ -104,7 +105,8 @@ void gsnd::free_buffer()
 {
 
 #if defined(__MSDOS__)
-#if defined(__DJGPP__) || (defined(__WATCOMC__) && defined(__386__))
+#if defined(__DJGPP__) || (defined(__WATCOMC__) && defined(__386__)) \
+ || (defined(__BORLANDC__) && defined(__DPMI32__))
     if(buffer != -1)
     {
         __dpmi_free_dos_memory(buffer);
@@ -126,7 +128,17 @@ void gsnd::free_buffer()
 int gsnd::open_api()
 {
 
-#if defined(__MSDOS__)
+#if defined(__BORLANDC__) && defined(__DPMI32__)
+
+    //  GoldSAPI is reached through real-mode addresses that the program
+    //  must read and write directly, and Borland's DOS extender gives no
+    //  way to turn one into a pointer - it maps the first megabyte
+    //  nowhere the program can address. Report the API as absent rather
+    //  than write somewhere else; the other DOS targets are unaffected.
+    mpx = -1;
+    return -1;
+
+#elif defined(__MSDOS__)
 
     i86 cpu;
 
@@ -243,7 +255,8 @@ try_again:
         goto try_again;
     case 0x02:
         free_buffer();
-#if defined(__DJGPP__) || (defined(__WATCOMC__) && defined(__386__))
+#if defined(__DJGPP__) || (defined(__WATCOMC__) && defined(__386__)) \
+ || (defined(__BORLANDC__) && defined(__DPMI32__))
         int seg = __dpmi_allocate_dos_memory((data->buffer_length >> 4) + 1, &buffer);
         if(seg == -1)
             return -1;

@@ -461,7 +461,7 @@ public:
     char        tasktitle[60];
     Tear        tearline;
     bool        titlestatus;
-    std::map<std::string, std::string> translate;
+    std::map<std::string, std::string, std::less<std::string> > translate;
     std::vector<Tpl> tpl;
     int         tplno;
     bool        templatematch;
@@ -494,9 +494,16 @@ public:
     std::string      wtpl;
     ChrsMap xlatcharsets;
     ChrsMap xlatescsets;
-    std::map<std::string, std::string> xlatcharsetalias;
+    std::map<std::string, std::string, std::less<std::string> > xlatcharsetalias;
     char        xlatexport[17];       // exportcharset[17];
     char        xlatimport[17];       // localcharset[17];
+    //  The charset configuration files are written in. Area
+    //  descriptions come from there and are shown as they are, so a
+    //  config that predates the move to UTF-8 - or one written by a
+    //  tosser that emits KOI8-R - is declared here. Empty means the
+    //  config is in the local charset, which is the old behaviour.
+    char        xlatconfigset[17];
+    char        xlatareaset[17];
     char        xlatlocalset[17];
     Path        xlatpath;
     int         zonegating;
@@ -562,8 +569,8 @@ public:
     // -----------------------------------------------------------------
     // Configuration data
 
-    std::map<std::string, std::string> Comment;
-    std::map<std::string, std::string> Completion;
+    std::map<std::string, std::string, std::less<std::string> > Comment;
+    std::map<std::string, std::string, std::less<std::string> > Completion;
     std::vector<std::pair<int, std::string> > SaveUtil;
 
 

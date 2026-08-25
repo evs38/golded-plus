@@ -301,6 +301,13 @@ add_intl_topt_fmpt:
             else
                 _kludgesx = _kludges;
             sprintf(_kludgesx+strlen(_kludgesx), "\001%s\r", _buf);
+
+            //  Jam keeps the kludges in the header subfields, so the
+            //  charset the message declares is right here - also when
+            //  the text is not being read at all. Hand it up so that a
+            //  message list can decode the subject without opening the
+            //  .jdt file for every single message.
+            __msg->set_hdrchrs_from_kludge(_buf);
         }
             // Not processed
         break;

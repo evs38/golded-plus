@@ -73,3 +73,57 @@ Known wishes that not currently planned (any volunteers?):
 * Ability to change directory in attach picker.
 *** Any of your suggestion may be placed here ;-)
 ______________________________________________________________________
+
+______________________________________________________________________
+
+Found while reviewing the UTF-8 work for repeated code, 2026-08-25.
+Each was verified by reading the code, and the two marked (older) were
+confirmed against a pre-change binary, so they are not fallout from
+that work.
+
+Faults:
+
+* (older) A header field is written to the message base unconverted
+  when the area's export charset is only reachable through the
+  built-in tables: the message ends up with, say, "CHRS: MAC-CYRILLIC"
+  and a Subject still in UTF-8 behind it. Charsets iconv knows -
+  CP866, CP1251, KOI8-R - are converted correctly, so this shows only
+  where gcptabs.inc is what does the work.
+* (older) In an 8-bit MAC-CYRILLIC session the first character of a
+  header field draws as "~O" instead of "П"; the rest of the field is
+  right.
+* geqwks.cpp:446 dereferences CharTable->exp without a NULL check.
+  That was reachable only when no .chs table matched; now that a
+  recoder leaves CharTable NULL on every build with iconv, Win32 or
+  ULS, it is the normal state.
+* golded3/gepost.cpp: ApplyExportCharset() installs the export
+  conversion at each call site rather than in LinesToText(), and the
+  set is incomplete - the carbon-copy path at gepost.cpp:544 has no
+  equivalent, and getpls.cpp:1190 and geread2.cpp:63 open-code the
+  same rule a third and fourth time. gefile.cpp:573 WriteFMsgs() calls
+  TextToLines() and then LinesToText(), so the header fields are
+  written with the *import* conversion the first call left behind.
+
+Design, in rough order of what it would buy:
+
+* The current conversion is half a parameter and half a global:
+  XlatStr() takes the table but reads the recoder from CharRecoder,
+  and the save/restore idiom callers use round-trips only the table
+  index. LoadCharset() should hand back one value holding level, table
+  and recoder, and XlatStr()/strxmimecpy() should take it. The
+  `_recoder' shadow in MakeLineIndex and the `CharRecoder =' poke at
+  geline.cpp:3093 exist only because it does not.
+* "Which charset does this message declare" is written twice and at
+  different strengths: the message-base drivers recognise CHRS: and
+  CHARSET:, while the text scanner in geline.cpp also handles
+  CODEPAGE, I51, Content-Type, X-Charset, and normalises the value.
+  One function, called from both, would stop the list and the reader
+  drifting apart again.
+* Wasted work worth removing: g_utf8_fold() does a 128-entry linear
+  scan per non-ASCII byte in 8-bit mode, on every line of every
+  message searched, where a 256-byte table built once would do;
+  gwildmat re-folds the *pattern* on every line, while gbmh and gfuzzy
+  fold it once at init; RecodeChar() runs a whole GRecoder::convert()
+  per character of message text, including an iconv shift-state reset
+  each time; and g_utf8_fit() and wprintns() each decode the same text
+  twice per message-list row.

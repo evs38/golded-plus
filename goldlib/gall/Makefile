@@ -14,8 +14,14 @@ INCS=-I$(TOP)/goldlib -I$(TOP)/goldlib/gall
 ifdef MINGW
 INCS+=-I$(TOP)/goldlib/glibc
 else
+ifneq ($(filter $(PLATFORM),wcn wco wcx wcl),)
+#  Open Watcom ships no POSIX regex on any of its targets;
+#  goldlib/glibc supplies it.
+INCS+=-I$(TOP)/goldlib/glibc
+else
 ifeq ($(PLATFORM),emx)
 INCS+=-I$(TOP)/goldlib/glibc
+endif
 endif
 endif
 

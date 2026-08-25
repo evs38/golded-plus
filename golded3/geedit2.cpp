@@ -253,9 +253,9 @@ void IEclass::DelLtWord()
         return;
     }
 
-    int _ptr, _ptr2;
+    uint _ptr, _ptr2;
     _ptr = _ptr2 = col;
-    _ptr--;
+    _ptr = prevoff(currline, _ptr);
 
     // test test test test     test test test test
     // test test test test ,   test test test test
@@ -264,18 +264,18 @@ void IEclass::DelLtWord()
     if(currline->txt[_ptr] == ' ')
     {
         while((currline->txt[_ptr] == ' ') and (_ptr > 0))
-            _ptr--;
+            _ptr = prevoff(currline, _ptr);
         if(currline->txt[_ptr] != ' ')
-            _ptr++;
+            _ptr = nextoff(currline, _ptr);
     }
-    else if(isxalnum(currline->txt[_ptr]))
+    else if(iswordchar(currline, _ptr))
     {
-        while(isxalnum(currline->txt[_ptr]) and (_ptr > 0))
-            _ptr--;
+        while(iswordchar(currline, _ptr) and (_ptr > 0))
+            _ptr = prevoff(currline, _ptr);
         while((currline->txt[_ptr] == ' ') and (_ptr > 0))
-            _ptr--;
+            _ptr = prevoff(currline, _ptr);
         if((currline->txt[_ptr] != ' ') and (_ptr > 0))
-            _ptr++;
+            _ptr = nextoff(currline, _ptr);
     }
     else
     {
@@ -287,7 +287,7 @@ void IEclass::DelLtWord()
     col -= _ptr2-_ptr;
 
     Undo->PushItem(EDIT_UNDO_DEL_TEXT, currline, col, _ptr2-_ptr);
-    currline->txt.erase(_ptr, _ptr2-_ptr);
+    strerase(currline->txt, _ptr, _ptr2-_ptr);
 
     wrapdel(&currline, &col, &row);
 
@@ -302,14 +302,15 @@ void IEclass::DelRtWord()
 
     GFTRK("EditDelRtWord");
 
-    if((currline->txt.length() == col+1) or (currline->txt[col+1] == '\n'))
+    if((currline->txt.length() == nextoff(currline, col)) or
+       (currline->txt[nextoff(currline, col)] == '\n'))
     {
         DelChar();
         GFTRK(0);
         return;
     }
 
-    int _ptr, _ptr2;
+    uint _ptr, _ptr2;
     _ptr = _ptr2 = col;
 
     // test test test test,   test test test test
@@ -318,16 +319,16 @@ void IEclass::DelRtWord()
     if(currline->txt[_ptr] == ' ')
     {
         while(_ptr != currline->txt.length() and currline->txt[_ptr] == ' ')
-            _ptr++;
+            _ptr = nextoff(currline, _ptr);
     }
-    else if(isxalnum(currline->txt[_ptr]))
+    else if(iswordchar(currline, _ptr))
     {
         // Delete word
-        while(_ptr != currline->txt.length() and isxalnum(currline->txt[_ptr]))
-            _ptr++;
+        while(_ptr != currline->txt.length() and iswordchar(currline, _ptr))
+            _ptr = nextoff(currline, _ptr);
         // Delete spaces after word
         while(_ptr != currline->txt.length() and currline->txt[_ptr] == ' ')
-            _ptr++;
+            _ptr = nextoff(currline, _ptr);
     }
     else
     {
@@ -337,7 +338,7 @@ void IEclass::DelRtWord()
     }
 
     Undo->PushItem(EDIT_UNDO_DEL_TEXT, currline, col, _ptr-_ptr2);
-    currline->txt.erase(_ptr2, _ptr-_ptr2);
+    strerase(currline->txt, _ptr2, _ptr-_ptr2);
 
     wrapdel(&currline, &col, &row);
 
@@ -599,9 +600,9 @@ void IEclass::BlockCopy()
             if(_firstcopyline == _lastcopyline)
             {
                 if(_prevline)
-                    _copyline->txt.erase(lastcol);
+                    strerase(_copyline->txt, lastcol);
                 else
-                    _copyline->txt.erase(lastcol-firstcol);
+                    strerase(_copyline->txt, lastcol-firstcol);
             }
             _copyline->type = _firstcopyline->type & ~GLINE_BLOK;
 
@@ -705,12 +706,12 @@ void IEclass::BlockDel(Line* anchor)
         prow = __prow;
 
         Undo->PushItem(EDIT_UNDO_DEL_TEXT|BATCH_MODE, firstcutline, firstcol, __len-firstcol);
-        firstcutline->txt.erase(firstcol, __len-firstcol);
+        strerase(firstcutline->txt, firstcol, __len-firstcol);
     }
     else
     {
         Undo->PushItem(EDIT_UNDO_DEL_TEXT, firstcutline, firstcol, lastcol-firstcol);
-        firstcutline->txt.erase(firstcol, lastcol-firstcol);
+        strerase(firstcutline->txt, firstcol, lastcol-firstcol);
     }
     setlinetype(firstcutline);
     firstcutline->type &= ~GLINE_BLOK;
@@ -819,7 +820,7 @@ void IEclass::BlockPaste()
                 // append to current line
                 Undo->PushItem(EDIT_UNDO_DEL_TEXT|BATCH_MODE, currline, col);
                 Line* _newline = insertlinebelow(currline, currline->txt.c_str()+col, BATCH_MODE);
-                currline->txt.erase(col);
+                strerase(currline->txt, col);
                 currline->txt += _pasteline->txt;
                 Undo->PushItem(EDIT_UNDO_INS_TEXT|BATCH_MODE, currline, col, pastelen);
                 setlinetype(currline);
@@ -1098,7 +1099,7 @@ void IEclass::editimport(Line* __line, char* __filename, bool imptxt)
             int delta = strlen(imp_filename) - margintext;
             if(delta > 0)
             {
-                filenamebuf.erase(filenamebuf.length()-delta);
+                strerase(filenamebuf, filenamebuf.length()-delta);
                 imp_filename = (getclip or isPipe) ? filenamebuf.c_str() : CleanFilename(filenamebuf.c_str());
             }
 
@@ -2135,7 +2136,7 @@ void IEclass::DrawLines(gkey key)
             break;
         }
 
-        gotorowcol(col, row);
+        gotorowcol(dispcol(), row);
         ChrToLines(currline->txt[col], lines);
 
         switch (key)

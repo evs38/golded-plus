@@ -2,6 +2,19 @@
 # $Id$
 # Include file for GNU C++ build
 
+#  What the machine actually is, asked once. `be' covers both BeOS and
+#  Haiku, and the two differ enough that the rest of this file has to be
+#  able to tell them apart.
+#  The Open Watcom targets, as platform tags. wcn/wco/wcx are the ones
+#  the .all source lists have always used; wcl is Linux, which they never
+#  had a Watcom tag for.
+GOLD_WATCOM_PLATFORMS=wcn wco wcx wcl
+
+GOLD_HOST_OS := $(shell uname -s 2>/dev/null)
+ifeq ($(GOLD_HOST_OS),Haiku)
+    GOLD_HAIKU=1
+endif
+
 ifndef PLATFORM
 
     ifeq ($(TERM),cygwin)
@@ -26,6 +39,10 @@ ifndef PLATFORM
         PLATFORM=be
     endif
 
+    ifeq ($(GOLD_HAIKU),1) # Haiku - the BeOS API, so the same platform
+        PLATFORM=be
+    endif
+
     ifeq ($(findstring solaris, $(OSTYPE)), solaris)
         PLATFORM=sun
     endif
@@ -36,15 +53,176 @@ ifndef PLATFORM
 
 endif  # ifndef PLATFORM
 
+#  Which library carries the wide-character curses API varies: a separate
+#  libncursesw on most Linux systems, the ordinary libncurses on NetBSD's
+#  pkgsrc (ncursesw was dropped there) and on macOS, and the base system
+#  curses on the BSDs - which can do wide characters too. So try them in
+#  turn and keep the first that links, rather than naming one and hoping.
+#
+#  $(1) is the list of candidates to try.
+#  The probe links to a real temporary file, not to /dev/null: Cygwin's
+#  linker cannot write a PE image there and fails every attempt with
+#  "final link failed: file truncated", which would leave the result
+#  empty and the link line without any curses at all.
+gold_find_curses = $(strip $(shell t=$${TMPDIR:-/tmp}/goldcurses$$$$; \
+    for l in $(1); do \
+      if echo 'int main(void){return 0;}' | \
+         $(CC) $(CURSES_PKG_LDFLAGS) -x c - -l$$l -o $$t.exe \
+         > /dev/null 2>&1; then echo "-l$$l"; break; fi; \
+    done; rm -f $$t $$t.exe))
+
+#  The same question for iconv. GNU libiconv is a library of its own,
+#  while glibc and most of the BSDs keep iconv in the C library, where
+#  naming it fails the link. Ask the linker which of the two this is
+#  rather than assuming, the way the curses probe above does.
+#
+#  The package prefix is tried first, so a GNU libiconv installed beside
+#  the system's own still wins - and its header goes on the compile line
+#  with it, because the two must be paired: GNU libiconv's iconv.h
+#  renames iconv_open(), so its header against the C library's iconv
+#  resolves to nothing.
+gold_find_iconv = $(strip $(shell t=$${TMPDIR:-/tmp}/goldiconv$$$$; \
+    for l in "-liconv" ""; do \
+      if printf '#include <iconv.h>\nint main(void){iconv_open("","");return 0;}\n' | \
+         $(CC) $(ICONV_PKG_CFLAGS) $(ICONV_PKG_LDFLAGS) -x c - $$l -o $$t.exe \
+         > /dev/null 2>&1; then echo "$$l"; break; fi; \
+    done; rm -f $$t $$t.exe))
+
+# Wide (UTF-8 capable) curses and an UTF-8 internal representation are on
+# by default wherever the platform can carry them. Both can be turned off:
+#   make WIDE_NCURSES=0   use the 8-bit curses API
+#   make GOLD_UTF8=0      hold text in a single-byte charset, as before
+#
+# The test is by exclusion because PLATFORM is still empty at this point
+# for Linux and the BSDs - those only get their `lnx' value further down,
+# in the fallback branch of the platform chain.
+#  Haiku is a complete unix under the BeOS API - ncurses, iconv, and a
+#  system charset that is UTF-8 already - so it is not held back with
+#  classic BeOS.
+GOLD_LIMITED_PLATFORMS=djg emx cyg be $(GOLD_WATCOM_PLATFORMS)
+ifeq ($(GOLD_HAIKU),1)
+    GOLD_LIMITED_PLATFORMS=djg emx cyg $(GOLD_WATCOM_PLATFORMS)
+endif
+
+ifeq ($(filter $(GOLD_LIMITED_PLATFORMS),$(PLATFORM)),)
+    WIDE_NCURSES?=1
+    GOLD_UTF8?=1
+    ICONV?=1
+else
+    #  None of these draws through curses, so there is no wide curses API
+    #  to ask for.
+    WIDE_NCURSES?=0
+
+    #  DOS and BeOS keep the single-byte behaviour they always had.
+    #  `cyg' is not a Cygwin binary - it is a native Win32 one built with
+    #  the Cygwin toolchain - so it carries UTF-8 exactly the way the MSVC
+    #  build does, through the Win32 codepage API in the recoder.
+    #  `emx' joins them now that OS/2 recodes through ULS: the Watcom
+    #  OS/2 target has always been in this list, and the two OS/2 builds
+    #  had no business differing.
+    ifneq ($(filter cyg emx wcn wco wcl,$(PLATFORM)),)
+        GOLD_UTF8?=1
+    else
+        #  DOS - real mode or extender - keeps the single-byte behaviour
+        #  it has always had.
+        GOLD_UTF8?=0
+    endif
+endif
+
+ifeq ($(GOLD_UTF8),1)
+    CPPFLAGS+=-DGOLD_UTF8=1
+    CFLAGS+=-DGOLD_UTF8=1
+endif
+
+# On unix the package manager's curses and iconv come first - pkgsrc,
+# ports, Homebrew, MacPorts, OpenCSW - and the base system's are the
+# fallback behind them. A packaged ncurses is newer and wide-capable
+# where a base curses often is not, and a packaged libiconv knows
+# charsets the C library's does not. Turn that around with:
+#
+#   make EXTERNAL_CURSES=0    use only the curses the system itself has
+#   make EXTERNAL_ICONV=0     use only the iconv the system itself has
+#
+# The cross-built targets - DOS, OS/2, the Watcom ones - default to 0,
+# and not because they could not use these libraries: the prefixes below
+# are found with $(wildcard) on the *build host*, so on a cross build
+# they would put the host's headers and libraries on a DOS or OS/2
+# compile line. Where such a target is built natively and wants them,
+# say EXTERNAL_CURSES=1 EXTERNAL_ICONV=1 by hand.
+#
+# Whichever side is used, header and library must come from the same
+# one. Several of these systems ship both and the two are not
+# interchangeable: GNU libiconv's header renames iconv_open() to
+# libiconv_open(), so its header against the C library's iconv links to
+# nothing; a pkgsrc ncurses header against the base libcurses compiles
+# and then misbehaves at run time. The -I and -L below stay paired for
+# that reason.
+ifeq ($(filter $(GOLD_LIMITED_PLATFORMS),$(PLATFORM)),)
+    EXTERNAL_CURSES?=1
+    EXTERNAL_ICONV?=1
+else
+    EXTERNAL_CURSES?=0
+    EXTERNAL_ICONV?=0
+endif
+
+GOLD_PKG_PREFIXES=/usr/pkg /usr/local /opt/local /opt/homebrew /opt/csw /usr/sfw
+GOLD_PKG_LDFLAGS=$(foreach p,$(GOLD_PKG_PREFIXES),$(if $(wildcard $(p)/lib),-L$(p)/lib))
+GOLD_PKG_CFLAGS=$(foreach p,$(GOLD_PKG_PREFIXES),$(if $(wildcard $(p)/include),-I$(p)/include))
+
+CURSES_PKG_LDFLAGS=
+CURSES_PKG_CFLAGS=
+ifeq ($(EXTERNAL_CURSES),1)
+    CURSES_PKG_LDFLAGS=$(GOLD_PKG_LDFLAGS)
+    CURSES_PKG_CFLAGS=$(GOLD_PKG_CFLAGS)
+endif
+
+ICONV_PKG_LDFLAGS=
+ICONV_PKG_CFLAGS=
+ifeq ($(EXTERNAL_ICONV),1)
+    ICONV_PKG_LDFLAGS=$(GOLD_PKG_LDFLAGS)
+    ICONV_PKG_CFLAGS=$(GOLD_PKG_CFLAGS)
+endif
+
+
 ifeq ($(PLATFORM),cyg)
     CAT=cat
     SED=sed
     GREP=grep
-    CC=gcc -mno-cygwin
-    CXX=g++ -mno-cygwin
-    AR=ar
-    RANLIB=ranlib
-    WINDRES=windres
+
+    #  `gcc -mno-cygwin' used to mean "produce a native Win32 binary".
+    #  GCC removed the flag in 4.4; the same job now belongs to the
+    #  mingw-w64 cross compiler that Cygwin ships. Use it when it is
+    #  installed and keep the old spelling for toolchains that still
+    #  understand it.
+    #  32-bit first: `cyg' has always produced a Win32 binary, and the
+    #  code still assumes a long is the size of a pointer.
+    CYG_MINGW := $(shell for p in i686-w64-mingw32 x86_64-w64-mingw32; do \
+        if command -v $$p-gcc > /dev/null 2>&1; then echo $$p; break; fi; \
+    done)
+
+    ifeq ($(CYG_MINGW),)
+        CC=gcc -mno-cygwin
+        CXX=g++ -mno-cygwin
+        AR=ar
+        RANLIB=ranlib
+        WINDRES=windres
+    else
+        CC=$(CYG_MINGW)-gcc
+        CXX=$(CYG_MINGW)-g++
+        AR=$(CYG_MINGW)-ar
+        RANLIB=$(CYG_MINGW)-ranlib
+        WINDRES=$(CYG_MINGW)-windres
+
+        #  `gcc -mno-cygwin' produced a binary that needed nothing but
+        #  the system DLLs. The cross compiler links its own libgcc and
+        #  libstdc++ dynamically, and those live inside the Cygwin tree,
+        #  so the result would not start anywhere else. Ask for them
+        #  statically and keep the binary standalone. `-static' rather
+        #  than the two -static-lib* flags, because the threading model
+        #  drags in libwinpthread as well.
+        LNKFLAGS+=-static
+    endif
+
     EXEEXT=.exe
     OBJEXT=.o
     LIBEXT=.a
@@ -71,6 +249,35 @@ ifeq ($(PLATFORM),emx)
     #LIBEXT=.lib
     CXX=g++
     CFLAGS+=-DHAVE_SNPRINTF -DHAVE_VSNPRINTF -DHAVE_STDARG_H
+    #  os2me.h and the other multimedia and PM headers come from the
+    #  IBM Toolkit, not from the C library: on ArcaOS they are the
+    #  os2tk45-headers package.  Added only when they are there, so
+    #  a host without the Toolkit builds exactly as it did before.
+    #
+    #  -fpermissive comes with them, and only with them: os2medef.h
+    #  writes `typedef FAR * LPTR;', which was an int pointer by the
+    #  implicit-int rule the compilers of 1992 followed and is an
+    #  error in C++.  The header cannot be worked around from
+    #  outside - the typedefs carry no guard.
+    #
+    #  -idirafter, not -I: the Toolkit carries its own sys/cdefs.h,
+    #  config.h and arpa/, and searched first they shadow the C
+    #  library's and every standard header stops compiling.  Searched
+    #  last it still supplies os2me.h, which is only there.
+    GOLD_OS2TK_INC=/@unixroot/usr/include/os2tk45
+    ifneq ($(wildcard $(GOLD_OS2TK_INC)),)
+        CFLAGS+=-idirafter $(GOLD_OS2TK_INC) -fpermissive
+    endif
+    #  OS/2 recodes for itself through ULS, so this target has no need
+    #  of the built-in charset tables whether or not iconv is around.
+    #  unidef.h comes either with the Toolkit above or, on a cross
+    #  build, straight from the compiler's own include directory.
+    #  Set ULS=0 to leave it out.
+    ULS?=$(if $(wildcard $(GOLD_OS2TK_INC)/unidef.h /@unixroot/usr/include/unidef.h),1,0)
+    ifeq "$(ULS)" "1"
+        CFLAGS+=-DHAS_ULS
+        STDLIBS+=-los2_unicode_lazy
+    endif
     LNKFLAGS+=-s
 else
 ifeq ($(PLATFORM),djg)
@@ -87,6 +294,104 @@ ifeq ($(PLATFORM),djg)
     LIBEXT=.a
     CFLAGS+=-DHAVE_SNPRINTF -DHAVE_VSNPRINTF -DHAVE_STDARG_H
 else
+ifneq ($(filter $(PLATFORM),$(GOLD_WATCOM_PLATFORMS)),)
+    #  Open Watcom. One compiler, several targets, one platform tag each:
+    #
+    #     wcn   Win32          wco   OS/2 32-bit
+    #     wcx   DOS extender   wcl   Linux 32-bit
+    #
+    #  The first three are the tags the .all source lists have carried
+    #  since the 1990s, so the file lists needed nothing new. `wcl' is
+    #  new and borrows the `lnx' lists through SRCTAG, because the set of
+    #  sources for Linux does not depend on which compiler builds them.
+    #
+    #  owcc is Open Watcom's gcc-compatible driver, which lets these
+    #  targets share every rule in GNUmakef.inc. Two things they do not
+    #  share: archives are made by wlib rather than ar, and exception
+    #  handling has to be asked for by name (-feh).
+    CAT=cat
+    SED=sed
+    GREP=grep
+    AR=wlib
+    RANLIB=true
+    WATCOM_AR=1
+    OBJEXT=.o
+    LIBEXT=.lib
+
+    ifeq ($(PLATFORM),wcn)
+        WATCOM_BT=nt
+        SRCTAG?=wcn
+        EXEEXT=.exe
+    endif
+    ifeq ($(PLATFORM),wco)
+        WATCOM_BT=os2v2
+        SRCTAG?=wco
+        EXEEXT=.exe
+    endif
+    ifeq ($(PLATFORM),wcx)
+        WATCOM_BT=dos4g
+        SRCTAG?=wcx
+        EXEEXT=.exe
+    endif
+    ifeq ($(PLATFORM),wcl)
+        WATCOM_BT=linux
+        SRCTAG?=lnx
+        EXEEXT=
+    endif
+
+    #  Point the compiler at its own headers explicitly and clear
+    #  INCLUDE, rather than relying on owsetenv having been run: on a
+    #  machine that also has Visual C++, INCLUDE is left pointing at
+    #  that one's headers and Watcom would compile against them.
+    ifeq ($(WATCOM),)
+        $(error Set WATCOM to the Open Watcom root, e.g. make PLATFORM=$(PLATFORM) WATCOM=C:/WATCOM)
+    endif
+
+    WATCOM_SYSINC=-I$(WATCOM)/h
+    WATCOM_INCLUDE=$(WATCOM)/h
+    ifeq ($(PLATFORM),wcn)
+        WATCOM_SYSINC+=-I$(WATCOM)/h/nt
+        WATCOM_INCLUDE=$(WATCOM)/h;$(WATCOM)/h/nt
+    endif
+    ifeq ($(PLATFORM),wco)
+        WATCOM_SYSINC+=-I$(WATCOM)/h/os2
+        WATCOM_INCLUDE=$(WATCOM)/h;$(WATCOM)/h/os2
+    endif
+    ifeq ($(PLATFORM),wcl)
+        WATCOM_SYSINC=-I$(WATCOM)/lh
+        WATCOM_INCLUDE=$(WATCOM)/lh
+    endif
+
+    #  Point INCLUDE at Watcom's own headers rather than clearing it: an
+    #  empty environment variable does not always survive the trip into a
+    #  Windows process, and whatever was there before - Visual C++ leaves
+    #  its own path in INCLUDE machine-wide - would show through again.
+    export INCLUDE=$(WATCOM_INCLUDE)
+
+    CFLAGS+=$(WATCOM_SYSINC)
+
+    CC=owcc -b$(WATCOM_BT)
+    #  No -xc++: owcc takes the language from the file extension, and the
+    #  same variable drives the link, where -x would eat the next word.
+    CXX=owcc -b$(WATCOM_BT) -feh
+
+    CFLAGS+=-DHAVE_SNPRINTF -DHAVE_VSNPRINTF -DHAVE_STDARG_H
+
+    #  Watcom's <windows.h> defines min() and max() as macros, which
+    #  wrecks <limits> - std::numeric_limits has members by those names.
+    CFLAGS+=-DNOMINMAX
+
+    #  No internal spellchecker on these targets. The bundled hunspell
+    #  wants parts of the C++ library Open Watcom does not have -
+    #  std::ios_base::openmode and some basic_string::compare overloads
+    #  among them - and the MS Office one wants COM. Everything else
+    #  GoldED+ does is here; only spellchecking is absent.
+    CFLAGS+=-DGCFG_NO_MYSPELL -DGCFG_NO_MSSPELL
+
+    #  Watcom's warning switches are its own; none of the gcc ones below
+    #  would be understood.
+    GOLD_CC_WARNFLAGS=
+else
 ifeq ($(PLATFORM),be)
     CAT=cat
     SED=sed
@@ -100,6 +405,18 @@ ifeq ($(PLATFORM),be)
     LIBEXT=.a
     LNKFLAGS+=-lbe -ltextencoding
     CFLAGS+=-DHAVE_SNPRINTF -DHAVE_VSNPRINTF -DHAVE_STDARG_H
+
+    #  Classic BeOS has no curses and draws through GoldED's own terminal
+    #  code. Haiku has ncurses in the base system, so use it there.
+    ifeq ($(GOLD_HAIKU),1)
+        CFLAGS+=-D__UNIX__ -DUNIX
+        ifeq ($(WIDE_NCURSES),1)
+            CPPFLAGS+=-D__USE_WIDE_NCURSES__ -D_XOPEN_SOURCE_EXTENDED
+            LIBCURSES:=$(CURSES_PKG_LDFLAGS) $(call gold_find_curses,ncursesw ncurses curses)
+        else
+            LIBCURSES:=$(CURSES_PKG_LDFLAGS) $(call gold_find_curses,ncurses curses)
+        endif
+    endif
 else
 ifeq ($(PLATFORM),sun) # SUN Solaris
     CAT=cat
@@ -114,11 +431,24 @@ ifeq ($(PLATFORM),sun) # SUN Solaris
     LIBEXT=.a
     CFLAGS+=-D__SUNOS__ -D__UNIX__ -DUNIX
     CFLAGS+=-DHAVE_SNPRINTF -DHAVE_VSNPRINTF -DHAVE_STDARG_H
+    #  Solaris reads _XOPEN_SOURCE_EXTENDED - which the wide curses API
+    #  below asks for - as a request for strict X/Open namespace, and
+    #  hides a good deal of its own C library behind it: <cwchar> then
+    #  cannot find btowc, mbrtowc, swprintf and the rest, and every file
+    #  that includes <string> fails. __EXTENSIONS__ is Solaris's own way
+    #  of saying "and everything else as well".
+    CFLAGS+=-D__EXTENSIONS__
     ifeq ($(WIDE_NCURSES),1)
-        CPPFLAGS+=-D__USE_WIDE_NCURSES__
-        LIBCURSES=-L/opt/csw/lib -lncursesw
+        #  NCURSES_WIDECHAR, not _XOPEN_SOURCE_EXTENDED. Both ask curses
+        #  for the wide API, but the second one also puts Solaris's own
+        #  headers into strict X/Open mode, where <wchar.h> stops
+        #  declaring vswprintf and libstdc++'s <string> will not compile.
+        #  Solaris's libncurses is libncursesw under another name, so
+        #  nothing else is needed to get there.
+        CPPFLAGS+=-D__USE_WIDE_NCURSES__ -DNCURSES_WIDECHAR=1
+        LIBCURSES:=$(CURSES_PKG_LDFLAGS) $(call gold_find_curses,ncursesw ncurses curses)
     else
-        LIBCURSES=-L/opt/csw/lib -lncurses
+        LIBCURSES:=$(CURSES_PKG_LDFLAGS) $(call gold_find_curses,ncurses curses)
     endif
 else
 ifeq ($(PLATFORM),osx) # Mac OSX
@@ -138,10 +468,10 @@ ifeq ($(PLATFORM),osx) # Mac OSX
     OBJEXT=.o
     LIBEXT=.a
     ifeq ($(WIDE_NCURSES),1)
-        CPPFLAGS+=-D__USE_WIDE_NCURSES__
-        LIBCURSES=-lncursesw
+        CPPFLAGS+=-D__USE_WIDE_NCURSES__ -D_XOPEN_SOURCE_EXTENDED
+        LIBCURSES:=$(CURSES_PKG_LDFLAGS) $(call gold_find_curses,ncursesw ncurses curses)
     else
-        LIBCURSES=-lncurses
+        LIBCURSES:=$(CURSES_PKG_LDFLAGS) $(call gold_find_curses,ncurses curses)
     endif
     CFLAGS+=-DHAVE_SNPRINTF -DHAVE_VSNPRINTF -DHAVE_STDARG_H
 else                   # Linux, *BSD or another unix-like OS
@@ -162,11 +492,22 @@ else                   # Linux, *BSD or another unix-like OS
     LIBEXT=.a
     CFLAGS+=-DHAVE_SNPRINTF -DHAVE_VSNPRINTF -DHAVE_STDARG_H
     ifeq ($(WIDE_NCURSES),1)
-        CPPFLAGS+=-D__USE_WIDE_NCURSES__
-        CFLAGS+=-I/usr/include/ncursesw/
-        LIBCURSES=-lncursesw
+        CPPFLAGS+=-D__USE_WIDE_NCURSES__ -D_XOPEN_SOURCE_EXTENDED
+        LIBCURSES:=$(CURSES_PKG_LDFLAGS) $(call gold_find_curses,ncursesw ncurses curses)
     else
-        LIBCURSES=-lncurses
+        LIBCURSES:=$(CURSES_PKG_LDFLAGS) $(call gold_find_curses,ncurses curses)
+    endif
+    #  The headers have to come from the same implementation as the
+    #  library that was just chosen. Adding another one's include
+    #  directory "just in case" is how a build ends up compiling against
+    #  one curses and linking against a different one.
+    ifneq ($(filter -lncursesw,$(LIBCURSES)),)
+        CFLAGS+=$(if $(wildcard /usr/include/ncursesw),-I/usr/include/ncursesw/,)
+    endif
+    ifeq ($(EXTERNAL_CURSES),1)
+        ifneq ($(filter -lncurses,$(LIBCURSES)),)
+            CFLAGS+=$(if $(wildcard /usr/pkg/include/ncurses),-I/usr/pkg/include/ncurses -I/usr/pkg/include,)
+        endif
     endif
 endif
 endif
@@ -174,11 +515,16 @@ endif
 endif
 endif
 endif
+endif
+
+#  Compiler switches that only GNU C understands. A platform whose
+#  compiler is something else empties this.
+GOLD_CC_WARNFLAGS?=-Wall -Wno-long-long -Wno-sign-compare -pedantic
 
 ifeq ($(DEBUG),1)
-    CFLAGS+=-funsigned-char -g -Og $(INCS) -Wall -Wno-long-long -Wno-sign-compare -pedantic -DPRAGMA_PACK # -fomit-frame-pointer
+    CFLAGS+=-funsigned-char -g -Og $(INCS) $(GOLD_CC_WARNFLAGS) -DPRAGMA_PACK # -fomit-frame-pointer
 else
-    CFLAGS+=-funsigned-char -g -O2 $(INCS) -Wall -Wno-long-long -Wno-sign-compare -pedantic -DPRAGMA_PACK # -fomit-frame-pointer
+    CFLAGS+=-funsigned-char -g -O2 $(INCS) $(GOLD_CC_WARNFLAGS) -DPRAGMA_PACK # -fomit-frame-pointer
 endif
 LNKFLAGS+=-g
 CPPFLAGS+=$(CFLAGS)
@@ -211,6 +557,43 @@ ifeq ($(PLATFORM),osx)
     endif
 endif
 
+ifeq ($(PLATFORM),be)
+    ifeq ($(GOLD_HAIKU),1)
+        ifeq ($(USE_NCURSES),1)
+            CPPFLAGS+=-D__USE_NCURSES__
+        endif
+    endif
+endif
+
+#  OS/2 draws through VIO by default, which is what every OS/2 build has
+#  always done. curses is offered beside it because a VIO cell holds one
+#  byte and one attribute byte and so can never show UTF-8, however the
+#  text was recoded to reach it, while a curses build talking to a
+#  UTF-8 terminal can. Ask for it by name:
+#
+#      make PLATFORM=emx OS2_NCURSES=1
+#
+#  and OS2_WIDE_NCURSES=0 beside it for the 8-bit curses API.
+ifeq ($(PLATFORM),emx)
+    OS2_NCURSES?=0
+    ifeq ($(OS2_NCURSES),1)
+        CPPFLAGS+=-D__USE_NCURSES__
+        #  ncurses is split in two here: initscr() and the drawing calls
+        #  are in ncurses, while curs_set(), LINES, COLS, stdscr and
+        #  acs_map are in tinfo. Name only the first and the link fails
+        #  on exactly those. There is a single tinfo, shared by the wide
+        #  and the 8-bit builds.
+        GOLD_OS2_TINFO=$(if $(wildcard /@unixroot/usr/lib/tinfo.a),-ltinfo,)
+        OS2_WIDE_NCURSES?=1
+        ifeq ($(OS2_WIDE_NCURSES),1)
+            CPPFLAGS+=-D__USE_WIDE_NCURSES__ -D_XOPEN_SOURCE_EXTENDED
+            LIBCURSES:=$(call gold_find_curses,ncursesw ncurses) $(GOLD_OS2_TINFO)
+        else
+            LIBCURSES:=$(call gold_find_curses,ncurses) $(GOLD_OS2_TINFO)
+        endif
+    endif
+endif
+
 # uncomment the next line for better koi-8 support. do not do it for
 # international builds since latin-1 support will be broken.
 ifeq ($(PLATFORM),lnx)
@@ -218,8 +601,37 @@ ifeq ($(PLATFORM),lnx)
         CPPFLAGS+=-DKOI8
     endif
 endif
+ICONV?=0
 ifeq "$(ICONV)" "1"
     CFLAGS+=-DHAS_ICONV
+    ifeq ($(EXTERNAL_ICONV),1)
+        #  GNU libiconv from a package prefix where there is one; where
+        #  there is not, the C library's own, which needs no library on
+        #  the link line at all.
+        CFLAGS+=$(ICONV_PKG_CFLAGS)
+        STDLIBS+=$(ICONV_PKG_LDFLAGS) $(call gold_find_iconv)
+    else
+        #  Everywhere else the system's own is used, and on most of them
+        #  it lives in the C library and needs nothing on the link line.
+        #  macOS keeps its own in a separate libiconv, which is still
+        #  part of the system, so that one is named.
+        ifneq ($(filter osx,$(PLATFORM)),)
+            STDLIBS+=-liconv
+        endif
+        #  Haiku's system iconv is GNU libiconv, in its own library.
+        ifeq ($(GOLD_HAIKU),1)
+            STDLIBS+=-liconv
+        endif
+        #  DJGPP's C library has no iconv. GNU libiconv is a package of
+        #  its own there (licv*b.zip, unpacked into the DJGPP tree) and
+        #  is a static library, which is what a DOS binary wants - there
+        #  is nothing to ship alongside. Ask for it with
+        #  make PLATFORM=djg ICONV=1; without that the built-in tables
+        #  are still what DOS uses.
+        ifeq ($(PLATFORM),djg)
+            STDLIBS+=-liconv
+        endif
+    endif
 endif
 
 #uncomment the following line if you build version to be used
@@ -232,7 +644,15 @@ endif
 ifeq ($(PLATFORM),djg)
     #CFLAGS+=-mcpu=i386  # GCC v2.x.x
     CFLAGS+=-march=i386 #-mtune=i686 # GCC v3.x.x
-    STDLIBS+=-llocal
+
+    # liblocal.a comes with a native DJGPP installation. A cross toolchain
+    # does not always ship it - Cygwin's djgpp-* packages do not - so ask
+    # the compiler where it is instead of assuming. -print-file-name= hands
+    # back the name unchanged when there is no such library.
+    DJGPP_LIBLOCAL := $(shell $(CXX) -print-file-name=liblocal.a 2>/dev/null)
+    ifneq ($(DJGPP_LIBLOCAL),liblocal.a)
+        STDLIBS+=-llocal
+    endif
 endif
 
 # force not to use coprocessor features in DOS, if you have one you may remove this

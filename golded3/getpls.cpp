@@ -816,7 +816,7 @@ int TemplateToText(int mode, GMsg* msg, GMsg* oldmsg, const char* tpl, int origa
                             }
                         }
                         ptr = strskip_wht(quotestr);
-                        y = (int)((long)ptr-(long)quotestr);
+                        y = (int)(ptr-quotestr);
                         n = 0;
                         *buf = NUL;
                         while(oldmsg->line[n])
@@ -864,7 +864,7 @@ int TemplateToText(int mode, GMsg* msg, GMsg* oldmsg, const char* tpl, int origa
                                         ptr--;
                                     }
                                 }
-                                x = (int)((long)ptr-(long)qbuf);
+                                x = (int)(ptr-qbuf);
                                 sprintf(buf, "%*.*s%*.*s>%s %s",
                                         y, y, quotestr, x, x, qbuf, qbuf+x, quote
                                        );

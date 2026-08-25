@@ -25,6 +25,7 @@
 //  ------------------------------------------------------------------
 
 #include <golded.h>
+#include <gutf8.h>
 #include <gcharset.h>
 #include <iostream>
 #include <iomanip>
@@ -240,9 +241,11 @@ void GMsgList::ReadMlst(int n)
     ml->arrived = msg.arrived;
     ml->received = msg.received;
 
-    strxcpy(ml->by, msg.By(), ARRAYSIZE(ml->by));
-    strxcpy(ml->to, msg.To(), ARRAYSIZE(ml->to));
-    strxcpy(ml->re, msg.re, ARRAYSIZE(ml->re));
+    //  Already converted to the internal representation, so a cut here
+    //  has to fall between characters.
+    strxcpy_utf8(ml->by, msg.By(), ARRAYSIZE(ml->by));
+    strxcpy_utf8(ml->to, msg.To(), ARRAYSIZE(ml->to));
+    strxcpy_utf8(ml->re, msg.re, ARRAYSIZE(ml->re));
 
     {
         Addr zero;
@@ -367,7 +370,9 @@ void GMsgList::print_line(uint idx, uint pos, bool isbar)
         mattr_ = hattr;
     }
 
-    CREATEBUFFER(char, buf, MAXCOL);
+    //  MAXCOL counts screen columns, and a column can take up to four
+    //  bytes once the text is no longer single-byte.
+    CREATEBUFFER(char, buf, MAXCOL*4);
 
     if(AA->Msglistwidesubj())
     {
@@ -405,12 +410,20 @@ void GMsgList::print_line(uint idx, uint pos, bool isbar)
         *dbuf = NUL;
 
     gsprintf(PRINTF_DECLARE_BUFFER(nbuf), "%5u", (CFG->switches.get(disprealmsgno) ? ml->msgno : AA->Msgn.ToReln(ml->msgno)));
-    gsprintf(PRINTF_DECLARE_BUFFER_AUTO(buf, MAXCOL), "%-5.5s%s%-*.*s %-*.*s%s%-*.*s %s",
+    //  The column widths are screen columns, so the fields are fitted to
+    //  them here rather than with printf's "%-*.*s", which measures in
+    //  bytes and would leave the columns ragged for any non-ASCII name
+    //  or subject.
+    std::string _by = g_utf8_fit(ml->by, bysiz);
+    std::string _to = g_utf8_fit(ml->to, tosiz);
+    std::string _re = g_utf8_fit(ml->re, resiz);
+
+    gsprintf(PRINTF_DECLARE_BUFFER_AUTO(buf, MAXCOL*4), "%-5.5s%s%s %s%s%s %s",
              nbuf, ml->marks,
-             bysiz, bysiz, ml->by,
-             tosiz, tosiz, ml->to,
+             _by.c_str(),
+             _to.c_str(),
              (tosiz ? " " : ""),
-             resiz, resiz, ml->re,
+             _re.c_str(),
              dbuf
     );
 
@@ -899,6 +912,17 @@ void GThreadlist::GenTree(int idx)
 
     if(graph[0] == NUL)
     {
+        //  The tree is a grid of single-byte slots - every offset into
+        //  entrytext below counts bytes - so the three characters have
+        //  to stay one byte each. In UTF-8 mode they cannot, so keep the
+        //  CP437 bytes and let the box-drawing printer turn them into
+        //  characters on the way to the screen.
+        if(g_utf8_mode())
+        {
+            memcpy(graph, graph_ibmpc, sizeof(graph));
+        }
+        else
+        {
         int table = GetCurrentTable();
         const char *doscp = get_dos_charset(CFG->xlatlocalset);
         if(doscp[0]) // console charset is known
@@ -919,6 +943,7 @@ void GThreadlist::GenTree(int idx)
 #if defined(__UNIX__) && !defined(__USE_NCURSES__)
         gvid_boxcvt(graph);
 #endif
+        }
     }
 #endif
 
@@ -948,7 +973,9 @@ void GThreadlist::GenTree(int idx)
 
 void GThreadlist::print_line(uint idx, uint pos, bool isbar)
 {
-    CREATEBUFFER(char, buf, MAXCOL);
+    //  MAXCOL counts screen columns, and a column can take up to four
+    //  bytes once the text is no longer single-byte.
+    CREATEBUFFER(char, buf, MAXCOL*4);
     ThreadEntry &t = treeEntryList[idx];
     size_t tdlen = xlen - ((AA->Msglistdate() == MSGLISTDATE_NONE) ? 8 : 18);
 
@@ -988,7 +1015,7 @@ void GThreadlist::print_line(uint idx, uint pos, bool isbar)
         if(AA->Mark.Find(t.msgno))
             marks[1] = MMRK_MARK;
     }
-    gsprintf(PRINTF_DECLARE_BUFFER_AUTO(buf, MAXCOL), "%6u  %*c", (CFG->switches.get(disprealmsgno) ? t.msgno : AA->Msgn.ToReln(t.msgno)), tdlen, ' ');
+    gsprintf(PRINTF_DECLARE_BUFFER_AUTO(buf, MAXCOL*4), "%6u  %*c", (CFG->switches.get(disprealmsgno) ? t.msgno : AA->Msgn.ToReln(t.msgno)), tdlen, ' ');
 
     if(AA->Msglistdate() != MSGLISTDATE_NONE)
     {
@@ -1034,7 +1061,7 @@ void GThreadlist::print_line(uint idx, uint pos, bool isbar)
     if (buf2len > h_offset)
     {
         strxcpy(buf, &buf2[h_offset], tdlen);
-        window.prints(pos, 8, isbar ? (sattr|ACSET) : (wattr|ACSET), buf);
+        window.prints_box(pos, 8, isbar ? (sattr|ACSET) : (wattr|ACSET), buf);
     }
 
     vattr attr = attrw;
@@ -1050,7 +1077,10 @@ void GThreadlist::print_line(uint idx, uint pos, bool isbar)
         attr = GetColorName(msg.By(), msg.orig, attr);
     else if (CFG->replylinkfloat)
     {
-        size_t bylen = strlen(msg.By());
+        //  buf2 is the tree, which is a grid of single-byte slots, so
+        //  its length is a column count. The name has to be measured
+        //  the same way or the two cannot be added together.
+        size_t bylen = g_utf8_width(msg.By());
         if ((buf2len + bylen) > (tdlen - 1))
         {
             uint offset = (buf2len + bylen) - tdlen + 1;
@@ -1076,14 +1106,21 @@ void GThreadlist::print_line(uint idx, uint pos, bool isbar)
     size_t buflen = (buf2len > h_offset) ? strlen(&buf2[h_offset]) : 0;
     if (buflen < tdlen)
     {
+        //  Both budgets below are counts of columns, so the name is
+        //  cut by columns; measured in bytes a Cyrillic name lost half
+        //  the room it had.
         if (CFG->replylinkfloat && (buf2len < h_offset))
         {
-            size_t bylen = strlen(msg.By());
-            size_t pos = (bylen < (h_offset-buf2len)) ? bylen : h_offset-buf2len;
-            strxcpy(buf, &msg.By()[pos], tdlen);
+            size_t bylen = g_utf8_width(msg.By());
+            size_t skip  = (bylen < (h_offset-buf2len)) ? bylen : h_offset-buf2len;
+            //  ... and the scroll offset is a column offset too, so turn
+            //  it into a byte one rather than indexing into the middle
+            //  of a character.
+            const char* from = msg.By() + g_utf8_bytes_for_cols(msg.By(), skip);
+            strxcpy(buf, from, g_utf8_bytes_for_cols(from, tdlen) + 1);
         }
         else
-            strxcpy(buf, msg.By(), tdlen - buflen);
+            strxcpy(buf, msg.By(), g_utf8_bytes_for_cols(msg.By(), tdlen - buflen) + 1);
 
         window.prints(pos, 8 + buflen, attr, buf);
     }
@@ -1159,7 +1196,7 @@ void GThreadlist::BuildThreadIndex(dword msgn)
         m_OldEchoId = AA->echoid();
 
         index = maximum_index = position = maximum_position = 0;
-        treeEntryList.clear();
+        gclear(treeEntryList);
 
         recursive_build(msg.msgno, 0, 0, 0);
 

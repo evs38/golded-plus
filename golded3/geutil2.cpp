@@ -25,6 +25,7 @@
 //  ------------------------------------------------------------------
 
 #include <golded.h>
+#include <gutf8.h>
 #include <gwinput.h>
 
 extern bool akamatchreply;
@@ -58,7 +59,7 @@ int edit_string(char* buf, int buf_size, char* title, int helpcat)
 
     size_t len = buf2.length();
     while(len and ('!' > buf2[--len]))
-        buf2.erase(len, 1);
+        strerase(buf2, len, 1);
     strcpy(buf, buf2.c_str());
     return make_bool(*buf);
 }
@@ -100,9 +101,17 @@ bool PopupLocked(long tries, int isopen, const char* file)
     }
 
     // Tell the world
-    char buf[200];
-    if((uint) strlen(file) > (uint) (MAXCOL-25))
-        sprintf(buf, "[..]%*.*s", MAXCOL-30, MAXCOL-30, file);
+    char buf[800];
+    if(g_utf8_width(file) > (size_t)(MAXCOL-25))
+    {
+        //  Show the tail of the path, cut to a whole number of columns
+        //  and on a character boundary.
+        size_t cols = (size_t)(MAXCOL-30);
+        const char* tail = file;
+        while(g_utf8_width(tail) > cols)
+            tail = g_utf8_next(tail);
+        sprintf(buf, "[..]%s", tail);
+    }
     else
         strcpy(buf, file);
     w_infof(LNG->WaitLocked, buf);

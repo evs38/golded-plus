@@ -32,6 +32,7 @@
 #define __gctype_h // prevent gctype from being included
 #include <gstrall.h>
 #include <gmemdbg.h>
+#include <gutf8.h>
 #include <gutlos.h>
 #include <windows.h>
 #ifndef __NO_MMSYSTEM
@@ -46,15 +47,14 @@ char          ge_win_coldtitle[GMAXTITLE+1] = "";
 char          ge_win_title[GMAXTITLE+1] = "";
 int           ge_win_ext_title;
 
-#if defined(_MSC_VER)
+//  gctype.h declares these as extern "C" for every Win32 C++ build, so
+//  define them that way too. GCC does not mangle variable names and so
+//  never minded the mismatch; MSVC and Open Watcom both do.
 extern "C"
 {
-#endif
     char  tu[256];
     char  tl[256];
-#if defined(_MSC_VER)
 }
-#endif
 
 WCHAR         oem2unicode[256];
 
@@ -225,12 +225,60 @@ char* g_get_clip_text(void)
             BufferSize = lstrlenW((LPCWSTR)ClipAddr) + 1;
         else
             BufferSize = strlen(ClipAddr) + 1;
+        //  Text comes out of the clipboard in the charset GoldED holds
+        //  text in, which is not the OEM codepage any more. In UTF-8
+        //  mode CP_OEMCP threw away everything the OEM codepage has no
+        //  byte for, both ways.
+        UINT cp = g_utf8_mode() ? CP_UTF8 : CP_OEMCP;
+
+        if(Unicode)
+            BufferSize = WideCharToMultiByte(cp, 0, (LPCWSTR)ClipAddr, -1, NULL, 0, NULL, NULL);
+
         ClipText = (char *) throw_malloc(BufferSize);
         if(ClipText != NULL)
             if(Unicode)
-                WideCharToMultiByte(CP_OEMCP, 0, (LPCWSTR)ClipAddr, -1, ClipText, BufferSize, NULL, NULL);
+                WideCharToMultiByte(cp, 0, (LPCWSTR)ClipAddr, -1, ClipText, BufferSize, NULL, NULL);
             else if(ReadType == CF_TEXT)
-                CharToOem(ClipAddr, ClipText);
+            {
+                //  ANSI text: to wide first, then to ours.
+                int wlen = MultiByteToWideChar(CP_ACP, 0, ClipAddr, -1, NULL, 0);
+                WCHAR* wide = (WCHAR*)throw_malloc(wlen * sizeof(WCHAR));
+                if(wide)
+                {
+                    MultiByteToWideChar(CP_ACP, 0, ClipAddr, -1, wide, wlen);
+                    int need = WideCharToMultiByte(cp, 0, wide, -1, NULL, 0, NULL, NULL);
+                    if(need > BufferSize)
+                    {
+                        ClipText = (char*)throw_realloc(ClipText, need);
+                        BufferSize = need;
+                    }
+                    WideCharToMultiByte(cp, 0, wide, -1, ClipText, BufferSize, NULL, NULL);
+                    throw_free(wide);
+                }
+                else
+                    CharToOem(ClipAddr, ClipText);
+            }
+            else if(g_utf8_mode())
+            {
+                //  CF_OEMTEXT while we hold UTF-8: go through the OEM
+                //  codepage to get there.
+                int wlen = MultiByteToWideChar(CP_OEMCP, 0, ClipAddr, -1, NULL, 0);
+                WCHAR* wide = (WCHAR*)throw_malloc(wlen * sizeof(WCHAR));
+                if(wide)
+                {
+                    MultiByteToWideChar(CP_OEMCP, 0, ClipAddr, -1, wide, wlen);
+                    int need = WideCharToMultiByte(CP_UTF8, 0, wide, -1, NULL, 0, NULL, NULL);
+                    if(need > BufferSize)
+                    {
+                        ClipText = (char*)throw_realloc(ClipText, need);
+                        BufferSize = need;
+                    }
+                    WideCharToMultiByte(CP_UTF8, 0, wide, -1, ClipText, BufferSize, NULL, NULL);
+                    throw_free(wide);
+                }
+                else
+                    strcpy(ClipText, ClipAddr);
+            }
             else
                 strcpy(ClipText, ClipAddr);
         GlobalUnlock(hClipData);
@@ -275,14 +323,25 @@ int g_put_clip_text(const char *Data)
                 {
                     WCHAR *UData = (WCHAR *)GData;
 
-                    while(*Data)
+                    if(g_utf8_mode())
                     {
-                        if((*Data == '\r') or (*Data == '\n') or (*Data == '\t'))
-                            *UData++ = *Data++; // no translation for real control chars
-                        else
-                            *UData++ = oem2unicode[*Data++ & 0xff];
+                        //  Already UTF-8; let the system decode it
+                        //  rather than reading each byte as an OEM
+                        //  character, which mangled every letter that
+                        //  takes more than one.
+                        MultiByteToWideChar(CP_UTF8, 0, Data, -1, UData, BufferSize);
                     }
-                    *UData = 0;
+                    else
+                    {
+                        while(*Data)
+                        {
+                            if((*Data == '\r') or (*Data == '\n') or (*Data == '\t'))
+                                *UData++ = *Data++; // no translation for real control chars
+                            else
+                                *UData++ = oem2unicode[*Data++ & 0xff];
+                        }
+                        *UData = 0;
+                    }
                     GlobalUnlock(hData);
                     SetClipboardData(CF_UNICODETEXT, (HANDLE)hData);
                 }

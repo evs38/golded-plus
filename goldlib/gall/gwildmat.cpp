@@ -25,6 +25,7 @@
 //  ------------------------------------------------------------------
 
 #include <gstrall.h>
+#include <gutf8.h>
 #include <gwildmat.h>
 
 #if defined(__USE_ALLOCA__)
@@ -89,7 +90,10 @@ int gwildmatch::match_internal(const char* text, const char* pattern, bool ignor
         switch (*p)
         {
         case '?':
-            // Match anything
+            //  Match anything - one whole character, which is not
+            //  necessarily one byte. The loop's own text++ accounts for
+            //  the last byte of it.
+            text = g_utf8_next(text) - 1;
             continue;
         case '*':
             while(*++p == '*')    // Consecutive stars act just like one.
@@ -167,6 +171,17 @@ bool gwildmatch::match(const char* text, const char* pattern, bool ignorecase)
 
     if(*pattern == '*' and pattern[1] == NUL)
         return true;
+
+    //  Case is a property of a whole character, so with multibyte text
+    //  it cannot be dealt with byte by byte inside the matcher. Fold
+    //  both sides here instead and let the matcher compare bytes.
+    if(ignorecase)
+    {
+        std::string ftext = g_utf8_fold(text);
+        std::string fpat  = g_utf8_fold(pattern);
+        return match_internal(ftext.c_str(), fpat.c_str(), false) == true;
+    }
+
     return match_internal(text, pattern, ignorecase) == true;
 }
 

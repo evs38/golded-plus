@@ -32,6 +32,8 @@
 #include <gmemi86.h>
 #include <gfilutil.h>
 
+#include <gutf8.h>
+
 #include <Clipboard.h>
 #include <UTF8.h>
 
@@ -111,24 +113,40 @@ bool g_is_clip_available(void)
 char* g_get_clip_text(void)
 {
 
-    char *clip_text = NUL;
-    const char *text = NUL;
-    int32 textLen;
-    BMessage *clip = (BMessage *)NUL;
+    //  NULL, not NUL: these are pointers. The two spellings differ by one
+    //  letter and the old code used the character constant for both.
+    char *clip_text = NULL;
+    const char *text = NULL;
+    ssize_t textLen = 0;        // FindData() wants a ssize_t, not an int32
+    BMessage *clip = NULL;
 
     if(g_clipboard.Lock())
     {
-        if((clip = g_clipboard.Data()) != NUL)
+        if((clip = g_clipboard.Data()) != NULL)
         {
             if(B_OK == clip->FindData("text/plain", B_MIME_TYPE,
                                       (const void **)&text, &textLen))
             {
-                clip_text = (char *)throw_malloc(textLen * 2 + 1);
-                *clip_text = NUL;
-                int32 state = 0, destLen = textLen * 2;
-                convert_from_utf8(B_ISO5_CONVERSION, text, &textLen,
-                                  clip_text, &destLen, &state);
-                clip_text[destLen] = NUL;
+                //  The Be clipboard holds UTF-8. When GoldED+ does too,
+                //  that is the whole job; otherwise convert down to the
+                //  charset the rest of the program is using.
+                if(g_utf8_mode())
+                {
+                    clip_text = (char *)throw_malloc(textLen + 1);
+                    memcpy(clip_text, text, textLen);
+                    clip_text[textLen] = NUL;
+                }
+                else
+                {
+                    int32 srcLen = (int32)textLen;
+                    int32 destLen = srcLen * 2;
+                    int32 state = 0;
+                    clip_text = (char *)throw_malloc(destLen + 1);
+                    *clip_text = NUL;
+                    convert_from_utf8(B_ISO5_CONVERSION, text, &srcLen,
+                                      clip_text, &destLen, &state);
+                    clip_text[destLen] = NUL;
+                }
             }
         }
         g_clipboard.Unlock();
@@ -142,19 +160,30 @@ int g_put_clip_text(const char* buf)
 {
 
     int ret = -1;
-    BMessage *clip = (BMessage *)NULL;
+    BMessage *clip = NULL;
     if(g_clipboard.Lock())
     {
         g_clipboard.Clear();
-        if((clip = g_clipboard.Data()) != NUL)
+        if((clip = g_clipboard.Data()) != NULL)
         {
-            int32 textLen = strlen(buf);
-            int32 destLen = textLen * 3;
-            char *clip_text = (char *)throw_malloc(destLen);
-            *clip_text = NUL;
-            int32 state = 0;
-            convert_to_utf8(B_ISO5_CONVERSION, buf, &textLen, clip_text, &destLen, &state);
-            clip->AddData("text/plain", B_MIME_TYPE, clip_text, destLen);
+            int32 textLen = (int32)strlen(buf);
+
+            //  The clipboard wants UTF-8; in UTF-8 mode the text already
+            //  is, so hand it over as it stands.
+            if(g_utf8_mode())
+            {
+                clip->AddData("text/plain", B_MIME_TYPE, buf, textLen);
+            }
+            else
+            {
+                int32 destLen = textLen * 3;
+                char *clip_text = (char *)throw_malloc(destLen);
+                *clip_text = NUL;
+                int32 state = 0;
+                convert_to_utf8(B_ISO5_CONVERSION, buf, &textLen, clip_text, &destLen, &state);
+                clip->AddData("text/plain", B_MIME_TYPE, clip_text, destLen);
+                throw_free(clip_text);
+            }
             g_clipboard.Commit();
             ret = 0;
         }

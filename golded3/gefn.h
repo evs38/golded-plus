@@ -98,22 +98,64 @@
     #define FIDOLASTREAD "lastread"
 #endif
 
-#ifndef CFGUSERPATH1
-    #ifdef __UNIX__
-        #define CFGUSERPATH1 "~/fido/etc/" /* Trailing slash: this is directory */
+/*  Where golded.cfg is looked for when the command line and the GOLDED
+ *  and GED environment variables named none. geinit.cpp walks these in
+ *  order, the user's own configuration ahead of the machine's; every
+ *  entry ends in a slash, because every entry is a directory.
+ *
+ *  On unix this is the XDG Base Directory specification: the user's
+ *  configuration lives under $XDG_CONFIG_HOME, which is ~/.config when
+ *  that is unset - geinit.cpp reads the variable, since expanding it
+ *  here would leave "/golded/" behind when it is not set. The older
+ *  ~/.golded stays behind it so setups that already exist go on
+ *  working, together with the two FTN layouts GoldED has always looked
+ *  in. XDG's system half is /etc/xdg, and it is honoured, but
+ *  /etc/golded comes first: that is where FTN software keeps this.
+ *
+ *  Elsewhere each system has a convention of its own. BeOS and Haiku
+ *  put settings in ~/config/settings and /boot/system/settings. Windows
+ *  has two halves and they are not interchangeable: %APPDATA% roams
+ *  with the user and is the one meant for settings, %LOCALAPPDATA% is
+ *  machine-local and meant for caches - so APPDATA leads and the other
+ *  is accepted behind it. OS/2 has no convention at all, so %HOME% it
+ *  is, with %ETC% - which OS/2 does define - behind it.
+ *
+ *  DOS has neither a home directory nor an /etc, and gets neither list:
+ *  there the program's own directory is the whole answer.
+ */
+
+#ifndef GOLD_CFG_USER_DIRS
+    #if defined(__BEOS__)
+        #define GOLD_CFG_USER_DIRS "~/config/settings/golded/"
+    #elif defined(__OS2__)
+        #define GOLD_CFG_USER_DIRS "%HOME%\\GoldED\\"
+    #elif defined(__WIN32__)
+        #define GOLD_CFG_USER_DIRS "%APPDATA%\\GoldED\\", \
+                                   "%LOCALAPPDATA%\\GoldED\\"
+    #elif defined(__UNIX__)
+        #define GOLD_CFG_USER_DIRS "~/.config/golded/", "~/.golded/", \
+                                   "~/fido/etc/", "~/ftn/etc/"
     #endif
 #endif
 
-#ifndef CFGUSERPATH2
-    #ifdef __UNIX__
-        #define CFGUSERPATH2 "~/ftn/etc/" /* Trailing slash: this is directory */
+#ifndef GOLD_CFG_SYSTEM_DIRS
+    #if defined(__BEOS__)
+        #define GOLD_CFG_SYSTEM_DIRS "/boot/system/settings/golded/"
+    #elif defined(__OS2__)
+        #define GOLD_CFG_SYSTEM_DIRS "%ETC%\\golded\\"
+    #elif defined(__UNIX__)
+        #define GOLD_CFG_SYSTEM_DIRS "/etc/golded/", "/etc/xdg/golded/"
     #endif
 #endif
 
-#ifndef CFGPATH
-    #ifdef __UNIX__
-        #define CFGPATH "~/.golded/" /* Trailing slash: this is directory */
-    #endif
-#endif
+/*  The one the build system knows and the source cannot: sysconfdir,
+ *  which is <prefix>/etc/golded unless the packager said otherwise.
+ *  Passed in as -DGOLD_SYSCONFDIR="..."; absent, this step is skipped.
+ */
+
+/*  CFGUSERPATH1, CFGUSERPATH2 and CFGPATH were the whole search before
+ *  the lists above existed. Anyone who defines one still gets it looked
+ *  in, ahead of everything else - see geinit.cpp.
+ */
 
 #endif /* __GEFN_H__ */

@@ -25,6 +25,7 @@
 //  ------------------------------------------------------------------
 
 #include <golded.h>
+#include <gutf8.h>
 #include <gftnnlfd.h>
 #include <gftnnlfu.h>
 #include <gftnnlge.h>
@@ -170,39 +171,64 @@ void NodelistBrowser::BeforeCursor()
 
 //  ------------------------------------------------------------------
 
+//  Right-justify 'text' in a field of 'cols' screen columns, truncating
+//  it if it does not fit. The old code did this with strrjust() over a
+//  byte count, which only agrees with the column count while the text
+//  stays single-byte.
+
+static std::string rjust_cols(const char* text, int cols)
+{
+    if(cols <= 0)
+        return std::string();
+
+    std::string s = g_utf8_truncate(text, cols);
+    int pad = cols - (int)g_utf8_width(s);
+
+    return std::string(pad > 0 ? pad : 0, ' ') + s;
+}
+
+
+//  ------------------------------------------------------------------
+
 void NodelistBrowser::AfterCursor()
 {
-    CREATEBUFFER(char, buf, MAXCOL);
-    CREATEBUFFER(char, line1, MAXCOL);
-    CREATEBUFFER(char, line2, MAXCOL);
+    //  A nodelist may hold any script at all - this one is browsed with
+    //  Greek and Cyrillic in it - so the left half of each line is
+    //  measured in screen columns, not in bytes. The right half is then
+    //  right-justified into whatever columns are left over.
+
+    CREATEBUFFER(char, buf, MAXCOL*GUTF8_MAXLEN);
 
     ftn_nodelist_entry* entryp = entries + (pos - 1);
 
-    gsprintf(PRINTF_DECLARE_BUFFER_AUTO(line1, MAXCOL), " %s%s%s%s%s%s ",
+    gsprintf(PRINTF_DECLARE_BUFFER_AUTO(buf, MAXCOL*GUTF8_MAXLEN), " %s%s%s%s%s%s ",
              entryp->name,
              (*entryp->system ? ", " : ""), entryp->system,
              (*entryp->status ? " <" : ""), entryp->status,
              (*entryp->status ? ">" : "")
             );
-    gsprintf(PRINTF_DECLARE_BUFFER_AUTO(buf, MAXCOL), "%s %s", LNG->Phone, *entryp->phone ? entryp->phone : "-Unpublished-");
-    strrjust(strsetsz(buf, MAXCOL-strlen(line1)-2));
-    strcat(line1, buf);
-    strcat(line1, " ");
+    std::string line1 = buf;
 
-    gsprintf(PRINTF_DECLARE_BUFFER_AUTO(line2, MAXCOL), " %s%s%s",
+    gsprintf(PRINTF_DECLARE_BUFFER_AUTO(buf, MAXCOL*GUTF8_MAXLEN), "%s %s", LNG->Phone, *entryp->phone ? entryp->phone : "-Unpublished-");
+    line1 += rjust_cols(buf, MAXCOL - (int)g_utf8_width(line1) - 2);
+    line1 += ' ';
+
+    gsprintf(PRINTF_DECLARE_BUFFER_AUTO(buf, MAXCOL*GUTF8_MAXLEN), " %s%s%s",
              entryp->location,
              (*entryp->location ? ", " : ""), entryp->address
             );
-    gsprintf(PRINTF_DECLARE_BUFFER_AUTO(buf, MAXCOL), "%s%s%s%s",
+    std::string line2 = buf;
+
+    gsprintf(PRINTF_DECLARE_BUFFER_AUTO(buf, MAXCOL*GUTF8_MAXLEN), "%s%s%s%s",
              entryp->baud,
              (*entryp->baud ? " Bps" : ""),
              ((*entryp->baud and *entryp->flags) ? ", " : ""), entryp->flags
             );
-    strrjust(strsetsz(buf, MAXCOL-strlen(line2)-2));
-    strcat(line2, buf);
-    strcat(line2, " ");
-    nodewin.prints(0,0, wattr, line1);
-    nodewin.prints(1,0, wattr, line2);
+    line2 += rjust_cols(buf, MAXCOL - (int)g_utf8_width(line2) - 2);
+    line2 += ' ';
+
+    nodewin.prints(0,0, wattr, line1.c_str());
+    nodewin.prints(1,0, wattr, line2.c_str());
 
     Path nlname;
     *nlname = NUL;
@@ -259,12 +285,18 @@ void NodelistBrowser::BuildListString(int line)
     ftn_nodelist_entry* entryp = entries + (line - 1);
     *entryp = NLP->entry();
 
-    CREATEBUFFER(char, buf, MAXCOL);
-    buf[MAXCOL - 1] = '\0';
+    CREATEBUFFER(char, buf, MAXCOL*4);
+    buf[MAXCOL*4 - 1] = '\0';
+
+    //  Column counts, not byte counts.
+    std::string _name = g_utf8_fit(entryp->name, 24+x1);
+    std::string _addr = g_utf8_fit(entryp->address, 21+x2);
+    std::string _syst = g_utf8_fit(entryp->system, 29+x3);
+
     if(NLP->browsing_names())
-        sprintf(buf, " %-*.*s %-*.*s %-*.*s ", 24+x1, 24+x1, entryp->name, 21+x2, 21+x2, entryp->address, 29+x3, 29+x3, entryp->system);
+        sprintf(buf, " %s %s %s ", _name.c_str(), _addr.c_str(), _syst.c_str());
     else
-        sprintf(buf, " %-*.*s %-*.*s %-*.*s ", 21+x2, 21+x2, entryp->address, 24+x1, 24+x1, entryp->name, 29+x3, 29+x3, entryp->system);
+        sprintf(buf, " %s %s %s ", _addr.c_str(), _name.c_str(), _syst.c_str());
     liststr[line - 1] = buf;
 }
 
@@ -784,9 +816,31 @@ int NodelistBrowser::DoKey(gkey& keycode)
                 {
                     newmaybe = YES;
                     if(key != Key_BS)
-                        user_maybe[user_fuzidx++] = (char)n;
+                    {
+                        //  The key carries only the first byte of what
+                        //  was typed; the whole character is waiting in
+                        //  the keyboard's side channel. Taking the byte
+                        //  alone put a fragment of a UTF-8 sequence into
+                        //  the search string, so a Greek or Cyrillic
+                        //  name could not be looked up at all.
+
+                        int _len = 0;
+                        const char* _chars = gkbd_keychars(key, &_len);
+
+                        if(_chars and (user_fuzidx + _len < (int)sizeof(user_maybe)))
+                        {
+                            memcpy(user_maybe+user_fuzidx, _chars, _len);
+                            user_fuzidx += _len;
+                        }
+                        else
+                            user_maybe[user_fuzidx++] = (char)n;
+                    }
                     else if(user_fuzidx)
-                        user_maybe[--user_fuzidx] = 0;
+                    {
+                        //  Back over a whole character, not a byte.
+                        char* prev = g_utf8_prev(user_maybe, user_maybe+user_fuzidx);
+                        user_fuzidx = (int)(prev - user_maybe);
+                    }
                     user_maybe[user_fuzidx] = 0;
                     gsprintf(PRINTF_DECLARE_BUFFER(titlet), LNG->Lookup, user_maybe);
                     listwin.title(titlet, tattr, TCENTER);
@@ -1197,6 +1251,14 @@ struct location_item
     Addr addr;
     std::string loc;
 
+    //  A default constructor as well as the one taking an address:
+    //  Open Watcom's std::vector declares its sized constructor with a
+    //  `const Type& = Type()' default argument, and instantiating the
+    //  class at all then requires the type to be default-constructible.
+    location_item()
+    {
+    }
+
     location_item(Addr &a)
     {
         addr = a;
@@ -1216,7 +1278,7 @@ std::vector<location_item> g_LocationCache;
 
 void LookupNodeClear()
 {
-    g_LocationCache.clear();
+    gclear(g_LocationCache);
 }
 
 void LookupNodeLocation(GMsg* msg, std::string &location, int what)

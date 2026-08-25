@@ -31,6 +31,7 @@
 //  ------------------------------------------------------------------
 
 #include <golded.h>
+#include <gutf8.h>
 #include <geedit.h>
 #include <gkbdbase.h>
 
@@ -250,6 +251,120 @@ void IEclass::getthisrow(Line* __currline)
 
 
 //  ------------------------------------------------------------------
+//  Byte offsets and screen columns.
+
+uint IEclass::dispcol(const Line* __line, uint __off) const
+{
+    if(__line == NULL)
+        return __off;
+
+    const std::string& t = __line->txt;
+    if(__off > t.length())
+        __off = t.length();
+
+    return (uint)g_utf8_width(t.data(), __off);
+}
+
+
+uint IEclass::dispcol() const
+{
+    return dispcol(currline, col);
+}
+
+
+uint IEclass::byteoff(const Line* __line, uint __disp) const
+{
+    if(__line == NULL)
+        return __disp;
+
+    return (uint)g_utf8_offset_at_col(__line->txt.c_str(), __disp);
+}
+
+
+uint IEclass::linewidth(const Line* __line) const
+{
+    if(__line == NULL)
+        return 0;
+
+    return (uint)g_utf8_width(__line->txt);
+}
+
+
+uint IEclass::nextoff(const Line* __line, uint __off) const
+{
+    if(__line == NULL)
+        return __off + 1;
+
+    const std::string& t = __line->txt;
+    if(__off >= t.length())
+        return t.length();
+
+    const char* p = t.c_str() + __off;
+    return (uint)(g_utf8_next(p) - t.c_str());
+}
+
+
+uint IEclass::prevoff(const Line* __line, uint __off) const
+{
+    if(__line == NULL or __off == 0)
+        return 0;
+
+    const std::string& t = __line->txt;
+    if(__off > t.length())
+        __off = t.length();
+
+    const char* base = t.c_str();
+    return (uint)(g_utf8_prev(base, base + __off) - base);
+}
+
+
+uint IEclass::snapoff(const Line* __line, uint __off) const
+{
+    if(__line == NULL)
+        return __off;
+
+    const std::string& t = __line->txt;
+    if(__off >= t.length())
+        return t.length();
+
+    //  Walking back off a continuation byte lands on the character that
+    //  owns it; anything else is already a boundary.
+    const char* base = t.c_str();
+    if(not g_utf8_is_continuation(base + __off))
+        return __off;
+
+    return (uint)(g_utf8_prev(base, base + __off) - base);
+}
+
+
+vchar IEclass::charunder() const
+{
+    if(currline == NULL or col >= currline->txt.length())
+        return (vchar)NUL;
+
+    int used = 1;
+    return (vchar)g_utf8_decode(currline->txt.c_str() + col, &used);
+}
+
+
+//  ------------------------------------------------------------------
+
+bool IEclass::iswordchar(const Line* __line, uint __off) const
+{
+    if(__line == NULL or __off >= __line->txt.length())
+        return false;
+
+    const char* p = __line->txt.c_str() + __off;
+
+    if(not g_utf8_mode())
+        return isxalnum((unsigned char)*p) != 0;
+
+    int used = 1;
+    return g_cp_isalnum(g_utf8_decode(p, &used));
+}
+
+
+//  ------------------------------------------------------------------
 //  Zero-based
 
 void IEclass::gotorowcol(uint __col, uint __row)
@@ -309,7 +424,7 @@ void IEclass::dispstringsc(char *__buf, uint __beg, uint __end, uint __row, uint
         {
             char savechar = __buf[bend];
             __buf[bend] = NUL;
-            StyleCodeHighlight(__buf+bbeg, __row, __col+bbeg-__beg, false, DEFATTR);
+            StyleCodeHighlight(__buf+bbeg, __row, __col+(uint)g_utf8_width(__buf+__beg, bbeg-__beg), false, DEFATTR);
             __buf[bend] = savechar;
 
             bbeg = bend;
@@ -322,7 +437,7 @@ void IEclass::dispstringsc(char *__buf, uint __beg, uint __end, uint __row, uint
 
             savechar = __buf[bend];
             __buf[bend] = NUL;
-            StyleCodeHighlight(__buf+bbeg, __row, __col+bbeg-__beg, false, C_SCERROR);
+            StyleCodeHighlight(__buf+bbeg, __row, __col+(uint)g_utf8_width(__buf+__beg, bbeg-__beg), false, C_SCERROR);
             __buf[bend] = savechar;
 
             AA->adat->usestylies = oldusestylies;
@@ -333,7 +448,7 @@ void IEclass::dispstringsc(char *__buf, uint __beg, uint __end, uint __row, uint
     }
 
     if (bbeg < bend)
-        StyleCodeHighlight(__buf+bbeg, __row, __col+bbeg-__beg, false, DEFATTR);
+        StyleCodeHighlight(__buf+bbeg, __row, __col+(uint)g_utf8_width(__buf+__beg, bbeg-__beg), false, DEFATTR);
 }
 
 
@@ -343,21 +458,24 @@ void IEclass::dispstring(Line* line, uint __row)
 {
     GFTRK("Editdispstring");
 
-    // Get string length
-    uint _length = strlen(line->txt.c_str());
+    // How much of the line fits across the window. The window is
+    // measured in screen columns and the text in bytes, so the two
+    // counts have to be kept apart: _length is bytes, _width columns.
+    uint _length = line->txt.length();
+    uint _width  = (uint)g_utf8_width(line->txt);
 
-    // String longer than window width?
-    _test_haltab(_length > (maxcol+1), _length, (maxcol+1));
-    _length = MinV(_length, (maxcol+1));
+    if (_width > (maxcol+1))
+    {
+        _length = (uint)g_utf8_bytes_for_cols(line->txt.c_str(), maxcol+1);
+        _width  = (uint)g_utf8_width(line->txt.data(), _length);
+    }
 
     // Buffer for translation to visual representation
     char _buf[EDIT_BUFLEN];
 
-    // Space-pad and nul-terminate the buffer
-    memset(_buf, ' ', maxcol+1);
-    _buf[maxcol+1] = NUL;
-
-    // Copy/translate string into buffer
+    // Copy/translate string into buffer. Only ASCII is substituted, and
+    // no byte of a multibyte character can collide with it, so this can
+    // stay bytewise.
     for (uint _pos = 0; _pos < _length; _pos++)
     {
         char chr = line->txt[_pos];
@@ -373,6 +491,13 @@ void IEclass::dispstring(Line* line, uint __row)
             _buf[_pos] = chr;
         }
     }
+
+    // Blank the rest of the window line. _buflen is where the buffer
+    // ends; it is what the "to the end of the line" sentinels below
+    // compare against, since that is no longer 'maxcol+1'.
+    memset(_buf + _length, ' ', (maxcol+1) - _width);
+    uint _buflen = _length + (maxcol+1) - _width;
+    _buf[_buflen] = NUL;
 
     int  selected = 0;
     uint begblock = 0;
@@ -438,13 +563,13 @@ void IEclass::dispstring(Line* line, uint __row)
                     begblock = endblock = 0;
             }
             else if (line == fbline)
-                endblock = maxcol+1;
+                endblock = _buflen;
             else if (line == lbline)
                 begblock = 0;
             else
             {
                 begblock = 0;
-                endblock = maxcol+1;
+                endblock = _buflen;
             }
         }
         else
@@ -477,22 +602,24 @@ void IEclass::dispstring(Line* line, uint __row)
 
         char savechar = _buf[endblock];
         _buf[endblock] = NUL;
-        StyleCodeHighlight(_buf+begblock, __row, mincol+begblock, false, C_READA);
+        StyleCodeHighlight(_buf+begblock, __row, mincol+(uint)g_utf8_width(_buf, begblock), false, C_READA);
         _buf[endblock] = savechar;
 
         AA->adat->usestylies = oldusestylies;
         CFG->highlighturls = oldhighlighturls;
     }
 
-    if (endblock < (maxcol+1))
+    if (endblock < _buflen)
     {
+        uint endcol = mincol + (uint)g_utf8_width(_buf, endblock);
+
         if ((CFG->scheckerenabled == GAUTO) && schecker.IsLoaded() &&
                 !(line->type & (GLINE_TAGL|GLINE_QUOT|GLINE_KLUD|GLINE_TEAR|GLINE_ORIG|GLINE_HIDD)))
         {
-            dispstringsc(_buf, endblock, maxcol+1, __row, mincol+endblock, 0);
+            dispstringsc(_buf, endblock, _buflen, __row, endcol, 0);
         }
         else
-            StyleCodeHighlight(_buf+endblock, __row, mincol+endblock, false, DEFATTR);
+            StyleCodeHighlight(_buf+endblock, __row, endcol, false, DEFATTR);
     }
 
     GFTRK(0);
@@ -510,21 +637,25 @@ void IEclass::dispstring(const char* __string, uint __row, int attr, Line* line)
     _test_halt(__string == NULL);
     _test_haltab(__row > maxrow, __row, maxrow);
 
-    // Get string length
+    // How much of the string fits across the window. The limit is in
+    // screen columns; _length is the matching count of bytes, which is
+    // larger as soon as the text stops being single-byte.
+    uint _width  = (uint)g_utf8_width(__string);
     uint _length = strlen(__string);
 
-    // String longer than window width?
-    _test_haltab(_length > (maxcol+1), _length, (maxcol+1));
-    _length = MinV(_length, (maxcol+1));
+    _test_haltab(_width > (maxcol+1), _width, (maxcol+1));
+
+    if(_width > (maxcol+1))
+    {
+        _length = (uint)g_utf8_bytes_for_cols(__string, maxcol+1);
+        _width  = (uint)g_utf8_width(__string, _length);
+    }
 
     // Buffer for translation to visual representation
     char _buf[EDIT_BUFLEN];
 
-    // Space-pad and nul-terminate the buffer
-    memset(_buf, ' ', maxcol+1);
-    _buf[maxcol+1] = NUL;
-
-    // Copy/translate string into buffer
+    // Copy/translate string into buffer, then pad out the remaining
+    // columns with blanks so the whole window line gets repainted.
     if(attr == -1)
     {
         char* _bufptr = _buf;
@@ -532,6 +663,8 @@ void IEclass::dispstring(const char* __string, uint __row, int attr, Line* line)
         const char* __str = __string;
         while(_position < _length)
         {
+            //  Only ASCII is substituted, and no byte of a multibyte
+            //  character can collide with it, so this stays bytewise.
             switch(*__str)
             {
             case ' ':
@@ -554,6 +687,9 @@ void IEclass::dispstring(const char* __string, uint __row, int attr, Line* line)
             memcpy(_buf, __string, _length);
     }
 
+    memset(_buf + _length, ' ', (maxcol+1) - _width);
+    _buf[_length + (maxcol+1) - _width] = NUL;
+
     // mark selected block
     if(line and (blockcol != -1))
     {
@@ -570,6 +706,10 @@ void IEclass::dispstring(const char* __string, uint __row, int attr, Line* line)
             int begblock = ((col < blockcol) ? col : blockcol) - mincol;
             int endblock = ((col > blockcol) ? col : blockcol) - mincol;
 
+            //  The offsets cut the buffer; the columns place the pieces.
+            uint begcol = (uint)g_utf8_width(_buf, begblock);
+            uint endcol = (uint)g_utf8_width(_buf, endblock);
+
             char savechar = _buf[begblock];
             _buf[begblock] = NUL;
             StyleCodeHighlight(_buf, __row, mincol, false, attr);
@@ -581,15 +721,16 @@ void IEclass::dispstring(const char* __string, uint __row, int attr, Line* line)
             bool oldhighlighturls = CFG->highlighturls;
             AA->adat->usestylies = false;
             CFG->highlighturls = false;
-            StyleCodeHighlight(_buf+begblock, __row, mincol+begblock, false, C_READA);
+            StyleCodeHighlight(_buf+begblock, __row, mincol+begcol, false, C_READA);
             AA->adat->usestylies = oldusestylies;
             CFG->highlighturls = oldhighlighturls;
             _buf[endblock] = savechar;
-            StyleCodeHighlight(_buf+endblock, __row, mincol+endblock, false, attr);
+            StyleCodeHighlight(_buf+endblock, __row, mincol+endcol, false, attr);
         }
         else if((line->type & GLINE_BLOK) or (line == currline))
         {
             int blockmark = ((line->type & GLINE_BLOK) ? blockcol : col) - mincol;
+            uint blockcolumn = (uint)g_utf8_width(_buf, blockmark);
 
             char savechar = _buf[blockmark];
             _buf[blockmark] = NUL;
@@ -608,7 +749,7 @@ void IEclass::dispstring(const char* __string, uint __row, int attr, Line* line)
                 AA->adat->usestylies = false;
                 CFG->highlighturls = false;
             }
-            StyleCodeHighlight(_buf+blockmark, __row, mincol+blockmark, false, selected ? attr : C_READA);
+            StyleCodeHighlight(_buf+blockmark, __row, mincol+blockcolumn, false, selected ? attr : C_READA);
             AA->adat->usestylies = oldusestylies;
             CFG->highlighturls = oldhighlighturls;
         }
@@ -809,11 +950,11 @@ void IEclass::GoEOL()
     if (mincol != (col = currline->txt.length()))
     {
         if ((currline->txt[col-1] == '\n') || (currline->txt[col-1] == ' '))
-            --col;
+            col = prevoff(currline, col);
     }
 
-    // String must not be longer than the window width
-    _test_haltab(col > maxcol, col, maxcol);
+    // String must not be wider than the window
+    _test_haltab(dispcol() > maxcol, dispcol(), maxcol);
 
     if(blockcol != -1)
         displine(currline, row);
@@ -828,6 +969,12 @@ void IEclass::GoUp()
 {
 
     GFTRK("EditGoUp");
+
+    //  Vertical movement keeps the cursor under the same screen column.
+    //  Carrying the byte offset over instead would make it drift between
+    //  lines written in different scripts, and could land it inside a
+    //  character.
+    uint _wantcol = dispcol();
 
     _test_haltab(row < minrow, row, minrow);
 
@@ -854,6 +1001,7 @@ void IEclass::GoUp()
             }
         }
 
+        col = byteoff(currline, _wantcol);
         if((col+1) > currline->txt.length())
             GoEOL();
     }
@@ -868,6 +1016,8 @@ void IEclass::GoDown()
 {
 
     GFTRK("EditGoDown");
+
+    uint _wantcol = dispcol();
 
     _test_haltab(row > maxrow, row, maxrow);
 
@@ -894,6 +1044,7 @@ void IEclass::GoDown()
             }
         }
 
+        col = byteoff(currline, _wantcol);
         if((col+1) > currline->txt.length())
             GoEOL();
     }
@@ -918,11 +1069,11 @@ void IEclass::GoLeft()
             GoUp();
             GoEOL();
             if((col != mincol) and (currline->txt.c_str()[col] == NUL))
-                col--;
+                col = prevoff(currline, col);
         }
     }
     else
-        col--;
+        col = prevoff(currline, col);
 
     if(blockcol != -1)
         displine(currline, row);
@@ -938,9 +1089,9 @@ void IEclass::GoRight()
 
     GFTRK("EditGoRight");
 
-    _test_haltab(col > maxcol, col, maxcol);
+    _test_haltab(dispcol() > maxcol, dispcol(), maxcol);
 
-    if((col == maxcol) or ((col+1) >= currline->txt.length()))
+    if((dispcol() == maxcol) or (nextoff(currline, col) >= currline->txt.length()))
     {
         if(currline->next != NULL)
         {
@@ -949,7 +1100,7 @@ void IEclass::GoRight()
         }
     }
     else
-        col++;
+        col = nextoff(currline, col);
 
     if(blockcol != -1)
         displine(currline, row);
@@ -985,14 +1136,17 @@ Line* IEclass::wrapit(Line** __currline, uint* __curr_col, uint* __curr_row, boo
     while(_thisline)
     {
 
-        // Length of this line
+        // Length of this line, in bytes and in screen columns. The
+        // margin is a column count, so that is what it gets compared
+        // against; the offsets into the text stay in bytes.
         uint _thislen = _thisline->txt.length();
+        uint _thiswidth = linewidth(_thisline);
 
         setlinetype(_thisline);
         uint _wrapmargin = (_thisline->type & GLINE_QUOT) ? marginquotes : margintext;
 
         // Does this line need wrapping?
-        if((_thislen > _wrapmargin) or ((_thislen == _wrapmargin) and not ((_thisline->txt[_thislen-1] == ' ') or (_thisline->txt[_thislen-1] == '\n'))))
+        if((_thiswidth > _wrapmargin) or ((_thiswidth == _wrapmargin) and not ((_thisline->txt[_thislen-1] == ' ') or (_thisline->txt[_thislen-1] == '\n'))))
         {
 
             // Reset quote string length
@@ -1017,7 +1171,7 @@ Line* IEclass::wrapit(Line** __currline, uint* __curr_col, uint* __curr_row, boo
             // Case 4: >thisxisxaxtestxwithxaxlinexthatxneedxwrapping.
 
             // Point to the last char inside the margin
-            int _wrappos = _wrapmargin - 1;
+            uint _wrappos = byteoff(_thisline, _wrapmargin - 1);
 
             // Locate the word to be wrapped
 
@@ -1031,8 +1185,8 @@ Line* IEclass::wrapit(Line** __currline, uint* __curr_col, uint* __curr_row, boo
                 // NOTE: Leading spaces to this word will be nulled out!
 
                 // Begin at the first char outside the margin
-                if(_wrappos <= maxcol)
-                    _wrappos++;
+                if(dispcol(_thisline, _wrappos) <= maxcol)
+                    _wrappos = nextoff(_thisline, _wrappos);
             }
             else
             {
@@ -1042,17 +1196,17 @@ Line* IEclass::wrapit(Line** __currline, uint* __curr_col, uint* __curr_row, boo
                 // Now we must locate the beginning of the word we found.
 
                 // Keep copy of original pointer
-                int _atmargin = _wrappos;
+                uint _atmargin = _wrappos;
 
                 // Search backwards until a space or the beginning of the line is found
-                while((_wrappos > _quotelen) and (_thisline->txt[_wrappos-1] != ' '))
-                    _wrappos--;
+                while((_wrappos > _quotelen) and (_thisline->txt[prevoff(_thisline, _wrappos)] != ' '))
+                    _wrappos = prevoff(_thisline, _wrappos);
 
                 // Check if we hit leading spaces
-                int _spacepos = _wrappos;
+                uint _spacepos = _wrappos;
                 while(_spacepos > 0)
                 {
-                    _spacepos--;
+                    _spacepos = prevoff(_thisline, _spacepos);
                     if(_thisline->txt[_spacepos] != ' ')
                         break;
                 }
@@ -1105,7 +1259,7 @@ Line* IEclass::wrapit(Line** __currline, uint* __curr_col, uint* __curr_row, boo
                         --scroll;
 
                         // Display the new line
-                        if(_wrapline->txt.length() <= (maxcol+1))
+                        if(linewidth(_wrapline) <= (maxcol+1))
                             displine(_wrapline, _thisrow+1);
                     }
                 }
@@ -1166,27 +1320,27 @@ Line* IEclass::wrapit(Line** __currline, uint* __curr_col, uint* __curr_row, boo
                     }
 
                     // Display the new/wrapped line
-                    if((_thisrow+1) <= maxrow and _nextline->txt.length() <= (maxcol+1))
+                    if((_thisrow+1) <= maxrow and linewidth(_nextline) <= (maxcol+1))
                         displine(_nextline, _thisrow+1);
                 }
             }
 
             // Truncate at the wrapping location
-            _thisline->txt.erase(_wrappos);
+            strerase(_thisline->txt, _wrappos);
 
             // Was this line quoted?
             if (_quotelen)
             {
                 // Trim spaces off the end of the line
-                int _trimpos = _wrappos - 1;
+                uint _trimpos = prevoff(_thisline, _wrappos);
                 if (isspace(_thisline->txt[_trimpos]))
                 {
                     while (_trimpos > 0 and isspace(_thisline->txt[_trimpos-1]))
-                        _trimpos--;
+                        _trimpos--;      // spaces are single bytes
                     if(_quotelen and (_trimpos < _quotelen))
                         _trimpos++;
                     Undo->PushItem(EDIT_UNDO_OVR_CHAR|BATCH_MODE, _thisline, _trimpos);
-                    _thisline->txt.erase(_trimpos);
+                    strerase(_thisline->txt, _trimpos);
                 }
                 else
                 {
@@ -1237,7 +1391,7 @@ Line* IEclass::wrapit(Line** __currline, uint* __curr_col, uint* __curr_row, boo
             if(_thisline->next == NULL)
                 break;
             _wrapmargin = (_thisline->next->type & GLINE_QUOT) ? marginquotes : margintext;
-            if(_thisline->next->txt.length() <= _wrapmargin)
+            if(linewidth(_thisline->next) <= _wrapmargin)
                 break;
         }
         else if(_thisline->type & GLINE_QUOT)
@@ -1342,8 +1496,49 @@ Line* IEclass::wrapins(Line** __currline, uint* __curr_col, uint* __curr_row, bo
 
 void IEclass::insertchar(char __ch)
 {
+    insertchars(&__ch, 1);
+}
+
+
+//  ------------------------------------------------------------------
+
+//  ------------------------------------------------------------------
+//  Erase __to - __from bytes, backwards, one undo item each.
+
+void IEclass::undo_erase(Line* __line, uint __from, uint __to, int __firstflags)
+{
+    uint n;                     // one declaration: Visual C++ 6.0 lets a
+                                // for-scoped variable outlive its loop
+    for(n = __to; n > __from; n--)
+    {
+        Undo->PushItem(EDIT_UNDO_DEL_CHAR|((n == __to) ? __firstflags : BATCH_MODE), __line, n-1);
+        strerase(__line->txt, n-1, 1);
+    }
+}
+
+
+//  ------------------------------------------------------------------
+//  Insert __len bytes at __at, one undo item each.
+
+void IEclass::undo_insert(Line* __line, uint __at, const char* __bytes, uint __len, int __firstflags)
+{
+    uint n;                     // see the note above
+    for(n = 0; n < __len; n++)
+    {
+        Undo->PushItem(EDIT_UNDO_INS_CHAR|(n ? BATCH_MODE : __firstflags), __line, __at+n);
+        __line->txt.insert(__at+n, 1, __bytes[n]);
+    }
+}
+
+
+//  ------------------------------------------------------------------
+
+void IEclass::insertchars(const char* __chars, uint __len)
+{
 
     GFTRK("Editinsertchar");
+
+    char __ch = __chars[0];
 
     uint _currline_len = currline->txt.length();
 #ifndef NDEBUG
@@ -1369,13 +1564,15 @@ void IEclass::insertchar(char __ch)
                 GoEOL();
             }
         }
-        Undo->PushItem(EDIT_UNDO_INS_CHAR|batch_mode);
-        currline->txt.insert(col, 1, __ch);
+        undo_insert(currline, col, __chars, __len, batch_mode);
     }
     else
     {
-        Undo->PushItem(EDIT_UNDO_OVR_CHAR|batch_mode);
-        currline->txt[col] = __ch;
+        // Overwriting replaces the whole character under the cursor,
+        // which need not be the same number of bytes as the new one.
+        uint _end = nextoff(currline, col);
+        undo_erase (currline, col, _end, batch_mode);
+        undo_insert(currline, col, __chars, __len, BATCH_MODE);
     }
     batch_mode = BATCH_MODE;
 
@@ -1383,12 +1580,12 @@ void IEclass::insertchar(char __ch)
     setlinetype(currline);
 
     // Move cursor
-    col++;
+    col += __len;
 
     wrapins(&currline, &col, &row);
 
     // Adjust cursor position and display if necessary
-    if(col > maxcol)
+    if(dispcol() > maxcol)
     {
         if(currline->next)
         {
@@ -1404,11 +1601,11 @@ void IEclass::insertchar(char __ch)
         }
         else
         {
-            col = maxcol;
+            col = byteoff(currline, maxcol);
         }
     }
 
-    gotorowcol(col, row);
+    gotorowcol(dispcol(), row);
 
     GFTRK(0);
 }
@@ -1433,8 +1630,9 @@ void IEclass::DelChar()
     // Cannot delete at or beyond the nul-terminator
     if(col < _thislen)
     {
-        Undo->PushItem(EDIT_UNDO_DEL_CHAR|batch_mode);
-        _thisline->txt.erase(col, 1);
+        // One undo item per byte, so a multibyte character comes back
+        // whole; batch mode makes them a single undo step.
+        undo_erase(_thisline, col, nextoff(_thisline, col), batch_mode);
         batch_mode = BATCH_MODE;
     }
     else if(col and (col == _thislen) and _nextline)
@@ -1453,7 +1651,10 @@ void IEclass::DelChar()
     // Did we delete the last char on the line or
     // was the cursor at or beyond the nul-terminator?
     // And is there a next line at all?
-    if(((col+1) >= _thislen) and _nextline)
+    // _thislen was measured before the deletion, and the deletion may
+    // have removed more than one byte, so ask the line how long it is
+    // now: the question is whether the cursor ended up at its end.
+    if((col >= _thisline->txt.length()) and _nextline)
     {
 
         // Join the next line to this line
@@ -1482,12 +1683,19 @@ void IEclass::DelChar()
 
         Undo->PushItem(EDIT_UNDO_DEL_LINE|BATCH_MODE, _nextline);
     }
-    else if((_thislen > 1) and (_thisline->txt.c_str()[_thislen-2] != '\n') and _nextline and not (_nextline->type & GLINE_QUOT))
+    // The line can absorb the next one when it does not end in a
+    // paragraph mark. Ask the line as it is now: _thislen was measured
+    // before the deletion, and the deletion may have taken more than
+    // one byte, so indexing off it would land past the end.
+    else if(not _thisline->txt.empty() and
+            (_thisline->txt[_thisline->txt.length()-1] != '\n') and
+            _nextline and not (_nextline->type & GLINE_QUOT))
     {
+        uint _newlen = _thisline->txt.length();
 
         _thisline->txt += _nextline->txt.c_str();
 
-        Undo->PushItem(EDIT_UNDO_CUT_TEXT|batch_mode, _thisline, _thislen-1);
+        Undo->PushItem(EDIT_UNDO_CUT_TEXT|batch_mode, _thisline, _newlen);
 
         // Relink this line
         _thisline->next = _nextline->next;
@@ -1568,23 +1776,23 @@ void IEclass::GoWordLeft()
     else
     {
 
-        col--;
+        col = prevoff(currline, col);
 
-        if(not isxalnum(currline->txt[col]))
+        if(not iswordchar(currline, col))
         {
-            while(not isxalnum(currline->txt[col]) and (col > 0))
-                col--;
-            while(isxalnum(currline->txt[col]) and (col > 0))
-                col--;
+            while(not iswordchar(currline, col) and (col > 0))
+                col = prevoff(currline, col);
+            while(iswordchar(currline, col) and (col > 0))
+                col = prevoff(currline, col);
         }
         else
         {
-            while(isxalnum(currline->txt[col]) and (col > 0))
-                col--;
+            while(iswordchar(currline, col) and (col > 0))
+                col = prevoff(currline, col);
         }
 
         if(col != 0)
-            col++;
+            col = nextoff(currline, col);
 
         if(blockcol != -1)
             displine(currline, row);
@@ -1611,22 +1819,22 @@ void IEclass::GoWordRight()
     }
     else
     {
-        size_t len = currline->txt.length();
-        if(not isxalnum(currline->txt[col]))
+        uint len = currline->txt.length();
+        if(not iswordchar(currline, col))
         {
-            while(not isxalnum(currline->txt[col]) and ((col+1) <= len))
-                col++;
+            while(not iswordchar(currline, col) and (col < len))
+                col = nextoff(currline, col);
         }
         else
         {
-            while(isxalnum(currline->txt[col]) and ((col+1) <= len))
-                col++;
-            while(not isxalnum(currline->txt[col]) and ((col+1) <= len))
-                col++;
+            while(iswordchar(currline, col) and (col < len))
+                col = nextoff(currline, col);
+            while(not iswordchar(currline, col) and (col < len))
+                col = nextoff(currline, col);
         }
 
-        if(currline->txt[col-1] == '\n')
-            col--;
+        if((col > 0) and (currline->txt[prevoff(currline, col)] == '\n'))
+            col = prevoff(currline, col);
 
         if(len == col)
         {
@@ -1636,7 +1844,7 @@ void IEclass::GoWordRight()
                 col = 0;
             }
             else
-                col--;
+                col = prevoff(currline, col);
         }
     }
 
@@ -1683,7 +1891,7 @@ void IEclass::Newline()
     batch_mode = BATCH_MODE;
 
     // Copy linefeed+nul to the split position
-    currline->txt.erase(_splitpos);
+    strerase(currline->txt, _splitpos);
     currline->txt += "\n";
 
     // Re-type and display the split line
@@ -1980,7 +2188,7 @@ void IEclass::DeleteEOL()
 
     Undo->PushItem(EDIT_UNDO_DEL_TEXT, currline);
 
-    currline->txt.erase(col);
+    strerase(currline->txt, col);
 
     if(_has_linefeed)
     {
@@ -2012,7 +2220,7 @@ void IEclass::DeleteSOL()
     col = 0;
 
     Undo->PushItem(EDIT_UNDO_DEL_TEXT, currline, col, _oldcol);
-    currline->txt.erase(col, _oldcol);
+    strerase(currline->txt, col, _oldcol);
 
     wrapdel(&currline, &col, &row);
 
@@ -2341,7 +2549,7 @@ void IEclass::SCheckerMenu()
             if (col > (beg + len2 - 1)) col = beg + len2 - 1;
 
             Undo->PushItem(EDIT_UNDO_DEL_TEXT, currline, beg, len);
-            currline->txt.erase(beg, len);
+            strerase(currline->txt, beg, len);
 
             Undo->PushItem(EDIT_UNDO_INS_TEXT|BATCH_MODE, currline, beg, len2);
             currline->txt.insert(beg, txt, len2);
@@ -2444,7 +2652,7 @@ void IEclass::Reflow()
     if(ptr != _qlenptr)
     {
         Undo->PushItem(EDIT_UNDO_DEL_TEXT|batch_mode, currline, _qlen1, ptr-_qlenptr);
-        currline->txt.erase(_qlen1, ptr-_qlenptr);
+        strerase(currline->txt, _qlen1, ptr-_qlenptr);
     }
 
     // Perform the reflow
@@ -2513,16 +2721,75 @@ void IEclass::DelLine()
 
 //  ------------------------------------------------------------------
 
+static uint32_t edit_toupper(uint32_t cp)
+{
+    return g_utf8_mode() ? g_cp_toupper(cp) : (uint32_t)(unsigned char)g_toupper((int)cp);
+}
+
+
+static uint32_t edit_tolower(uint32_t cp)
+{
+    return g_utf8_mode() ? g_cp_tolower(cp) : (uint32_t)(unsigned char)g_tolower((int)cp);
+}
+
+
+//  ------------------------------------------------------------------
+//  Replace the character at __off with the given recasing, keeping undo
+//  correct even when the two forms differ in length. Returns the byte
+//  length of whatever now sits at __off.
+
+uint IEclass::ToggleCaseChar(gkey key, Line* ln, uint n)
+{
+    if(ln == NULL or n >= ln->txt.length())
+        return 1;
+
+    int used = 1;
+    uint32_t oldcp = g_utf8_decode(ln->txt.c_str() + n, &used);
+    uint32_t newcp = oldcp;
+
+    switch (key)
+    {
+    case KK_EditToLower:
+        newcp = edit_tolower(oldcp);
+        break;
+
+    case KK_EditToUpper:
+        newcp = edit_toupper(oldcp);
+        break;
+
+    case KK_EditToggleCase:
+        newcp = (edit_tolower(oldcp) != oldcp) ? edit_tolower(oldcp) : edit_toupper(oldcp);
+        break;
+    }
+
+    if (newcp == oldcp)
+        return (uint)(used ? used : 1);
+
+    std::string enc = g_utf8_encode(newcp);
+
+    currline = ln;
+    pcol = col = n;
+    getthisrow(currline);
+    prow = thisrow;
+
+    //  Both forms are recorded byte by byte; the first item opens a new
+    //  undo step here rather than joining the caller's.
+    undo_erase (ln, n, n + (uint)used, 0);
+    undo_insert(ln, n, enc.data(), (uint)enc.length(), BATCH_MODE);
+
+    return (uint)enc.length();
+}
+
+
+//  ------------------------------------------------------------------
+
 void IEclass::ToUpper()
 {
 
     GFTRK("EditToUpper");
 
     if(col < currline->txt.length())
-    {
-        Undo->PushItem(EDIT_UNDO_OVR_CHAR);
-        currline->txt[col] = g_toupper(currline->txt[col]);
-    }
+        ToggleCaseChar(KK_EditToUpper, currline, col);
 
     GFTRK(0);
 }
@@ -2536,10 +2803,7 @@ void IEclass::ToLower()
     GFTRK("EditToLower");
 
     if(col < currline->txt.length())
-    {
-        Undo->PushItem(EDIT_UNDO_OVR_CHAR);
-        currline->txt[col] = g_tolower(currline->txt[col]);
-    }
+        ToggleCaseChar(KK_EditToLower, currline, col);
 
     GFTRK(0);
 }
@@ -2553,56 +2817,9 @@ void IEclass::ToggleCase()
     GFTRK("EditToggleCase");
 
     if (col < currline->txt.length())
-    {
-        Undo->PushItem(EDIT_UNDO_OVR_CHAR);
-
-        char chr = currline->txt[col];
-        if (g_isupper(chr))
-            currline->txt[col] = g_tolower(chr);
-        else
-            currline->txt[col] = g_toupper(chr);
-    }
+        ToggleCaseChar(KK_EditToggleCase, currline, col);
 
     GFTRK(0);
-}
-
-
-//  ------------------------------------------------------------------
-
-void IEclass::ToggleCaseChar(gkey key,
-                             std::string::iterator it,
-                             Line *ln, int n)
-{
-    int oldchar = *it;
-    int newchar = 0;
-
-    switch (key)
-    {
-    case KK_EditToLower:
-        newchar = g_tolower(oldchar);
-        break;
-
-    case KK_EditToUpper:
-        newchar = g_toupper(oldchar);
-        break;
-
-    case KK_EditToggleCase:
-        if (g_isupper(oldchar))
-            newchar = g_tolower(oldchar);
-        else
-            newchar = g_toupper(oldchar);
-        break;
-    }
-
-    if (newchar != oldchar)
-    {
-        currline = ln;
-        pcol = col = n;
-        getthisrow(currline);
-        prow = thisrow;
-        Undo->PushItem(EDIT_UNDO_OVR_CHAR);
-        *it = newchar;
-    }
 }
 
 
@@ -2651,37 +2868,35 @@ void IEclass::ToggleCaseBlock(gkey key)
         // The _firstline and _lastline pointers
         // are now pointing where they should
 
-        int n;
         Line* ln = _firstline;
-        std::string::iterator it1, it2;
+
+        //  Offsets rather than iterators: recasing a character can change
+        //  its byte length, which reallocates the string underneath us.
+        //  'end' is re-read each step for the same reason.
+        //  The do/while wrapper is not decoration: it keeps _n inside
+        //  the macro, and Visual C++ 6.0 would otherwise let it escape
+        //  and call the second expansion a redefinition.
+        #define RECASE_RANGE(line, from, to)                            \
+            do {                                                        \
+                for(uint _n = (uint)(from); _n < (uint)(to) and _n < (line)->txt.length(); ) \
+                    _n += ToggleCaseChar(key, (line), _n);              \
+            } while(0)
 
         if (ln == _lastline)
         {
-            it1 = ln->txt.begin() + firstcol;
-            it2 = ln->txt.begin() + lastcol;
-            for (n = firstcol; it1 < it2; it1++, n++)
-                ToggleCaseChar(key, it1, ln, n);
+            RECASE_RANGE(ln, firstcol, lastcol);
         }
         else
         {
-            it1 = ln->txt.begin() + firstcol;
-            it2 = ln->txt.end();
-            for (n = firstcol; it1 < it2; it1++, n++)
-                ToggleCaseChar(key, it1, ln, n);
+            RECASE_RANGE(ln, firstcol, ln->txt.length());
 
             for (ln = ln->next; ln != _lastline; ln = ln->next)
-            {
-                it1 = ln->txt.begin();
-                it2 = ln->txt.end();
-                for (n = 0; it1 < it2; it1++, n++)
-                    ToggleCaseChar(key, it1, ln, n);
-            }
+                RECASE_RANGE(ln, 0, ln->txt.length());
 
-            it1 = ln->txt.begin();
-            it2 = ln->txt.begin() + lastcol;
-            for (n = 0; it1 < it2; it1++, n++)
-                ToggleCaseChar(key, it1, ln, n);
+            RECASE_RANGE(ln, 0, lastcol);
         }
+
+        #undef RECASE_RANGE
 
         currline = oldline;
         pcol = col = oldcol;
@@ -2843,11 +3058,11 @@ void IEclass::statusline()
 {
     if(chartyped)
     {
-        for (std::map<std::string, std::string>::iterator it = EDIT->Completion.begin();
+        for (std::map<std::string, std::string, std::less<std::string> >::iterator it = EDIT->Completion.begin();
              it != EDIT->Completion.end(); ++it)
         {
-            const std::string& trig = it->first;
-            const std::string& text = it->second;
+            const std::string& trig = (*it).first;
+            const std::string& text = (*it).second;
             uint tlen = trig.size();
             if(col >= tlen)
             {
@@ -2871,11 +3086,11 @@ void IEclass::statusline()
 
     std::string commentText;
 
-    for (std::map<std::string, std::string>::iterator it = EDIT->Comment.begin();
+    for (std::map<std::string, std::string, std::less<std::string> >::iterator it = EDIT->Comment.begin();
          it != EDIT->Comment.end(); ++it)
     {
-        const std::string& trig = it->first;
-        const std::string& text = it->second;
+        const std::string& trig = (*it).first;
+        const std::string& text = (*it).second;
         uint tlen = trig.size();
         if(col >= tlen)
         {
@@ -2887,8 +3102,14 @@ void IEclass::statusline()
         }
     }
 
-    uint chr = currline->txt[col];
-    update_statuslinef(LNG->EditStatus, "ST_EDITSTATUS", 1+thisrow, 1+col, chr, commentText.c_str());
+    //  The status line reports where the cursor is on screen and which
+    //  character it sits on, so both come from the character, not from
+    //  the byte offset the cursor happens to be at.
+    int _used = 1;
+    uint chr = (col < currline->txt.length())
+               ? (uint)g_utf8_decode(currline->txt.c_str() + col, &_used)
+               : 0;
+    update_statuslinef(LNG->EditStatus, "ST_EDITSTATUS", 1+thisrow, 1+dispcol(), chr, commentText.c_str());
     if(!commentText.empty() && CFG->switches.get(beepcomment))
     {
         HandleGEvent(EVTT_EDITCOMMENT);
@@ -3262,7 +3483,7 @@ int IEclass::Start(int __mode, uint* __position, GMsg* __msg)
         const char* userDic = CFG->scheckeruserdic;
         for (gstrarray::const_iterator it = dicts.begin(); it != dicts.end(); ++it)
         {
-            schecker.Load(it->c_str(), userDic);
+            schecker.Load((*it).c_str(), userDic);
             userDic = NULL; // Only first language will have user dictionary.
         }
 
@@ -3345,14 +3566,14 @@ int IEclass::Start(int __mode, uint* __position, GMsg* __msg)
 
         statusline();
 
-        gotorowcol(col, row);
+        gotorowcol(dispcol(), row);
         batch_mode = 0;
 
         vattr backattr = BLACK_|_BLACK;
         if(blockcol == -1)
         {
-            backattr = dispchar(currline->txt.c_str()[col], C_READC);
-            gotorowcol(col, row);
+            backattr = dispchar(charunder(), C_READC);
+            gotorowcol(dispcol(), row);
         }
 
         cursoron();
@@ -3452,15 +3673,29 @@ int IEclass::Start(int __mode, uint* __position, GMsg* __msg)
         }
 
         if(blockcol == -1)
-            dispchar(currline->txt.c_str()[col], backattr);
+            dispchar(charunder(), backattr);
 
         chartyped = false;
         if((_ch < KK_Commands) and (_ch & 0xFF) and not ismacro)
         {
             drawflag = true;
             chartyped = true;
-            _ch &= 0xFF;
-            insertchar((char)_ch);
+
+            //  A gkey holds one byte, which is no longer a whole
+            //  character. When the keyboard reports that the key really
+            //  was a character, insert all of it; the check that the
+            //  first byte still matches guards against the key having
+            //  been remapped on the way here.
+            int _len = 0;
+            const char* _chars = gkbd_keychars(_ch, &_len);
+
+            if(_chars)
+                insertchars(_chars, (uint)_len);
+            else
+            {
+                _ch &= 0xFF;
+                insertchar((char)_ch);
+            }
             undo_ready = YES;
         }
         else if(handlekey(_ch))
@@ -3771,7 +4006,7 @@ void UndoStack::PlayItem()
                     switch(undo_action)
                     {
                     case EDIT_UNDO_INS_CHAR:
-                        currline->txt.erase(last_item->col.num, 1);
+                        strerase(currline->txt, last_item->col.num, 1);
                         break;
                     case EDIT_UNDO_DEL_CHAR:
                         currline->txt.insert(last_item->col.num, 1, last_item->data.char_int);
@@ -3794,14 +4029,14 @@ void UndoStack::PlayItem()
                         throw_delete(text_data);
                         break;
                     case EDIT_UNDO_CUT_TEXT:
-                        txt->erase(last_item->col.num);
+                        strerase(*txt, last_item->col.num);
                         break;
                     case EDIT_UNDO_WRAP_TEXT:
                         txt->append(currline->next->txt.c_str()+text_data->col, text_data->len);
                         txt = &currline->next->txt;
                     // fall through...
                     case EDIT_UNDO_INS_TEXT:
-                        txt->erase(text_data->col, text_data->len);
+                        strerase(*txt, text_data->col, text_data->len);
                         throw_delete(text_data);
                         break;
                     }

@@ -103,11 +103,11 @@ static bool tokenxchg(std::string &input, std::string::iterator &pos,
 
 static void translate(std::string &text)
 {
-    std::map<std::string, std::string>::iterator it = CFG->translate.begin();
+    std::map<std::string, std::string, std::less<std::string> >::iterator it = CFG->translate.begin();
     for (; it != CFG->translate.end(); ++it)
     {
-        const std::string& str1 = it->first;
-        const std::string& str2 = it->second;
+        const std::string& str1 = (*it).first;
+        const std::string& str2 = (*it).second;
 
         size_t length = text.length();
 
@@ -636,7 +636,7 @@ void TokenXlat(int mode, std::string &input, GMsg* msg, GMsg* oldmsg, int __orig
                             if (diff > 0)
                                 text.insert(text.end(), diff, fill);
                             else
-                                text.erase(padsize);
+                                strerase(text, padsize);
                             break;
                         case 'R':
                             if (diff > 0)
@@ -653,7 +653,7 @@ void TokenXlat(int mode, std::string &input, GMsg* msg, GMsg* oldmsg, int __orig
                             else
                             {
                                 text = text.substr((-diff)/2);
-                                text.erase(padsize);
+                                strerase(text, padsize);
                             }
                             break;
                         }
@@ -991,6 +991,12 @@ void GMsg::LinesToText()
     {
         strxcpy(re, XlatStr(re, _xlat_level, _xlat_table).c_str(), sizeof(re));
     }
+
+    //  The fields are now in the charset the message is going to carry,
+    //  and the message base driver is about to cut them to its fixed
+    //  header widths. Tell it whether a cut can fall inside a
+    //  character - only this side knows what they were converted to.
+    hdrutf8 = strnieql(charset, "UTF-8", 5) or strnieql(charset, "UTF8", 4);
 
     bool _lfterm = EDIT->CrLfTerm() and (AA->basetype() == "PCBOARD");
     bool _hardterm = AA->Edithardterm() or AA->requirehardterm();

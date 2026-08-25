@@ -67,8 +67,22 @@ off_t filelength(int handle)
     struct stat s;
     if(fstat(handle, &s) == 0)
         return s.st_size;
-    else
-        return -1;
+
+    //  Open Watcom's Linux runtime carries a struct stat the kernel
+    //  will not fill in - fstat() comes back with EOVERFLOW for every
+    //  file - so ask the file itself where its end is. Seeking about is
+    //  harmless here: the position is put back before returning, and
+    //  every caller of this wants a plain file.
+    off_t cur = lseek(handle, 0, SEEK_CUR);
+    if(cur != (off_t)-1)
+    {
+        off_t end = lseek(handle, 0, SEEK_END);
+        lseek(handle, cur, SEEK_SET);
+        if(end != (off_t)-1)
+            return end;
+    }
+
+    return -1;
 }
 
 #endif
@@ -76,7 +90,10 @@ off_t filelength(int handle)
 
 //  ------------------------------------------------------------------
 
-#if defined(__OS2__)
+//  Open Watcom's OS/2 runtime declares lock() and unlock() itself, with
+//  these very signatures, and as extern "C" - so defining them again
+//  here is not an overload it will accept, and is not needed either.
+#if defined(__OS2__) && !defined(__WATCOMC__)
 
 int lock(int handle, long ofs, long length)
 {
@@ -109,7 +126,7 @@ int lock(int handle, long ofs, long length)
 
 //  ------------------------------------------------------------------
 
-#if defined(__OS2__)
+#if defined(__OS2__) && !defined(__WATCOMC__)
 
 int unlock(int handle, long ofs, long length)
 {

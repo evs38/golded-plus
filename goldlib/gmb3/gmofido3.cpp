@@ -141,6 +141,35 @@ int FidoArea::load_message(int __mode, gmsg* __msg, FidoHdr& __hdr)
     else
         __msg->attr.uns0();
 
+    //  A *.MSG kludge lives at the very top of the text, and the file
+    //  is open and sitting right behind the header already - the open()
+    //  is what this would have cost, and it has been paid. So a bounded
+    //  read of the top is enough to give a message list the charset the
+    //  message declares, without reading the message.
+    if(not (__mode & GMSG_TXT))
+    {
+        char _top[512];
+        ssize_t _got = read(_fh, _top, sizeof(_top) - 1);
+        if(_got > 0)
+        {
+            _top[_got] = NUL;
+            //  Kludge lines come first, one per line, each introduced
+            //  by a Ctrl-A. The first line that is not one ends them,
+            //  and there is no point reading on.
+            //  Every kludge line is looked at, not just the first
+            //  match: where there is more than one the last wins, as
+            //  reading the text does.
+            for(char* _p = _top; *_p == CTRL_A; )
+            {
+                __msg->set_hdrchrs_from_kludge(_p);
+                while(*_p and (*_p != CR) and (*_p != LF))
+                    _p++;
+                while((*_p == CR) or (*_p == LF))
+                    _p++;
+            }
+        }
+    }
+
     // If message text is used
     if(__mode & GMSG_TXT)
     {

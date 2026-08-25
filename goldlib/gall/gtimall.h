@@ -222,11 +222,37 @@ inline void usleep(int duration)
 {
     DosSleep(duration);
 }
-#elif (defined(__MINGW32__) && __GNUC_LESS(3,4)) || defined(_MSC_VER)
+#elif (defined(__MINGW32__) && __GNUC_LESS(3,4)) || defined(_MSC_VER) \
+      || (defined(__WATCOMC__) && defined(__NT__))
 //#elif (defined(__MINGW32__) && __GNUC__*100+__GNUC_MINOR__ < 304) || defined(_MSC_VER)
 inline void usleep(long duration)
 {
     Sleep(duration);
+}
+#elif defined(__BORLANDC__) && defined(__WIN32__)
+inline void usleep(long duration)
+{
+    Sleep(duration);
+}
+#elif defined(__BORLANDC__)
+//  The DOS target. delay() takes the same milliseconds the callers pass.
+#include <dos.h>
+inline void usleep(long duration)
+{
+    delay((unsigned)duration);
+}
+#elif defined(__WATCOMC__) && defined(__LINUX__)
+//  Open Watcom's Linux runtime does have usleep(), in <unistd.h>, and it
+//  is the real one - microseconds, like every other unix here. Only its
+//  DOS and Windows runtimes need something written for them.
+#include <unistd.h>
+#elif defined(__WATCOMC__) && defined(__DOS__)
+//  Open Watcom's DOS runtime has no usleep(); delay() takes the same
+//  milliseconds the callers here pass.
+#include <dos.h>
+inline void usleep(long duration)
+{
+    delay((unsigned)duration);
 }
 #endif
 

@@ -20,11 +20,16 @@ FLIBPATH=$(TOP)/$(LIBPATH)/$(PLATFORM)
 
 .SUFFIXES: .c .cpp .all .rc .cxx
 
+#  Which tag in the .all lists selects this platform's sources. Normally
+#  the platform's own name; a target that shares another's source set -
+#  Watcom for Linux, say - points SRCTAG at that one instead.
+SRCTAG?=$(PLATFORM)
+
 sourcelist: bld$(PLATFORM).inc
 
 bld$(PLATFORM).inc: $(TARGET).all
 	@echo making sourcelist
-	@$(GREP) -w $(PLATFORM) $< \
+	@$(GREP) -w $(SRCTAG) $< \
 		| $(SED) 's;^\([[:alnum:]_]*\)[ ]*\([[:alnum:]_]*\).*;SOURCES+=\1.\2;' > $@; [ -s $@ ] || rm -f $@
 
 $(FOBJPATH)/%$(OBJEXT): %.cpp
@@ -58,9 +63,36 @@ $(FOBJPATH)/%$(OBJEXT): %.rc
 endif
 
 ifeq ($(PLATFORM),emx)
+#  The icon goes on in two steps: a resource compiler turns the .rc
+#  into a .res, and the .res is bound onto the finished executable
+#  afterwards - the linker never reads one, it is handed the object
+#  files and nothing else.
+#
+#  Two programs can compile it. OS/2's own `rc' is what a native build
+#  has, and is called exactly as it always was. Open Watcom's `wrc'
+#  is a host binary the cross toolchain ships, so a build off the
+#  machine can have the icon too; it needs telling where the target's
+#  headers are, since the .rc includes <os2.h>, and the compiler is
+#  asked for that the way liblocal.a is looked for elsewhere.
+#
+#  Where neither is on PATH the step is skipped with a note. Nothing
+#  is lost but the icon.
+GOLD_OS2RC=$(shell command -v rc 2>/dev/null)
+GOLD_OS2WRC=$(shell command -v wrc 2>/dev/null)
+GOLD_OS2WRCINC=$(shell $(CC) -print-sysroot 2>/dev/null)/include
 $(FOBJPATH)/%.res: %.rc
 	@echo creating resources
-	@rc $(subst -I,-i ,$(INCS)) -x1 -r $<
+	@if [ -n "$(GOLD_OS2RC)" ] ; then					\
+		$(GOLD_OS2RC) $(subst -I,-i ,$(INCS)) -x1 -r $< ;		\
+		touch $@ ;							\
+	elif [ -n "$(GOLD_OS2WRC)" ] ; then					\
+		$(GOLD_OS2WRC) -bt=os2 -q -r -fo=$@ -i=$(GOLD_OS2WRCINC)	\
+			$(if $(GOLD_OS2TK_INC),-i=$(GOLD_OS2TK_INC))		\
+			$(subst -I,-i=,$(INCS)) $< ;				\
+	else									\
+		echo "  no resource compiler on this host - icon left out" ;	\
+		touch $@ ;							\
+	fi
 endif
 
 SOURCES=

@@ -25,6 +25,8 @@
 //  ------------------------------------------------------------------
 
 #include <golded.h>
+#include <grecode.h>
+#include <gutf8.h>
 
 //  ------------------------------------------------------------------
 
@@ -682,8 +684,12 @@ int SelectFromFile(const char* file, char* selection, const char* title, const c
             strtrim(buf);
             strins(" ", buf, 0);
             strcat(buf, " ");
-            if(strlen(buf) > MAXCOL-2-2)
-                buf[MAXCOL-2-2] = NUL;
+            //  The list is as wide as the screen, so cut by columns.
+            //  Cutting at a byte offset shortened multibyte text several
+            //  times too much and could split a character in half.
+            if(g_utf8_width(buf) > (size_t)(MAXCOL-2-2))
+                strxcpy(buf, g_utf8_truncate(buf, (size_t)(MAXCOL-2-2)).c_str(),
+                        sizeof(buf));
             Listi.push_back(buf);
         }
 
@@ -981,8 +987,86 @@ int ChangeAka()
 
 //  ------------------------------------------------------------------
 
+//  ------------------------------------------------------------------
+//  Build the charset list for the "change charset" menu out of what the
+//  recoder can do, for the case where no .chs tables are configured -
+//  which is the normal state of affairs once iconv is doing the work.
+//
+//  The entries have the same shape as the table-derived ones, because
+//  the caller picks the source charset back out with tokenize().
+
+static void BuiltinXlatList(gstrarray& list)
+{
+    char buf[100];
+
+    size_t width = 0;
+    size_t n;                   // one declaration: Visual C++ 6.0 lets a
+                                // for-scoped variable outlive its loop
+    for (n = 0; n < g_charset_count(); n++)
+        width = MaxV(width, strlen(g_charset_name(n)));
+
+    for (n = 0; n < g_charset_count(); n++)
+    {
+        const char* name = g_charset_name(n);
+        if (strieql(name, CFG->xlatlocalset))
+            continue;               // converting to itself says nothing
+
+        gsprintf(PRINTF_DECLARE_BUFFER(buf), " %*s -> %s ",
+                 (int)width, name, CFG->xlatlocalset);
+        list.push_back(buf);
+    }
+}
+
+
+//  ------------------------------------------------------------------
+
 int ChangeXlatImport()
 {
+    if (CFG->xlatcharsets.empty())
+    {
+        //  No translation tables: offer what the recoder knows instead
+        //  of telling the user there is nothing to choose from.
+        gstrarray Listi;
+        Listi.push_back(LNG->CharsetAuto);
+        BuiltinXlatList(Listi);
+
+        size_t startat = 0;
+        size_t n;               // see BuiltinXlatList() above
+        for (n = 1; n < Listi.size(); n++)
+        {
+            gstrarray parts;
+            tokenize(parts, Listi[n].c_str());
+            if (not parts.empty() and strieql(parts[0].c_str(), AA->Xlatimport()))
+            {
+                startat = n;
+                break;
+            }
+        }
+
+        n = MinV(Listi.size(), (size_t)(MAXROW-10));
+        set_title(LNG->Charsets, TCENTER, C_ASKT);
+        update_statusline(LNG->ChangeXlatImp);
+        whelppcat(H_ChangeXlatImport);
+        n = wpickstr(6, 0, 6+n+1, -1, W_BASK, C_ASKB, C_ASKW, C_ASKS, Listi, startat, title_shadow);
+        whelpop();
+
+        if (n == 0)
+        {
+            CFG->ignorecharset = false;
+        }
+        else if (n != (size_t)-1)
+        {
+            CFG->ignorecharset = true;
+            gstrarray xlat;
+            tokenize(xlat, Listi[n].c_str());
+            if (not xlat.empty())
+                AA->SetXlatimport(xlat[0].c_str());
+        }
+
+        LoadCharset(AA->Xlatimport(), CFG->xlatlocalset);
+        return true;
+    }
+
     if (not CFG->xlatcharsets.empty())
     {
         size_t startat = 0;
@@ -997,11 +1081,11 @@ int ChangeXlatImport()
 
         for (size_t xlatimports = 1; xlt != end; xlt++)
         {
-            if (strieql(xlt->first.second.c_str(), CFG->xlatlocalset))
+            if (strieql((*xlt).first.second.c_str(), CFG->xlatlocalset))
             {
-                maximport = MaxV(maximport, (int)xlt->first.first.size());
-                maxexport = MaxV(maxexport, (int)xlt->first.second.size());
-                if ((CFG->ignorecharset == true) and strieql(xlt->first.first.c_str(), AA->Xlatimport()))
+                maximport = MaxV(maximport, (int)(*xlt).first.first.size());
+                maxexport = MaxV(maxexport, (int)(*xlt).first.second.size());
+                if ((CFG->ignorecharset == true) and strieql((*xlt).first.first.c_str(), AA->Xlatimport()))
                     startat = xlatimports;
                 xlatimports++;
             }
@@ -1011,10 +1095,10 @@ int ChangeXlatImport()
 
         for (xlt = CFG->xlatcharsets.begin(); xlt != end; ++xlt)
         {
-            if (strieql(xlt->first.second.c_str(), CFG->xlatlocalset))
+            if (strieql((*xlt).first.second.c_str(), CFG->xlatlocalset))
             {
                 gsprintf(PRINTF_DECLARE_BUFFER(buf), " %*.*s -> %-*.*s ",
-                         maximport, maximport, xlt->first.first.c_str(), maxexport, maxexport, xlt->first.second.c_str());
+                         maximport, maximport, (*xlt).first.first.c_str(), maxexport, maxexport, (*xlt).first.second.c_str());
                 Listi.push_back(buf);
             }
         }

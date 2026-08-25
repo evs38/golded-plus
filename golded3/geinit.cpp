@@ -223,19 +223,19 @@ static void ReadEscsets()
         {
             fp.FseekSet(((long)CFG->xlatcharsets.size()*(long)sizeof(Chs)) + ((long)n*(long)sizeof(Esc)));
 
-            if (strieql(it->first.first.c_str(), "Composed"))
+            if (strieql((*it).first.first.c_str(), "Composed"))
             {
                 CompTable = (Esc*)throw_realloc(CompTable, sizeof(Esc));
                 fp.Fread(CompTable, sizeof(Esc));
                 CompTP = CompTable->t;
             }
-            else if (strieql(it->first.first.c_str(), "I51"))
+            else if (strieql((*it).first.first.c_str(), "I51"))
             {
                 I51Table = (Esc*)throw_realloc(I51Table, sizeof(Esc));
                 fp.Fread(I51Table, sizeof(Esc));
                 I51TP = I51Table->t;
             }
-            else if (strieql(it->first.first.c_str(), "MNEMONIC"))
+            else if (strieql((*it).first.first.c_str(), "MNEMONIC"))
             {
                 MNETable = (Esc*)throw_realloc(MNETable, sizeof(Esc));
                 fp.Fread(MNETable, sizeof(Esc));
@@ -506,6 +506,93 @@ static bool FindCfg(char* path)
 }
 
 //  ------------------------------------------------------------------
+//  Walk the places a configuration is kept, the user's own ahead of the
+//  machine's, and stop at the first that holds one. The lists and the
+//  reasoning behind them are in gefn.h.
+
+static bool FindCfgDirs(char* path, size_t path_size)
+{
+    static const char* const user_dirs[] =
+    {
+#ifdef GOLD_CFG_USER_DIRS
+        GOLD_CFG_USER_DIRS,
+#endif
+        NULL
+    };
+
+    static const char* const system_dirs[] =
+    {
+#ifdef GOLD_CFG_SYSTEM_DIRS
+        GOLD_CFG_SYSTEM_DIRS,
+#endif
+#ifdef GOLD_SYSCONFDIR
+        //  Where this copy was configured to be installed - the build
+        //  system knows it and the source cannot.
+        GOLD_SYSCONFDIR,
+#endif
+        NULL
+    };
+
+#ifdef __UNIX__
+    //  XDG says $XDG_CONFIG_HOME is where the user's configuration
+    //  lives; the list has ~/.config for when it is unset.
+    const char* xdg = getenv("XDG_CONFIG_HOME");
+    if(xdg and *xdg)
+    {
+        strxmerge(path, path_size, xdg, GOLD_SLASH_STR, "golded",
+                  GOLD_SLASH_STR, NULL);
+        if(FindCfg(path))
+            return true;
+    }
+#endif
+
+    //  The user's own places first, then the system's. The two lists
+    //  are walked the same way, so they are walked by the same loop -
+    //  which also keeps Visual C++ 6.0 happy, where a for-scoped
+    //  variable outlives its loop and a second `n' is a redefinition.
+    const char* const* const dir_lists[] = { user_dirs, system_dirs };
+    size_t l, n;
+
+    for(l = 0; l < ARRAYSIZE(dir_lists); l++)
+    {
+        for(n = 0; dir_lists[l][n]; n++)
+        {
+            strxcpy(path, dir_lists[l][n], path_size);
+            strschg_environ(path, path_size);
+            if(FindCfg(path))
+                return true;
+        }
+    }
+
+#ifdef __UNIX__
+    //  And XDG's system half, which is a colon-separated list. /etc/xdg
+    //  is in the list above for when it is unset.
+    const char* dirs = getenv("XDG_CONFIG_DIRS");
+    if(dirs and *dirs)
+    {
+        std::string rest(dirs);
+        while(not rest.empty())
+        {
+            size_t colon = rest.find(':');
+            std::string one = (colon == std::string::npos)
+                              ? rest : rest.substr(0, colon);
+            rest = (colon == std::string::npos)
+                   ? std::string() : rest.substr(colon + 1);
+            if(one.empty())
+                continue;
+            strxmerge(path, path_size, one.c_str(), GOLD_SLASH_STR, "golded",
+                      GOLD_SLASH_STR, NULL);
+            if(FindCfg(path))
+                return true;
+        }
+    }
+#endif
+
+    return false;
+}
+
+
+//  ------------------------------------------------------------------
 
 #ifdef __WIN32__
 BOOL WINAPI GoldedCtrlHandler(DWORD dwCtrlType)
@@ -658,6 +745,15 @@ void Initialize(int argc, char* argv[])
         exit(0);
     }
 
+    //  From here on the screen belongs to us. Everything above this
+    //  point - the banner, the -H help, any complaint about the command
+    //  line - is meant for the console the user is looking at, and under
+    //  curses the keyboard used to take that console over before main()
+    //  had even run. See the note in GKbd::GKbd().
+#if defined(__USE_NCURSES__)
+    gkbd.Init();
+#endif
+
     gvid = new GVid;
     throw_new(gvid);
     CfgInit();
@@ -695,8 +791,9 @@ void Initialize(int argc, char* argv[])
             found = FindCfg(cmdlinecfg);
         }
 
+        //  Anything set by hand comes first: whoever defined one of
+        //  these meant it to win.
 #ifdef CFGUSERPATH1
-        // Get it in user directory (step 1)
         if(not found)
         {
             strxcpy(cmdlinecfg, CFGUSERPATH1, sizeof(cmdlinecfg));
@@ -705,7 +802,6 @@ void Initialize(int argc, char* argv[])
         }
 #endif
 #ifdef CFGUSERPATH2
-        // Get it in user directory (step 2)
         if(not found)
         {
             strxcpy(cmdlinecfg, CFGUSERPATH2, sizeof(cmdlinecfg));
@@ -714,7 +810,6 @@ void Initialize(int argc, char* argv[])
         }
 #endif
 #ifdef CFGPATH
-        // Get it in system config directory
         if(not found)
         {
             strxcpy(cmdlinecfg, CFGPATH, sizeof(cmdlinecfg));
@@ -723,21 +818,27 @@ void Initialize(int argc, char* argv[])
         }
 #endif
 
-        // Get it in current directory
+        //  Then the program's own directory. An FTN install keeps its
+        //  configuration beside the binary, and that is what the DOS
+        //  and OS/2 builds have always looked at; unix used to be shut
+        //  out of this step and no longer is, so a self-contained
+        //  install works there too.
+        if(not found)
+        {
+            extractdirname(cmdlinecfg, argv[0]);
+            found = FindCfg(cmdlinecfg);
+        }
+
+        //  Then where we were started from.
         if(not found)
         {
             getcwd(cmdlinecfg, sizeof(cmdlinecfg));
             found = FindCfg(cmdlinecfg);
         }
 
-#ifndef __UNIX__
-        // Get it where the the binary file is
+        //  Then the user's own configuration, then the machine's.
         if(not found)
-        {
-            extractdirname(cmdlinecfg, argv[0]);
-            found = FindCfg(cmdlinecfg);
-        }
-#endif
+            found = FindCfgDirs(cmdlinecfg, sizeof(cmdlinecfg));
 
         // If we still could not find config name...
         if(not found)
@@ -756,6 +857,9 @@ void Initialize(int argc, char* argv[])
 
     if (not fexist(CFG->goldcfg))
     {
+        //  Give the terminal back first, or this goes onto the alternate
+        //  screen and vanishes with it.
+        vshutdown();
         STD_PRINTNL("*** Cannot start: " << CFG->goldcfg << " not found! ***");
         errorlevel = EXIT_NONAME;
         exit(0);
@@ -767,6 +871,7 @@ void Initialize(int argc, char* argv[])
     // Call install finish procedure
     if (cmdlineinstall && InstallFinish())
     {
+        vshutdown();
         STD_PRINTNL("*** INSTALL NOT COMPLETED ***");
         remove(CFG->goldcfg);
         errorlevel = EXIT_NONAME;
@@ -835,7 +940,7 @@ void Initialize(int argc, char* argv[])
     if (not keybuf.empty())       // The commandline keys
     {
         kbputstr(keybuf.c_str());
-        keybuf.erase();
+        strerase(keybuf);
         gKeystacking = true;
     }
     else if (*CFG->keybstack)     // The config keys

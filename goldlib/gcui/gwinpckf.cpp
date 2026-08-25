@@ -226,7 +226,7 @@ bool wpickfile(int srow, int scol, int erow, int ecol, int btype, vattr bordattr
             filespec += strarr[picked].c_str();
         }
 
-        strarr.clear();
+        gclear(strarr);
     }
     while(not finished);  // if a directory was selected, go back and do again
 

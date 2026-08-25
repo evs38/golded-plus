@@ -40,11 +40,23 @@
     #pragma pack(1)
 #endif
 
+//  The name field used to be 36 bytes, which was 35 characters while a
+//  character was a byte. It is not any more: a Cyrillic or Greek name
+//  takes two bytes per character and a nodelist may well be UTF-8 (there
+//  is a DAILYUTF), so 35 bytes cut such a name in half. 80 matches
+//  searchname below and leaves room for the longest name in the lists,
+//  in any script.
+//
+//  This is the on-disk record, so the size is the file format. GoldNODE
+//  writes what it is built with and ftn_golded_nodelist_index::open()
+//  refuses an index whose length is not a whole number of records, so an
+//  index from an older build is rebuilt rather than misread.
+
 struct _GEIdx
 {
     uint32_t pos;        // File Number OR'ed with pos in nodelist file
     ftn_addr addr;       // Node address
-    char     name[36];   // Name in reversed form
+    char     name[80];   // Name in reversed form
     _GEIdx() : pos(0), addr()
     {
         *name = NUL;
@@ -56,6 +68,13 @@ struct _GEIdx
         *name = NUL;
     }
 };
+
+#if defined(GOLD_TEMPLATE_EAGER)
+inline bool operator==(const _GEIdx& a, const _GEIdx& b)
+{
+    return a.pos == b.pos and a.addr.equals(b.addr) and strcmp(a.name, b.name) == 0;
+}
+#endif
 
 #if defined(GOLD_CANPACK)
     #pragma pack()

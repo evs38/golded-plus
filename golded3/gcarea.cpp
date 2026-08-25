@@ -25,6 +25,7 @@
 //  ------------------------------------------------------------------
 
 #include <golded.h>
+#include <grecode.h>
 #include <gmoprot.h>
 
 //  ------------------------------------------------------------------
@@ -159,6 +160,12 @@ void CheckEMailOrNews(char* echoid, uint& type)
 
 //  ------------------------------------------------------------------
 //  Add or update area data
+
+//  Set while an external area file is being read. Descriptions from
+//  golded.cfg have already been converted, once, where every other
+//  configuration value is; these have not, and follow XLATAREASET.
+static bool cfg_reading_areafile = false;
+
 
 void AddNewArea(AreaCfg* aa)
 {
@@ -324,6 +331,21 @@ void AreaList::AddNewArea(AreaCfg* aa)
         // Fix description
         if(strblank(aa->desc))
             strxcpy(aa->desc, aa->echoid, sizeof(aa->desc));
+
+        //  A description usually comes out of an area file written by
+        //  the tosser, which is a different thing from GoldED's own
+        //  configuration and need not be in the same charset - a tosser
+        //  writing CP866 beside a KOI8-R goldlang, say. XLATAREASET
+        //  names that charset; where it is not given the configuration's
+        //  own is used, which is how this behaved when XLATCONFIGSET was
+        //  the only key. Neither given, the two are assumed to match.
+        const char* _descset = *CFG->xlatareaset ? CFG->xlatareaset : CFG->xlatconfigset;
+        if(cfg_reading_areafile and *_descset and not strieql(_descset, CFG->xlatlocalset))
+        {
+            GRecoder& rec = g_recoder(_descset, CFG->xlatlocalset);
+            if(rec.is_open() and not rec.is_identity())
+                strxcpy(aa->desc, rec.convert(aa->desc).c_str(), sizeof(aa->desc));
+        }
     }
 
     // Check if it's email or news
@@ -457,6 +479,8 @@ void AreaList::GetAreafile(char* value)
 
     beginarea = idx.size();
 
+    cfg_reading_areafile = true;
+
     if(crcval == CRC_ECHOLIST)
         ReadEcholist(value);
     else
@@ -485,6 +509,8 @@ void AreaList::GetAreafile(char* value)
         CFG->ra2usersbbs = AFILE->ra2usersbbs;
         CFG->squishuserno = AFILE->squishuserno;
     }
+
+    cfg_reading_areafile = false;
 
     endarea = idx.size();
     SortAreaGroup(options, beginarea, endarea);

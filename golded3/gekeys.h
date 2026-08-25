@@ -453,6 +453,18 @@ struct CmdKey
     int  type;       // Type of key
 };
 
+#if defined(GOLD_TEMPLATE_EAGER)
+inline bool operator==(const CmdKey& a, const CmdKey& b)
+{
+    return a.key == b.key and a.cmd == b.cmd and a.type == b.type;
+}
+inline bool operator<(const CmdKey& a, const CmdKey& b)
+{
+    if(a.type != b.type) return a.type < b.type;
+    return a.key < b.key;
+}
+#endif
+
 
 //  ------------------------------------------------------------------
 //  Macro

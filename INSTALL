@@ -62,7 +62,45 @@ multicore system.
 and goldnode folders inside build folder, or, if you add "-t package"
 to the last command - in the zipped file nearby.
     
-5. NCURSES ABI support.
+5. Where curses and iconv come from.
+
+    GoldED+ uses curses to drive the screen and iconv to convert between
+charsets. Both are taken from the operating system itself by default:
+the base system's curses, and whatever iconv the system provides - the C
+library's on Linux and the BSDs, a separate libiconv that ships with the
+system on macOS. On a native Windows build neither is needed: the Win32
+console layer draws the screen and the Win32 codepage API does the
+conversion, so no curses is looked for at all. Cygwin does not count as
+that - it is a POSIX environment and uses curses like any other unix.
+
+    Several systems ship a second copy of one or both through a package
+manager - pkgsrc under /usr/pkg, ports and Homebrew under /usr/local or
+/opt/homebrew, MacPorts under /opt/local, OpenCSW under /opt/csw. Those
+are used only when you ask for them:
+
+    cmake:  -DGOLD_EXTERNAL_CURSES=ON   -DGOLD_EXTERNAL_ICONV=ON
+    make:      EXTERNAL_CURSES=1           EXTERNAL_ICONV=1
+
+    The two sides are never mixed. GNU libiconv renames iconv_open() to
+libiconv_open() in its header, so that header combined with the C
+library's iconv links to nothing; a pkgsrc ncurses header combined with
+the base system's libcurses compiles and then misbehaves at run time.
+Asking for the package copy switches the headers and the library over
+together.
+
+    Two more switches control what is built rather than where it comes
+from:
+
+    cmake:  -DGOLD_UTF8=OFF    make:  GOLD_UTF8=0
+        Hold message text in a single-byte charset, the way GoldED+ did
+        before UTF-8 support. On by default everywhere the platform can
+        carry it, including the Win32 and Visual C++ builds; DOS keeps
+        the 8-bit behaviour it always had.
+
+    cmake:  -DWIDE_NCURSES=OFF make:  WIDE_NCURSES=0
+        Use the 8-bit curses API instead of the wide-character one.
+
+6. NCURSES ABI support.
 
     Ncurses library is known for it long-time support but new major 
 release of ncurses brought up new ABI with versioned symbols in libs. 

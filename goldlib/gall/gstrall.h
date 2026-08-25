@@ -85,6 +85,24 @@ typedef std::vector<std::string> gstrarray;
 
 //  ------------------------------------------------------------------
 //  Function prototypes
+
+#if defined(__BORLANDC__)
+    //  Borland's <string.h> makes strupr and strlwr macros onto its own
+    //  _lstrupr and _lstrlwr, which would rewrite the declarations below
+    //  - and their definitions in gstrutil.cpp - into names that clash
+    //  with the char* ones instead of overloading them. Take the macros
+    //  off.
+    #undef strupr
+    #undef strlwr
+
+    //  With the macros gone the plain names have to be put back: both
+    //  releases declare the underscored functions, and neither leaves a
+    //  usable strupr/strlwr at global scope once the macro is off. These
+    //  then overload against the std::string forms below.
+    inline char* strupr(char* s) { return _lstrupr(s); }
+    inline char* strlwr(char* s) { return _lstrlwr(s); }
+#endif
+
 void strupr(std::string& s);
 void strlwr(std::string& s);
 bool strblank(const char* str);
@@ -116,10 +134,36 @@ char* StripQuotes(char* str);
 // Safe versions of strcpy, strcat, sequencial strcat...
 TCHAR *strxcpy(TCHAR *d, const TCHAR *s, size_t n);
 // strxcpy: copy not more n-1 bytes of "s" into "d", insert '\0' into end of string.
+
+TCHAR *strtrim_partial_utf8(TCHAR *d);
+// strtrim_partial_utf8: drop a trailing incomplete character from text
+// that was cut to a byte count. For text in the internal representation.
+
+TCHAR *strxcpy_utf8(TCHAR *d, const TCHAR *s, size_t n);
+// strxcpy_utf8: the same, but cuts between characters rather than
+// through one. Only for text in the internal representation - see the
+// note on the definition.
 //          return d
 char* strxcat(char *dest, const char *src, size_t max);
 char* strxmerge(char *dest, size_t max, ...);
 size_t strxlen(const char* str, size_t max);
+
+//  Erase a run of characters from a std::string by position.
+//
+//  Borland C++ 5.02 carries the RogueWave library of 1996, which calls
+//  this remove() and offers erase() only on iterators. Both spellings
+//  mean the same thing, so the tree goes through here and reads the
+//  same on every compiler.
+inline std::string& strerase(std::string& s,
+                             std::string::size_type pos = 0,
+                             std::string::size_type n = std::string::npos)
+{
+#if defined(__BORLANDC__) && (__BORLANDC__ < 0x0550)
+    return s.remove(pos, n);
+#else
+    return s.erase(pos, n);
+#endif
+}
 
 char* strc2p(char* str);
 char* strnp2c(char* str, int n);

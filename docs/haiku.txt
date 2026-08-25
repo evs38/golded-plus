@@ -1,0 +1,99 @@
+______________________________________________________________________
+
+                      GoldED+ on Haiku
+______________________________________________________________________
+
+
+What Haiku is, to this source
+-----------------------------
+
+Haiku carries the BeOS API, so it is built as the BeOS target:
+
+    make PLATFORM=be
+
+There is no separate platform tag for it. The makefiles notice Haiku
+for themselves - GNUmakef.def asks `uname -s` and sets GOLD_HAIKU - and
+that is what lifts the target out of the group of limited platforms:
+Haiku is a complete unix under the BeOS API, with ncurses, iconv and a
+system charset that is UTF-8 already, so it gets the same UTF-8
+internal representation the unix targets get, and not the single-byte
+behaviour classic BeOS keeps.
+
+Haiku's compiler defines only __HAIKU__ - not __BEOS__, and not
+unix/__unix__. gcmpall.h derives __BEOS__ from it and takes __UNIX__
+from there, so nothing needs saying on the command line.
+
+
+Before building
+---------------
+
+The runtimes for ncurses and iconv are in the base system; the headers
+are not. They come from HaikuPorts:
+
+    pkgman install ncurses6_devel libiconv_devel
+
+Haiku mounts them under /boot/system/develop/headers, but **only after
+a reboot**. Until then they are simply absent, the probes in the
+makefile find nothing, and the build falls back to drawing without
+curses and to the compiled-in charset tables in gcptabs.inc. If a build
+comes out without UTF-8 support and the packages are installed, that
+reboot is the thing to check first.
+
+Haiku has make, git and tar; it has no cmake and no rsync. Copy the
+tree with tar over ssh:
+
+    tar czf - --exclude=.git . | ssh user@haiku 'mkdir -p golded && tar xzf - -C golded'
+
+
+Building
+--------
+
+    make PLATFORM=be
+
+produces bin/gedbe, bin/gnbe and bin/rddtbe, banner "GoldED+/BeOS
+1.1.5", linked against libbe.so and libtextencoding.so.
+
+    make PLATFORM=be strip
+
+strips them.
+
+
+Making a package
+----------------
+
+    ./dist-hpkg.sh
+
+builds the binaries, stages them in the layout a package is unpacked
+into, writes a .PackageInfo and calls Haiku's own `package create`. The
+result is
+
+    bin/golded_plus-1.1.5.<date>-1-<arch>.hpkg
+
+Install it with
+
+    pkgman install ./bin/golded_plus-1.1.5.<date>-1-x86_64.hpkg
+
+or drop it into /boot/system/packages, which Haiku picks up without
+being asked.
+
+The layout inside the package follows Haiku's conventions:
+
+    bin/golded, bin/goldnode, bin/rddt
+    documentation/man/man1/
+    documentation/packages/golded_plus/
+    data/golded+/cfgs/, data/golded+/charset/
+
+The `requires` list names `haiku`, `lib:libncursesw` and
+`lib:libiconv`, which is what a full build links against - verified
+with `readelf -d bin/gedbe`. If a build is made without the HaikuPorts
+development packages it will need neither, and the two lines can go;
+but a package that requires them and does not use them is harmless,
+while the other way round installs on a machine that cannot run it.
+
+
+The clipboard
+-------------
+
+goldlib/gall/gutlbeos.cpp talks to the Be clipboard. In UTF-8 mode the
+text is handed over as it stands, because the Be clipboard is UTF-8; in
+a single-byte session it goes through B_ISO5_CONVERSION as before.

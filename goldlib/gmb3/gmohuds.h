@@ -190,7 +190,7 @@ struct HudsScan
 //  ------------------------------------------------------------------
 
 
-template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
 struct _HudsWide
 {
 
@@ -262,11 +262,11 @@ struct _HudsWide
 
 //  ------------------------------------------------------------------
 
-template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
 class _HudsArea : public gmo_area
 {
 
-    // <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+    // <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
     typedef _HudsWide<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON> HudsWide;
 
 #if defined(GOLD_CANPACK)
@@ -347,11 +347,11 @@ public:
 
 //  ------------------------------------------------------------------
 
-// <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
-typedef _HudsWide<word, word, byte, byte, HudsLast, true> HudsWide;
-typedef _HudsWide<dword, int32_t, word, word, GoldLast, false> GoldWide;
-typedef _HudsArea<word, word, byte, byte, HudsLast, true> HudsArea;
-typedef _HudsArea<dword, int32_t, word, word, GoldLast, false> GoldArea;
+// <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
+typedef _HudsWide<word, word, byte, byte, HudsLast, 1> HudsWide;
+typedef _HudsWide<dword, int32_t, word, word, GoldLast, 0> GoldWide;
+typedef _HudsArea<word, word, byte, byte, HudsLast, 1> HudsArea;
+typedef _HudsArea<dword, int32_t, word, word, GoldLast, 0> GoldArea;
 
 
 //  ------------------------------------------------------------------

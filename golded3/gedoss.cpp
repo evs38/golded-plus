@@ -109,31 +109,31 @@ void Cleanup(void)
         SearchExit();
 
         // Free various lists
-        CFG->addressmacro.clear();
-        CFG->aka.clear();
-        CFG->akamatch.clear();
-        CFG->colorname.clear();
-        CFG->event.clear();
-        CFG->externutil.clear();
-        CFG->filealias.clear();
-        CFG->frqext.clear();
-        CFG->frqnodemap.clear();
-        CFG->kludge.clear();
-        CFG->mailinglist.clear();
-        CFG->mappath.clear();
-        CFG->origin.clear();
-        CFG->robotname.clear();
-        CFG->tagline.clear();
-        CFG->tpl.clear();
-        CFG->twitname.clear();
-        CFG->twitsubj.clear();
-        CFG->username.clear();
-        CFG->xlatcharsets.clear();
-        CFG->xlatescsets.clear();
-        CFG->xlatcharsetalias.clear();
-        CFG->cmdkey.clear();
-        CFG->macro.clear();
-        CFG->unpacker.clear();
+        gclear(CFG->addressmacro);
+        gclear(CFG->aka);
+        gclear(CFG->akamatch);
+        gclear(CFG->colorname);
+        gclear(CFG->event);
+        gclear(CFG->externutil);
+        gclear(CFG->filealias);
+        gclear(CFG->frqext);
+        gclear(CFG->frqnodemap);
+        gclear(CFG->kludge);
+        gclear(CFG->mailinglist);
+        gclear(CFG->mappath);
+        gclear(CFG->origin);
+        gclear(CFG->robotname);
+        gclear(CFG->tagline);
+        gclear(CFG->tpl);
+        gclear(CFG->twitname);
+        gclear(CFG->twitsubj);
+        gclear(CFG->username);
+        gclear(CFG->xlatcharsets);
+        gclear(CFG->xlatescsets);
+        gclear(CFG->xlatcharsetalias);
+        gclear(CFG->cmdkey);
+        gclear(CFG->macro);
+        gclear(CFG->unpacker);
 
         // Free misc data
         throw_xrelease(CharTable);
@@ -364,34 +364,15 @@ int ShellToDos(const char* command, char* message, vattr cls, int cursor, int pa
     // Shell return value
     int status = -1;
 
-    // Shell using the regular RTL function
-#ifndef __CYGWIN__
+    //  Shell using the regular RTL function.
+    //
+    //  Cygwin used to be sent down a path of its own here - split the
+    //  command by hand and spawnvpe() it - but that code has not compiled
+    //  for many years (it assigns to an array, writes ++p++, and puts a
+    //  string literal in a char*), so nobody has been through it in a
+    //  long time. Cygwin has a real shell like any other unix build, and
+    //  system() is what those use.
     status = system(command);
-#else
-    // Get executable and parameters
-    char* _arg_v[3];
-
-    char* _pars = "";
-    char _xfn[256] = ""; // Call command interpreter
-    if(strnieql(command, "/c", 2))
-        _pars = strskip_wht(command+2);
-    else
-    {
-        _pars = strpbrk(command, " \t");
-        if(_pars)
-        {
-            ++_pars++;
-            strxcpy(_xfn, command, _pars-command);
-            _pars = strskip_wht(_pars);
-        }
-        else
-            _xfn = command;
-    }
-    _arg_v[0] = _xfn;
-    _arg_v[1] = _pars;
-    _arg_v[2] = NULL;
-    status = spawnvpe(P_WAIT, _xfn, _arg_v, environ);
-#endif
 
     if(status == -1)
         error = errno;

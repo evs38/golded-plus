@@ -27,6 +27,7 @@
 #include <fcntl.h>
 #include <algorithm>
 #include <golded.h>
+#include <gutf8.h>
 #include <gwildmat.h>
 #include <gdirposx.h>
 
@@ -188,14 +189,18 @@ const char *gfileselect::gensize(uint32_t size)
 void gfileselect::print_line(uint idx, uint pos, bool isbar)
 {
 
-    char buf[200];
+    char buf[800];
 
     FFblk& fb = fblk[idx];
 
-    gsprintf(PRINTF_DECLARE_BUFFER(buf), "%c%-*.*s %8s %2d-%02d-%02d %2d:%02d ",
+    //  The name column is a column count; "%-*.*s" would measure it in
+    //  bytes and leave the rest of the row ragged for any name that is
+    //  not plain ASCII.
+    std::string _name = g_utf8_fit(fb.name, (MAXCOL > 62) ? MAXCOL-62 : 0);
+
+    gsprintf(PRINTF_DECLARE_BUFFER(buf), "%c%s %8s %2d-%02d-%02d %2d:%02d ",
              fb.selected ? MMRK_MARK : ' ',
-             MAXCOL-62, (int)MAXCOL-62,
-             fb.name,
+             _name.c_str(),
              gensize(fb.size),
              fb.day,
              fb.month,

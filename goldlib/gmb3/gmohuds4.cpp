@@ -28,7 +28,7 @@
 
 //  ------------------------------------------------------------------
 
-template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
 void _HudsWide<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::update_netecho(const char* __name, msgn_t __hdridx, int __delete)
 {
     GFTRK("HudsUpdateNetEcho");
@@ -115,7 +115,7 @@ void _HudsWide<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::update_netecho
 
 //  ------------------------------------------------------------------
 
-template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
 void _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::save_message(int __mode, gmsg* __msg, HudsHdr& __hdr)
 {
 
@@ -146,9 +146,9 @@ void _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::save_message(i
     strc2p(strftimei(__hdr.date, 9, "%m-%d-%y", &_tmp));
     strc2p(strftimei(__hdr.time, 6, "%H:%M", &_tmp));
 
-    strc2p(strxcpy(__hdr.to, __msg->to, sizeof(__hdr.to)));
-    strc2p(strxcpy(__hdr.by, __msg->by, sizeof(__hdr.by)));
-    strc2p(strxcpy(__hdr.re, __msg->re, sizeof(__hdr.re)));
+    strc2p(__msg->fit_hdr(__hdr.to, __msg->to, sizeof(__hdr.to)));
+    strc2p(__msg->fit_hdr(__hdr.by, __msg->by, sizeof(__hdr.by)));
+    strc2p(__msg->fit_hdr(__hdr.re, __msg->re, sizeof(__hdr.re)));
 
     __hdr.origzone = (byte)__msg->oorig.zone;
     __hdr.orignet  = __msg->oorig.net;
@@ -329,7 +329,7 @@ void _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::save_message(i
 
 //  ------------------------------------------------------------------
 
-template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
 void _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::save_hdr(int __mode, gmsg* __msg)
 {
 
@@ -342,7 +342,7 @@ void _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::save_hdr(int _
 
 //  ------------------------------------------------------------------
 
-template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
 void _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::save_msg(int __mode, gmsg* __msg)
 {
 
@@ -355,7 +355,7 @@ void _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::save_msg(int _
 
 //  ------------------------------------------------------------------
 
-template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
 void _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::del_msg(gmsg* __msg)
 {
 
@@ -368,7 +368,7 @@ void _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::del_msg(gmsg* 
 
 //  ------------------------------------------------------------------
 
-template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
 void _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::new_msgno(gmsg* __msg)
 {
 
@@ -382,7 +382,7 @@ void _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::new_msgno(gmsg
 
 //  ------------------------------------------------------------------
 
-template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
 void _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::update_timesread(gmsg* msg)
 {
 

@@ -79,11 +79,33 @@ int vsnprintf( char *buffer, size_t sizeOfBuffer, const char *format, va_list ar
 
 //--------------------------------------------------------------------
 
+#include <gutf8.h>
 #include <gstrall.h>
 #include <glog.h>
 #include <gdbgerr.h>
 
 extern glog LOG;
+
+
+//  ------------------------------------------------------------------
+//  Is this byte whitespace or a control character in its own right?
+//
+//  Only ASCII can be. A byte at or above 0x80 is either part of a
+//  multibyte character or a printable one in a single-byte charset, and
+//  in neither case may a trim eat it - but isspace()/iscntrl() disagree:
+//  in a UTF-8 locale they call every byte from 0x80 to 0x9F a control,
+//  and those are the trailing bytes of Cyrillic A..P and r..ya. So
+//  trimming a line took the last byte off its last character and left an
+//  ill-formed sequence behind. Under the C locale, which is what GoldED
+//  always ran in on DOS, these bytes were never controls either, so
+//  asking only about ASCII restores the original behaviour as well.
+
+static inline bool str_is_trimmable(char c)
+{
+    unsigned char b = (unsigned char)c;
+
+    return (b < 0x80) and (isspace(b) or iscntrl(b));
+}
 
 
 //  ------------------------------------------------------------------
@@ -95,7 +117,7 @@ bool strblank(const char* str)
     const char* p;
 
     for(p = str; *p; p++)
-        if(not isspace(*p))
+        if(not str_is_trimmable(*p))
             return false;
 
     return true;
@@ -460,7 +482,7 @@ char* strrjust(char* str)
     for(p=str; *p; p++)
         ;   // find end of string
     p--;
-    for(q=p; isspace(*q) and q>=str; q--)
+    for(q=p; str_is_trimmable(*q) and q>=str; q--)
         ;   // find last non-space character
     if(p != q)
     {
@@ -588,7 +610,7 @@ char* strtrim(char* p)
 {
 
     int i;
-    for(i = strlen(p) - 1; (i >= 0) and (isspace(p[i]) or iscntrl(p[i])); i--) {}
+    for(i = strlen(p) - 1; (i >= 0) and str_is_trimmable(p[i]); i--) {}
     p[i + 1] = NUL;
     return p;
 }
@@ -604,7 +626,7 @@ std::string &strtrim(std::string &str)
         while (trail != begin)
         {
             --trail;
-            if (not isspace(*trail) and not iscntrl(*trail))
+            if (not str_is_trimmable(*trail))
             {
                 ++trail;
                 break;
@@ -627,7 +649,7 @@ char* strltrim(char* str)
     char* q;
 
     p = q = str;
-    while(*p and (isspace(*p) or iscntrl(*p)))
+    while(*p and str_is_trimmable(*p))
         p++;
 
     if(p != q)
@@ -650,7 +672,7 @@ std::string &strltrim(std::string &str)
         std::string::iterator end = str.end();
         std::string::iterator it = begin;
 
-        for (; (it != end) && isspace(*it); it++) { /**/ }
+        for (; (it != end) && str_is_trimmable(*it); it++) { /**/ }
         if (it != begin) str.erase(begin, it);
     }
 
@@ -728,6 +750,53 @@ TCHAR *strxcpy(TCHAR *d, const TCHAR *s, size_t n)
     else
         *d = NUL;
 #endif
+
+    return d;
+}
+
+
+//  ------------------------------------------------------------------
+//  As strxcpy(), but for text held in the internal representation:
+//  where the copy has to cut, it cuts between characters rather than
+//  through one. Half a character cannot be drawn and cannot be
+//  converted to another charset, and would otherwise reach the screen
+//  or the message base as it stands.
+//
+//  Use this only where the text really is in the internal
+//  representation - after converting *into* the local charset, not out
+//  of it. On a buffer holding anything else it would read those bytes
+//  as UTF-8 and drop what merely looks like an unfinished character:
+//  CP866 has three-byte lead bytes at 0xE0 and 0xE3, which are the
+//  letters 'r' and 'u', so a name ending in one would lose its last
+//  letter. strxcpy() itself used to do this, for every one of its 380-odd
+//  callers, which is where that came from.
+
+TCHAR *strtrim_partial_utf8(TCHAR *d)
+{
+    if(d and g_utf8_mode())
+    {
+        size_t len = strlen(d);
+        if(len)
+        {
+            const char* last = g_utf8_prev(d, d + len);
+            int need = g_utf8_seqlen((unsigned char)*last);
+            if((need > 1) and ((d + len - last) < need))
+                d[last - d] = NUL;
+        }
+    }
+
+    return d;
+}
+
+
+TCHAR *strxcpy_utf8(TCHAR *d, const TCHAR *s, size_t n)
+{
+    strxcpy(d, s, n);
+
+    //  Only when the copy really did cut.
+    if(n and (strlen(s) >= n))
+        strtrim_partial_utf8(d);
+
     return d;
 }
 

@@ -153,6 +153,15 @@ private:
             void   *object_item;
         } data;
 
+        //  std::pair default-constructs its members, so this needs a
+        //  default constructor of its own. TYPE_BOOL with a false value
+        //  is the harmless choice: nothing reads a stock item that was
+        //  never assigned.
+        grp_stock()
+        {
+            type = TYPE_BOOL;
+            data.bool_item = false;
+        }
         grp_stock(bool item)
         {
             type = TYPE_BOOL;
@@ -181,8 +190,14 @@ private:
         }
     };
 
-    std::vector< std::pair<std::string, std::multimap<int, grp_stock> > > container;
-    std::vector< std::pair<std::string, std::multimap<int, grp_stock> > >::iterator currgrp;
+    /*  The comparator is named rather than left to default: the
+     *  Borland 5.02 and Open Watcom libraries declare multimap with
+     *  three template parameters and no default for the third.
+     */
+    typedef std::multimap<int, grp_stock, std::less<int> > grp_stock_map;
+
+    std::vector< std::pair<std::string, grp_stock_map> > container;
+    std::vector< std::pair<std::string, grp_stock_map> >::iterator currgrp;
 
 public:
 

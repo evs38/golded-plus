@@ -28,7 +28,7 @@
 
 //  ------------------------------------------------------------------
 
-template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
 void _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::data_open()
 {
 
@@ -38,7 +38,7 @@ void _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::data_open()
 
 //  ------------------------------------------------------------------
 
-template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
 void _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::data_close()
 {
 
@@ -47,7 +47,7 @@ void _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::data_close()
 
 //  ------------------------------------------------------------------
 
-template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
 void _HudsWide<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::exit()
 {
 
@@ -66,7 +66,7 @@ void _HudsWide<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::exit()
 
 //  ------------------------------------------------------------------
 
-template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
 void _HudsWide<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::init()
 {
 
@@ -249,7 +249,7 @@ void _HudsWide<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::init()
 
 //  ------------------------------------------------------------------
 
-template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
 void _HudsWide<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::save_lastread(board_t board, msgn_t msgno)
 {
 
@@ -277,7 +277,7 @@ void _HudsWide<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::save_lastread(
 
 //  ------------------------------------------------------------------
 
-template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
 void _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::open()
 {
 
@@ -321,7 +321,7 @@ done:
 
 //  ------------------------------------------------------------------
 
-template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
 void _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::close()
 {
 
@@ -376,7 +376,7 @@ done:
 
 //  ------------------------------------------------------------------
 
-template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
 void _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::suspend()
 {
 
@@ -391,7 +391,7 @@ void _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::suspend()
 
 //  ------------------------------------------------------------------
 
-template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, bool __HUDSON>
+template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
 void _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::resume()
 {
 

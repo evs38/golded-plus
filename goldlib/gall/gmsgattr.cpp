@@ -134,7 +134,7 @@ std::string& ftn_attr::make_string(std::string& s) const
 
     size_t len = s.length();
     while(len and ('!' > s[--len]))
-        s.erase(len, 1);
+        strerase(s, len, 1);
 
     return s;
 }

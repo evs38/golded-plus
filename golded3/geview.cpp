@@ -25,6 +25,7 @@
 //  ------------------------------------------------------------------
 
 #include <golded.h>
+#include <gutf8.h>
 #include <gutlos.h>
 
 #if defined(__USE_ALLOCA__)
@@ -162,7 +163,10 @@ void GMsgHeaderView::Paint()
     uint32_t replyto, replynext;
     if(CFG->switches.get(disprealmsgno))
     {
-        ptr += sprintf(ptr, " %-5.5s: #%u [%u]", LNG->Msg, msg->msgno, area->Msgn.Count()+(msg->attr.nwm() ? 1 : 0));
+        //  A printf precision counts bytes, and this label comes from
+        //  the language file - "Nп/п" is four characters and six bytes.
+        //  Fit it to the five columns the layout gives it instead.
+        ptr += sprintf(ptr, " %s: #%u [%u]", g_utf8_fit(LNG->Msg, 5).c_str(), msg->msgno, area->Msgn.Count()+(msg->attr.nwm() ? 1 : 0));
         replyto = msg->link.to();
         replies[0] = msg->link.first();
         replynext = msg->link.next();
@@ -172,7 +176,7 @@ void GMsgHeaderView::Paint()
     else
     {
         uint active = area->Msgn.Count() + (msg->attr.nwm() ? 1 : 0);
-        ptr += sprintf(ptr, " %-5.5s: %u %s %u", LNG->Msg, msg->attr.nwm() ? active : area->Msgn.ToReln(msg->msgno), LNG->of, active);
+        ptr += sprintf(ptr, " %s: %u %s %u", g_utf8_fit(LNG->Msg, 5).c_str(), msg->attr.nwm() ? active : area->Msgn.ToReln(msg->msgno), LNG->of, active);
         replyto = area->Msgn.ToReln(msg->link.to());
         replies[0] = area->Msgn.ToReln(msg->link.first());
         replynext = area->Msgn.ToReln(msg->link.next());
@@ -219,9 +223,11 @@ void GMsgHeaderView::Paint()
     else if((not area->isecho() or area->isnewsgroup()) and *msg->ifrom and *msg->iorig)
         strxcpy(buf, msg->iorig, (namewidth+nodewidth));
     else
-        strxcpy(buf, msg->By(), (namewidth+nodewidth));
+        strxcpy_utf8(buf, msg->By(), (namewidth+nodewidth)*4);
 
-    strsetsz(buf, nodegenerated ? namewidth : (namewidth+nodewidth));
+    //  The name shares its line with the address and the date, which are
+    //  drawn at fixed columns, so the field is laid out in columns too.
+    strxcpy(buf, g_utf8_fit(buf, nodegenerated ? namewidth : (namewidth+nodewidth)).c_str(), sizeof(buf));
 
     window.prints(2, 0, window_color, LNG->From);
     vattr color = ((msg->foundwhere&GFIND_FROM) or msg->attr.fmu() or (msg->attr.loc() and CFG->switches.get(displocalhigh))) ? highlight_color : from_color;
@@ -271,9 +277,9 @@ void GMsgHeaderView::Paint()
     else if((not area->isecho() or area->isnewsgroup()) and *msg->ito and *msg->idest)
         strxcpy(buf, msg->idest, (namewidth+nodewidth));
     else
-        strxcpy(buf, msg->To(), (namewidth+nodewidth));
+        strxcpy_utf8(buf, msg->To(), (namewidth+nodewidth)*4);
 
-    strsetsz(buf, nodegenerated ? namewidth : (namewidth+nodewidth));
+    strxcpy(buf, g_utf8_fit(buf, nodegenerated ? namewidth : (namewidth+nodewidth)).c_str(), sizeof(buf));
 
     window.prints(3, 0, window_color, LNG->To);
     color = ((msg->foundwhere&GFIND_TO) or msg->attr.tou()) ? highlight_color : to_color;
@@ -299,12 +305,25 @@ void GMsgHeaderView::Paint()
     }
 
     // Generate subjectline
-    strxcpy(buf, (msg->attr.att() or msg->attr.frq() or msg->attr.urq()) ? LNG->File : LNG->Subj, 10);
-    int lngsubjlen = strlen(buf);
+    //  The label is capped at what nine columns will hold. It used to be
+    //  capped at ten bytes, which is the same thing for " Subj : " and
+    //  cuts " Тема : " in half. Cut, not fitted: padding it out would
+    //  move the subject along by a column for every label shorter than
+    //  the cap.
+    const char* _subjlng = (msg->attr.att() or msg->attr.frq() or msg->attr.urq()) ? LNG->File : LNG->Subj;
+    strxcpy(buf, _subjlng, g_utf8_bytes_for_cols(_subjlng, 9) + 1);
+    //  The label is drawn at column 0 and the subject beside it, so what
+    //  the label occupies is a count of columns, not of bytes - the
+    //  language files are in the configuration charset and "Тема :" is
+    //  not the same length in the two.
+    int lngsubjlen = (int)g_utf8_width(buf);
     window.prints(4, 0, window_color, buf);
 
-    strxcpy(buf, msg->re, width-lngsubjlen);
-    strsetsz(buf, width-lngsubjlen);
+    //  What is left over for the subject is a column count too, so cut
+    //  and pad it in columns. Measured in bytes, a Cyrillic subject was
+    //  cut at half the width it had room for. g_utf8_fit() pads to the
+    //  width as well, which is what strsetsz() used to do here.
+    strxcpy(buf, g_utf8_fit(msg->re, width-lngsubjlen).c_str(), sizeof(buf));
     window.prints(4, lngsubjlen, (msg->foundwhere&GFIND_SUBJECT) ? highlight_color : subject_color, buf);
 
     // Generate bottom line
@@ -503,16 +522,20 @@ void GMsgBodyView::PaintLine(int row, Line *line)
 
     // Calculate effective coordinates for vputs
     int vrow = gwin.active->srow + row;
-    uint llen = line->txt.length();
+    uint lwidth = (uint)g_utf8_width(line->txt);
 
     vattr color = (line->type & GLINE_HIGH) ? highlight_color : line->color;
 
     // Trim line if it longer than should be. This actually happens in very rare
     // cases, but always when hex dump displayed.
-    if(llen > visible_width)
+    //
+    // The window is measured in screen columns, so the cut has to be made
+    // in those too - trimming at a byte offset would slice a multibyte
+    // character in half, and the line is edited in place.
+    if(lwidth > visible_width)
     {
-        llen = visible_width;
-        line->txt.erase(llen);
+        strerase(line->txt, g_utf8_bytes_for_cols(line->txt.c_str(), visible_width));
+        lwidth = (uint)g_utf8_width(line->txt);
     }
 
     // Print it
@@ -525,8 +548,7 @@ void GMsgBodyView::PaintLine(int row, Line *line)
         }
         else
             StyleCodeHighlight(line->txt.c_str(), vrow, 0, not AA->attr().hex() and AA->adat->hidestylies, color);
-        int tlen = strlen(line->txt.c_str());
-        printns(vrow, tlen, color, "", visible_width-tlen);
+        printns(vrow, lwidth, color, "", visible_width-lwidth);
     }
     else
         printns(vrow, 0, color, line->txt.c_str(), visible_width);

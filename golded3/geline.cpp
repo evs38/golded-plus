@@ -36,9 +36,25 @@
     #include <malloc.h>
 #endif
 
-#ifdef HAS_ICONV
-    #include <iconv.h>
+#include <grecode.h>
+#include <gutf8.h>
+
+
+
+//  RogueWave 1, the library Borland C++ 5.02 ships, has only the
+//  three-argument distance(); the two-argument form came with the
+//  standard.
+template <class Iter>
+static ptrdiff_t g_distance(Iter first, Iter last)
+{
+#if defined(__BORLANDC__) && (__BORLANDC__ < 0x0550)
+    ptrdiff_t n = 0;
+    std::distance(first, last, n);
+    return n;
+#else
+    return std::distance(first, last);
 #endif
+}
 
 
 //  ------------------------------------------------------------------
@@ -451,6 +467,48 @@ char* mime_header_decode(char* decoded, const char* encoded, char *charset)
 
 //  ------------------------------------------------------------------
 
+//  Decode MIME encoded-words in text that is already in the local
+//  charset, converting only what those words were encoded in.
+//
+//  strxmimecpy() below converts the whole string, which is right for a
+//  field taken straight out of the message base. It is wrong for text
+//  the line parser has already converted: that would encode it twice.
+
+char* strxmimecpy_local(char* dest, const char* source, int size)
+{
+
+    ISub buf, buf2;
+    char charset[100];
+
+    strxcpy(buf, source, sizeof(buf));
+    mime_header_decode(buf2, buf, charset);
+
+    if(*charset == NUL)
+    {
+        //  Nothing was MIME-encoded, so the text is already as local as
+        //  it is going to get.
+        strxcpy_utf8(dest, buf2, size);
+        return dest;
+    }
+
+    int table = GetCurrentTable();
+    int level = LoadCharset(charset, CFG->xlatlocalset);
+    if(not level)
+        level = LoadCharset(AA->Xlatimport(), CFG->xlatlocalset);
+
+    const std::string converted = XlatStr(buf2, level, CharTable);
+
+    LoadCharset(table);
+    //  The text is in the local charset now, so cut it between
+    //  characters rather than through one.
+    strxcpy_utf8(dest, converted.c_str(), size);
+
+    return dest;
+}
+
+
+//  ------------------------------------------------------------------
+
 char* strxmimecpy(char* dest, const char* source, int level, int size, bool detect)
 {
 
@@ -464,9 +522,17 @@ char* strxmimecpy(char* dest, const char* source, int level, int size, bool dete
     if(charset[0] == NUL)
         detect = false;
 
+    //  Both halves of the conversion have to be put back, not just the
+    //  table: with a recoder in force GetCurrentTable() is -1, and
+    //  LoadCharset(-1) clears CharRecoder - so restoring the table
+    //  alone switched recoding off for everything converted after the
+    //  first field that carried a MIME encoded-word.
+    GRecoder* saved_recoder = NULL;
+
     if(detect)
     {
         table = GetCurrentTable();
+        saved_recoder = CharRecoder;
         level = LoadCharset(charset, CFG->xlatlocalset);
         if(not level)
         {
@@ -479,9 +545,12 @@ char* strxmimecpy(char* dest, const char* source, int level, int size, bool dete
     if(detect)
     {
         LoadCharset(table);
+        CharRecoder = saved_recoder;
     }
 
-    strxcpy(dest, converted.c_str(), size);
+    //  Converted into the local charset, so cut on a character
+    //  boundary.
+    strxcpy_utf8(dest, converted.c_str(), size);
 
     return dest;
 }
@@ -626,13 +695,25 @@ static void KludgeREPLYTO(GMsg* msg, const char* ptr)
 
 //  ------------------------------------------------------------------
 
+//  ------------------------------------------------------------------
+//  What every kludge handler below is handed
+//
+//  ScanLine() calls these with text the line parser has already put in
+//  the local charset - both for the ^A kludges and for the RFC headers
+//  a gate leaves at the top of the body. So a handler may decode a MIME
+//  encoded-word, which carries its own charset, but must never convert
+//  the whole string: that encodes it a second time, and a gated sender's
+//  name came out as mojibake because of it. strxmimecpy_local() does the
+//  first without the second.
+
+
 static void KludgeFROM(GMsg* msg, const char* ptr)
 {
 
     INam _fromname;
     IAdr _fromaddr;
     char* buf = throw_strdup(ptr);
-    strxmimecpy(msg->ifrom, buf, 0, sizeof(msg->ifrom), true);
+    strxmimecpy_local(msg->ifrom, buf, sizeof(msg->ifrom));
     ParseInternetAddr(buf, _fromname, _fromaddr);
     throw_free(buf);
     if(*_fromaddr)
@@ -650,7 +731,7 @@ static void KludgeTO(GMsg* msg, const char* ptr)
     INam _toname;
     IAdr _toaddr;
     char* buf = throw_strdup(ptr);
-    strxmimecpy(msg->ito, buf, 0, sizeof(msg->ito), true);
+    strxmimecpy_local(msg->ito, buf, sizeof(msg->ito));
     ParseInternetAddr(buf, _toname, _toaddr);
     throw_free(buf);
     if(*_toaddr)
@@ -753,7 +834,7 @@ static void KludgeSUBJECT(GMsg* msg, const char* ptr)
 {
 
     if(not (msg->attr.frq() or msg->attr.att() or msg->attr.urq()))
-        strxmimecpy(msg->re, ptr, 0, sizeof(msg->re), true);
+        strxmimecpy_local(msg->re, ptr, sizeof(msg->re));
 }
 
 
@@ -925,7 +1006,7 @@ static void KludgeORGANIZATION(GMsg* msg, const char* ptr)
 static void KludgeX_FTN_TO(GMsg* msg, const char* ptr)
 {
 
-    strxmimecpy(msg->realto, ptr, 0, sizeof(msg->realto), true);
+    strxmimecpy_local(msg->realto, ptr, sizeof(msg->realto));
 }
 
 
@@ -1889,16 +1970,63 @@ void  Latin2Local(std::string &str)
 
 //  ------------------------------------------------------------------
 
-#ifdef HAS_ICONV
 void IconvClear(void)
 {
-    if( iconv_cd!=(iconv_t)(-1) )
-    {
-        iconv_close(iconv_cd);
-        iconv_cd = (iconv_t)(-1);
-    }
+    CharRecoder = NULL;
+    g_recoder_flush();
 }
-#endif
+
+//  ------------------------------------------------------------------
+
+//  ------------------------------------------------------------------
+//  Move one character of source text into the line buffer.
+//
+//  'bp' points at the last byte written, the way the reader's loop
+//  keeps it, and is advanced past whatever this produces. 'ptr' is
+//  advanced past the character consumed, which is more than one byte
+//  when the message itself is in a multibyte charset.
+//
+//  The returned value is the width in screen columns of what was
+//  written, which is what the right margin has to be measured in - not
+//  bytes, now that a character and a byte are no longer the same thing.
+
+static uint RecodeChar(char*& ptr, char*& bp, int level, GRecoder* recoder)
+{
+    if(recoder)
+    {
+        std::string out;
+        //  strlen() would walk the whole rest of the message for every
+        //  single character; the recoder only ever needs to see the
+        //  longest possible sequence.
+        size_t avail = 0;
+        while(avail < (size_t)GUTF8_MAXLEN and ptr[avail] != NUL)
+            avail++;
+
+        ptr += recoder->convert_char(ptr, avail, out);
+
+        for(size_t n = 0; n < out.length(); n++)
+            *(++bp) = out[n];
+
+        return (uint)g_utf8_width(out);
+    }
+
+    if((level > 0) and ChsTP)
+    {
+        const char* tptr = (const char*)ChsTP[(byte)*ptr++];
+        char chln = *tptr++;
+        uint written = 0;
+        while(chln--)
+        {
+            *(++bp) = *tptr++;
+            written++;
+        }
+        return written;
+    }
+
+    *(++bp) = *ptr++;
+    return 1;
+}
+
 
 //  ------------------------------------------------------------------
 
@@ -1908,25 +2036,25 @@ std::string XlatStr(const char* src, int level, Chs* chrtbl, int qpencoded, bool
     if( src==NULL )
         return std::string();
 
-    if( not chrtbl
-#ifdef HAS_ICONV
-            && iconv_cd==(iconv_t)(-1)
-#endif
-      )
+    GRecoder* recoder = CharRecoder;
+
+    if(not chrtbl and recoder == NULL)
         return src;
 
     std::string result;
+    std::string pending;        // source-charset text awaiting conversion
     const char* sptr = src;
     char dochar;
     ChsTab* chrs = chrtbl ? chrtbl->t : (ChsTab*)NULL;
 
-#ifdef HAS_ICONV
-    size_t iconvrc=(size_t)(-1);
-    if( iconv_cd!=(iconv_t)(-1) )
-    {
-        iconvrc=iconv( iconv_cd, NULL, NULL, NULL, NULL ); // init iconv
-    }
-#endif
+    #define XLAT_FLUSH()                                    \
+        do {                                                \
+            if(not pending.empty())                         \
+            {                                               \
+                result += recoder->convert(pending);        \
+                strerase(pending);                            \
+            }                                               \
+        } while(0)
     while(*sptr)
     {
         switch(*sptr)
@@ -1943,6 +2071,8 @@ std::string XlatStr(const char* src, int level, Chs* chrtbl, int qpencoded, bool
                         if(*(sptr+2) == tptr[1])
                         {
                             const char* escp = &tptr[2];
+                            if(recoder)
+                                XLAT_FLUSH();
                             for (size_t c = 0; c < 3 && *escp; ++escp)
                             {
                                 result += *escp;
@@ -1971,6 +2101,8 @@ std::string XlatStr(const char* src, int level, Chs* chrtbl, int qpencoded, bool
                         if(*(sptr+2) == tptr[1])
                         {
                             const char* escp = &tptr[2];
+                            if(recoder)
+                                XLAT_FLUSH();
                             for (size_t c = 0; c < 3 && *escp; ++escp)
                             {
                                 result += *escp;
@@ -2008,6 +2140,13 @@ std::string XlatStr(const char* src, int level, Chs* chrtbl, int qpencoded, bool
                                         const char* escp = &tptr[2];
                                         if(*escp)
                                         {
+                                            //  Undoing the previous
+                                            //  character means it must
+                                            //  already be in 'result'.
+                                            if(recoder)
+                                                XLAT_FLUSH();
+                                            if(result.empty())
+                                                break;
                                             result.erase(result.end() - 1);
                                             result += *escp++;
                                             if(*escp)
@@ -2029,7 +2168,12 @@ std::string XlatStr(const char* src, int level, Chs* chrtbl, int qpencoded, bool
                     }
                 }
                 if(not translated)
-                    result += *sptr++;
+                {
+                    if(recoder)
+                        pending += *sptr++;
+                    else
+                        result += *sptr++;
+                }
             }
             break;
 
@@ -2049,53 +2193,31 @@ std::string XlatStr(const char* src, int level, Chs* chrtbl, int qpencoded, bool
 defaultchardo:
             dochar = *sptr++;
 chardo:
-#ifdef HAS_ICONV
-            if( iconv_cd!=(iconv_t)(-1) )
+            //  Accumulate rather than convert one byte at a time: a
+            //  multibyte source character has to reach the recoder
+            //  whole, and converting per byte would also throw away
+            //  iconv's shift state.
+            if(recoder)
+                pending += dochar;
+            else if ((level > 0) && chrs)
             {
-                size_t srcleft=1;
-                size_t dstleft=3;
-                char* tsptr = &dochar;
-                char encBuf[3];
-                char* encPtr = encBuf;
-
-                iconvrc=iconv( iconv_cd, &tsptr, &srcleft, &encPtr, &dstleft );
-                if( iconvrc==((size_t)-1) )
-                {
-                    switch( errno )
-                    {
-                    case EINVAL:
-                        LOG.printf("! An incomplete multibyte sequence has been encountered before:");
-                        LOG.printf("+ %s",sptr);
-                    case EILSEQ:
-                        LOG.printf("! An invalid multibyte sequence has been encountered in the input before:");
-                        LOG.printf("+ %s",sptr);
-                    case E2BIG:
-                        LOG.printf("! There is not sufficient destination size before '%s'", sptr);
-                    default:
-                        LOG.printf("! Unknown error %u in iconv() before %s", errno, sptr);
-                    }
-                }
-                else
-                {
-                    result.append(encBuf, encPtr - encBuf);
-                }
+                const char* tptr = (const char*)chrs[(byte)dochar];
+                char clen = *tptr++;
+                while(clen--)
+                    result += *tptr++;
             }
             else
-#endif
-
-                if ((level > 0) && chrs)
-                {
-                    const char* tptr = (const char*)chrs[(byte)dochar];
-                    char clen = *tptr++;
-                    while(clen--)
-                        result += *tptr++;
-                }
-                else
-                {
-                    result += dochar;
-                }
+            {
+                result += dochar;
+            }
         }
     }
+
+    if(recoder)
+        XLAT_FLUSH();
+
+    #undef XLAT_FLUSH
+
     return result;
 }
 
@@ -2118,6 +2240,24 @@ int cmp_quotes(char* q1, char* q2)
     while(*q1 and *q2);
 
     return *q1 == *q2;
+}
+
+
+//  ------------------------------------------------------------------
+
+//  ------------------------------------------------------------------
+//  Adopt the charset that has just been loaded: the level it converts
+//  at, the recoder that goes with it, and the name to put in the CHRS
+//  kludge. The three belong together and were written out five times
+//  below, which is how three of them came to be indented to a block
+//  they are not in.
+
+static void adopt_charset(GMsg* __msg, int& __level, GRecoder*& __recoder,
+                          int __chslev, const char* __chsbuf)
+{
+    __level = __msg->charsetlevel = __chslev;
+    __recoder = CharRecoder;
+    strxcpy(__msg->charset, __chsbuf, sizeof(__msg->charset));
 }
 
 
@@ -2195,6 +2335,11 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
     uint idx=0, idxadjust=0;
     uint len;
     int level=0;
+    //  The conversion that goes with 'level'. Kept local because the
+    //  global one may belong to an entirely different operation - the
+    //  save path, for instance, converts on the way out and then parses
+    //  the result back into lines, which must not convert again.
+    GRecoder* _recoder = NULL;
     uint n;
     char ch, chln = 0, dochar;
     Line* line;
@@ -2281,8 +2426,8 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
         {
             if(not strieql(AA->Xlatimport(), CFG->xlatlocalset))
             {
-                strxcpy(msg->charset, AA->Xlatimport(), sizeof(msg->charset));
-                level = msg->charsetlevel = LoadCharset(msg->charset, CFG->xlatlocalset);
+                int _chslev = LoadCharset(AA->Xlatimport(), CFG->xlatlocalset);
+                adopt_charset(msg, level, _recoder, _chslev, AA->Xlatimport());
             }
         }
 
@@ -2320,21 +2465,10 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
                     qptr = qbuf;
                     reflow = false;
                     // Insert previous quotestring
-                    for(n=0; n<qlen; n++)
+                    char* qend = qbuf + qlen;
+                    while(qptr < qend)
                     {
-                        if ((level > 0) && ChsTP)
-                        {
-                            tptr = (char*)ChsTP[(byte)(*qptr++)];
-                            chln = *tptr++;
-                            while(chln--)
-                            {
-                                *(++bp) = *tptr++;
-                            }
-                        }
-                        else
-                        {
-                            *(++bp) = *qptr++;
-                        }
+                        RecodeChar(qptr, bp, level, _recoder);
                     }
                     if(quotewraphard)
                     {
@@ -2428,8 +2562,7 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
                                 }
                                 if(chslev)
                                 {
-                                    level = msg->charsetlevel = chslev;
-                                    strcpy(msg->charset, chsbuf);
+                                    adopt_charset(msg, level, _recoder, chslev, chsbuf);
                                 }
                             }
                             else if((kludgetype == FSC_CHARSET) or (kludgetype == FSC_CODEPAGE))
@@ -2450,8 +2583,7 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
                                 }
                                 if(chslev)
                                 {
-                                    level = msg->charsetlevel = chslev;
-                                    strcpy(msg->charset, chsbuf);
+                                    adopt_charset(msg, level, _recoder, chslev, chsbuf);
                                 }
                                 if(*msg->charset == NUL)
                                     strcpy(msg->charset, chsbuf);
@@ -2493,8 +2625,7 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
                                         }
                                         if(chslev)
                                         {
-                                            level = msg->charsetlevel = chslev;
-                                            strcpy(msg->charset, chsbuf);
+                                            adopt_charset(msg, level, _recoder, chslev, chsbuf);
                                         }
                                         if(*msg->charset == NUL)
                                             strcpy(msg->charset, chsbuf);
@@ -2523,8 +2654,7 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
                                     }
                                     if(chslev)
                                     {
-                                        level = msg->charsetlevel = chslev;
-                                        strcpy(msg->charset, chsbuf);
+                                        adopt_charset(msg, level, _recoder, chslev, chsbuf);
                                     }
                                 }
                             }
@@ -2544,8 +2674,7 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
                                     }
                                     if(chslev)
                                     {
-                                        level = msg->charsetlevel = chslev;
-                                        strcpy(msg->charset, chsbuf);
+                                        adopt_charset(msg, level, _recoder, chslev, chsbuf);
                                     }
                                 }
                             }
@@ -2888,21 +3017,16 @@ do_ht:
                         }
                     default:
 defaultchardo:
-                        dochar = *ptr++;
+                        len += RecodeChar(ptr, bp, level, _recoder);
+                        break;
+
 chardo:
-                        if ((level > 0) && ChsTP)
+                        //  Reached only from the quoted-printable
+                        //  decoder, which has already produced the byte
+                        //  and stepped 'ptr' past its "=XX" form.
                         {
-                            tptr = (char*)ChsTP[(byte)dochar];
-                            chln = *tptr++;
-                            while(chln--)
-                            {
-                                *(++bp) = *tptr++;
-                                ++len;
-                            }
-                        }
-                        else
-                        {
-                            *(++bp) = dochar;
+                            char* dp = &dochar;
+                            RecodeChar(dp, bp, level, _recoder);
                             ++len;
                         }
                         break;
@@ -2980,6 +3104,14 @@ chardo:
             // Charset translate header fields
             if(header_recode)
             {
+                //  strxmimecpy() converts through the conversion that is
+                //  in force, so put this parse's own there. It is NULL
+                //  when no charset was loaded for this text - which is
+                //  the case on the way back out to the message base,
+                //  where the headers are already in the local charset
+                //  and converting them again would double-encode them.
+                CharRecoder = _recoder;
+
                 strxmimecpy(msg->by, msg->by, level, sizeof(INam), true);
                 strxmimecpy(msg->to, msg->to, level, sizeof(INam), true);
                 if(not (msg->attr.frq() or msg->attr.att() or msg->attr.urq()))
@@ -3126,7 +3258,7 @@ void MsgLineReIndex(GMsg* msg, int viewhidden, int viewkludge, int viewquote)
                 const char *posn, *posn2 = line->txt.c_str();
                 if(msg->attr.pos() and ((posn = striinc("@position", posn2)) != NULL))
                 {
-                    line->txt.erase(posn - posn2, 9);
+                    strerase(line->txt, posn - posn2, 9);
                     line->type |= GLINE_POSI;
                 }
                 if((line->next->type & GLINE_QUOT) and not strblank(line->txt.c_str()))
@@ -3375,8 +3507,19 @@ int LoadCharset(int index)
     }
     else if (index != current_table)
     {
+        //  A table takes over from whatever recoder was in force.
         LoadCharTable(index);
+        CharRecoder = NULL;
     }
+    else if (index < 0)
+    {
+        //  Explicit reset.
+        CharRecoder = NULL;
+    }
+    //  Otherwise the state is already what was asked for - and in
+    //  particular, re-selecting the current (absent) table must not
+    //  quietly switch recoding off, which is how the callers that save
+    //  and restore the table around a conversion get their state back.
 
     return CharTable ? CharTable->level : 2;
 }
@@ -3388,15 +3531,24 @@ int LoadCharset(const char* imp, const char* exp)
 
     int n;
 
-#ifdef HAS_ICONV
-    if( iconv_cd != (iconv_t)(-1) )
-        iconv_close(iconv_cd);
-    iconv_cd = iconv_open(exp, imp);
-    if(iconv_cd != (iconv_t)(-1) )
-        LOG.printf("+ iconv is initialised to convert from %s to %s", imp, exp);
-    else
-        LOG.printf("+ Can't initialise iconv to convert from %s to %s", imp, exp);
-#endif
+    //  Prefer a real recoder over the compiled-in .chs tables: it knows
+    //  far more charsets, and it is the only way to reach UTF-8.
+    CharRecoder = NULL;
+    GRecoder& rec = g_recoder(imp, exp);
+    if(rec.is_open())
+    {
+        //  An identity conversion needs no recoder at all; leaving it
+        //  NULL lets XlatStr() return its input untouched.
+        if(not rec.is_identity())
+            CharRecoder = &rec;
+
+        throw_release(CharTable);
+        ChsTP = NULL;
+        current_table = -1;
+        return 2;
+    }
+
+    LOG.printf("+ No recoder from %s to %s; falling back to charset tables", imp, exp);
 
     // Strip charset level if any
     std::string impCharset(strlword(imp));
@@ -3409,23 +3561,23 @@ int LoadCharset(const char* imp, const char* exp)
     ChrsMap::iterator chrsIt = CFG->xlatcharsets.find(ImpExp(impCharset, expCharset));
     if (chrsIt != CFG->xlatcharsets.end())
     {
-        if (CheckCharset(std::distance(CFG->xlatcharsets.begin(), chrsIt)))
+        if (CheckCharset(g_distance(CFG->xlatcharsets.begin(), chrsIt)))
         {
             return CharTable->level;
         }
     }
 
     // Try to find alias
-    std::map<std::string, std::string>::iterator alsIt = CFG->xlatcharsetalias.find(impCharset);
+    std::map<std::string, std::string, std::less<std::string> >::iterator alsIt = CFG->xlatcharsetalias.find(impCharset);
     if (alsIt != CFG->xlatcharsetalias.end())
     {
-        impCharset = alsIt->second;
+        impCharset = (*alsIt).second;
         strupr(impCharset);
 
         ChrsMap::iterator chrsIt = CFG->xlatcharsets.find(ImpExp(impCharset, expCharset));
         if (chrsIt != CFG->xlatcharsets.end())
         {
-            if (CheckCharset(std::distance(CFG->xlatcharsets.begin(), chrsIt)))
+            if (CheckCharset(g_distance(CFG->xlatcharsets.begin(), chrsIt)))
             {
                 return CharTable->level;
             }
@@ -3700,7 +3852,15 @@ char* ParseInternetAddr(char* __string, char* __name, char* __addr, bool detect_
     if(not strchr(__addr, '@'))
         *__addr = NUL;
 
-    strxmimecpy(__name, __name, 0, strlen(__name)+1, detect_charset);
+    //  What arrives here is message text, which the line parser has
+    //  already put in the local charset - only a MIME encoded-word is
+    //  still in a charset of its own. Converting the whole name again
+    //  encoded it twice, so a gated sender's name (the REPLYADDR kludge
+    //  carries one) came out as mojibake. Sizing the destination by the
+    //  length of the input made it worse: a converted name is longer
+    //  than what it came from, so the result was also cut short.
+    if(detect_charset)
+        strxmimecpy_local(__name, __name, sizeof(INam));
 
     return __name;
 }

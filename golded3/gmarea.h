@@ -138,7 +138,7 @@ public:
 
     inline void Reset()
     {
-        container.clear();
+        gclear(container);
         currposn = container.end();
     }
 

@@ -37,6 +37,7 @@
 //  ------------------------------------------------------------------
 
 #include <dos.h>
+#include <string.h>
 #include <gdefs.h>
 
 
@@ -75,6 +76,20 @@ protected:
 #endif
 
 public:
+
+    //  int386x() and int86x() are handed the segment registers as well
+    //  as the general ones, and use them for the call they build. Left
+    //  uninitialised they hold whatever was on the stack, which under
+    //  the 32-bit DOS extender means a bad selector and a general
+    //  protection fault the moment one is loaded. segread() fills them
+    //  in with the ones this program is actually running on.
+    i86()
+    {
+        memset(&r, 0, sizeof(r));
+#if defined(__BORLANDC__)
+        segread(&sr);
+#endif
+    }
 
     inline uint al()
     {
@@ -166,10 +181,14 @@ public:
     {
         return r.w.dx;
     }
+#if !defined(__BORLANDC__)
+    //  Borland's REGS carries no BP under any of its DOS targets, and
+    //  nothing in the tree asks for one.
     inline uint bp()
     {
         return r.w.bp;
     }
+#endif
     inline uint si()
     {
         return r.w.si;
@@ -179,13 +198,15 @@ public:
         return r.w.di;
     }
 #if defined(__BORLANDC__)
+    //  SREGS is a plain struct here - the segment registers are its
+    //  own members, not a sub-union.
     inline uint ds()
     {
-        return sr.w.ds;
+        return sr.ds;
     }
     inline uint es()
     {
-        return sr.w.es;
+        return sr.es;
     }
 #else
     inline uint ds()
@@ -293,10 +314,12 @@ public:
     {
         r.w.dx = (word)w;
     }
+#if !defined(__BORLANDC__)
     inline void bp(uint32_t w)
     {
         r.w.bp = (word)w;
     }
+#endif
     inline void si(uint32_t w)
     {
         r.w.si = (word)w;
@@ -308,11 +331,11 @@ public:
 #if defined(__BORLANDC__)
     inline void ds(uint32_t w)
     {
-        sr.w.ds = (word)w;
+        sr.ds = (word)w;
     }
     inline void es(uint32_t w)
     {
-        sr.w.es = (word)w;
+        sr.es = (word)w;
     }
 #else
     inline void ds(uint32_t w)
@@ -328,6 +351,23 @@ public:
     {
         r.w.flags = (word)w;
     }
+#endif
+
+#if defined(__WATCOMC__) || defined(__BORLANDC__)
+    //  Carry, as left by the interrupt just issued. DOS reports failure
+    //  that way for most of its calls. Borland's REGS keeps it in a
+    //  field of its own rather than in the flags word.
+#if defined(__BORLANDC__)
+    inline int cflag()
+    {
+        return (int)(r.w.cflag & 1);
+    }
+#else
+    inline int cflag()
+    {
+        return (int)(r.w.flags & 1);
+    }
+#endif
 #endif
 
     void genint(int intno);
@@ -354,32 +394,40 @@ inline void i86::genint(int intno)
 }
 
 
-#if defined(__WATCOMC__) && defined(__386__)
-inline int __dpmi_allocate_dos_memory(long len, int &buf)
+#if (defined(__WATCOMC__) && defined(__386__)) \
+ || (defined(__BORLANDC__) && defined(__DPMI32__))
+//  DJGPP's names, in Open Watcom and Borland DPMI32 terms. A pointer, not a reference: the
+//  body writes through it and the callers pass one, which is DJGPP's
+//  signature too. This Watcom-only code had never been compiled at all.
+//
+//  These use plain DOS allocation (INT 21h, AH=48h/49h) rather than the
+//  DPMI calls, so what comes back is a real-mode segment both as the
+//  return value and through the out parameter. That matters: under an
+//  extender the first megabyte is mapped one to one, so a segment can be
+//  turned into an address and read directly, while a DPMI selector
+//  cannot - and there is then nothing to remember between allocating and
+//  freeing.
+inline int __dpmi_allocate_dos_memory(long len, int *buffer)
 {
 
     i86 cpu;
-    // Determine how much is available
-    cpu.ax(0x100);
-    cpu.bx(65535u);
-    cpu.genint(0x31);
-    if(len > (long)cpu.bx()*16L)
+    cpu.ah(0x48);
+    cpu.bx((word) len);         // length in paragraphs
+    cpu.genint(0x21);
+    if(cpu.cflag())
         return -1;
-    cpu.ax(0x100);
-    cpu.bx(len);
-    cpu.genint(0x31);
-    *buffer = (int) cpu.dx();
+    *buffer = (int) cpu.ax();
     return (int) cpu.ax();
 }
 
 
-inline void __dpmi_free_dos_memory(int buffer)
+inline void __dpmi_free_dos_memory(int segment)
 {
 
     i86 cpu;
-    cpu.ax(0x101);
-    cpu.dx((word) buffer);
-    cpu.genint(0x31);
+    cpu.ah(0x49);
+    cpu.es((word) segment);
+    cpu.genint(0x21);
 }
 #endif
 
@@ -387,7 +435,11 @@ inline void __dpmi_free_dos_memory(int buffer)
 //  ------------------------------------------------------------------
 //  A more portable version of MK_FP()
 
-#if defined(__WATCOMC__) && defined(__386__)
+//  Both 32-bit DOS extenders here run the program with zero-based
+//  selectors, so the first megabyte is reachable at its own linear
+//  address and a real-mode segment:offset pair is just arithmetic.
+#if (defined(__WATCOMC__) && defined(__386__)) \
+ || (defined(__BORLANDC__) && defined(__DPMI32__))
 
 #define gmkfp(s,o) ((s << 4) + o)
 

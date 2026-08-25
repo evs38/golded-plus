@@ -207,13 +207,17 @@ void throw_index_remove(int index)
 Throw* throw_find_overrun(Throw* pointer)
 {
 
+    //  Subtract the pointers as pointers. Going through unsigned long
+    //  truncates them wherever a long is narrower than a pointer, which
+    //  is every 64-bit Windows target, and the nearest block then comes
+    //  out wrong or is missed entirely.
     Throw* last_candidate = NULL;
-    long last_diff = LONG_MAX;
+    ptrdiff_t last_diff = 0;
     Throw** i = throw_index;
     for(int n=0; n<throw_index_size; n++,i++)
     {
-        long diff = (unsigned long)*i - (unsigned long)pointer;
-        if((diff > 0) and (diff < last_diff))
+        ptrdiff_t diff = (char*)*i - (char*)pointer;
+        if((diff > 0) and ((last_candidate == NULL) or (diff < last_diff)))
         {
             last_candidate = *i;
             last_diff = diff;
@@ -228,13 +232,14 @@ Throw* throw_find_overrun(Throw* pointer)
 Throw* throw_find_underrun(Throw* pointer)
 {
 
+    //  See the note in throw_find_overrun() above.
     Throw* last_candidate = NULL;
-    long last_diff = LONG_MAX;
+    ptrdiff_t last_diff = 0;
     Throw** i = throw_index;
     for(int n=0; n<throw_index_size; n++,i++)
     {
-        long diff = (unsigned long)pointer - (unsigned long)*i;
-        if((diff > 0) and (diff < last_diff))
+        ptrdiff_t diff = (char*)pointer - (char*)*i;
+        if((diff > 0) and ((last_candidate == NULL) or (diff < last_diff)))
         {
             last_candidate = *i;
             last_diff = diff;

@@ -73,8 +73,13 @@ sourcelists: dirs
 docs:
 	@cd $@ ; $(MAKE) all ; cd ..
 
+#  STRIP, not a bare `strip': on a cross build the host's one does not
+#  know the target's object format and answers "file format not
+#  recognized". It follows the compiler unless it is set by hand.
+STRIP?=$(if $(filter-out gcc,$(CC)),$(patsubst %gcc,%strip,$(patsubst %g++,%strip,$(CC))),strip)
+
 strip:
-	cd $(BIN)/ ; strip *$(PLATFORM)$(EXEEXT)
+	cd $(BIN)/ ; $(STRIP) *$(PLATFORM)$(EXEEXT)
 
 format:
 	astyle --style=allman --indent-preproc-block -R *.cpp,*.h,*.c,*.cxx,*.hxx

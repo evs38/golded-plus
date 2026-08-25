@@ -25,6 +25,7 @@
 //  ------------------------------------------------------------------
 
 #include <golded.h>
+#include <grecode.h>
 #include <gmoprot.h>
 #include <gcharset.h>
 
@@ -151,9 +152,41 @@ bool ReadGoldedCfg()
         }
     }
 
-    // Set default xlatimport
+    //  Set default xlatimport.
+    //
+    //  A message with no CHRS kludge is in a DOS codepage - that is what
+    //  the format has always meant - so falling back to the local
+    //  charset is only right while that is a codepage too. On a UTF-8
+    //  session it is not, and assuming UTF-8 would misread every old
+    //  message in the base.
     if(*CFG->xlatimport == NUL)
-        strcpy(CFG->xlatimport, CFG->xlatlocalset);
+    {
+        if(GRecoder::is_utf8(CFG->xlatlocalset))
+            strxcpy(CFG->xlatimport, get_dos_charset(CFG->xlatlocalset), sizeof(XlatName));
+        if(*CFG->xlatimport == NUL)
+            strcpy(CFG->xlatimport, CFG->xlatlocalset);
+    }
+
+    //  Messages go back into the base in the charset they came out of,
+    //  unless told otherwise. Without this a UTF-8 session would write
+    //  UTF-8 replies into an echo whose every other message is CP866 -
+    //  and very few echoes accept UTF-8 at all.
+    if(*CFG->xlatexport == NUL)
+        strcpy(CFG->xlatexport, CFG->xlatimport);
+
+    //  Everything GoldED holds in memory - message text, headers, what
+    //  goes on the screen - is in the local charset, so this is what
+    //  decides whether the rest of the program treats a character as one
+    //  byte or as a UTF-8 sequence.
+    g_set_local_charset(CFG->xlatlocalset);
+
+    //  Names and subjects in the configuration are cut to the standard
+    //  field widths - Name is 36 bytes, Subj 72 - as each line is read,
+    //  which is before the call above has said whether a character is
+    //  one byte or several. Anything that had to be cut may therefore
+    //  end in half a character; now that the answer is known, drop it.
+    for(std::vector<Node>::iterator _u = CFG->username.begin(); _u != CFG->username.end(); _u++)
+        strtrim_partial_utf8(_u->name);
 
     ReadXlatTables();
 
@@ -233,17 +266,17 @@ void WriteGoldGed()
     }
 
     // Release lists memory
-    CFG->areaexcl.clear();
-    CFG->areaincl.clear();
-    CFG->areaisemail.clear();
-    CFG->areaisnews.clear();
-    CFG->areascan.clear();
-    CFG->areascanexcl.clear();
-    CFG->areascanincl.clear();
-    CFG->arearename.clear();
-    CFG->areapmscan.clear();
-    CFG->areapmscanexcl.clear();
-    CFG->areapmscanincl.clear();
+    gclear(CFG->areaexcl);
+    gclear(CFG->areaincl);
+    gclear(CFG->areaisemail);
+    gclear(CFG->areaisnews);
+    gclear(CFG->areascan);
+    gclear(CFG->areascanexcl);
+    gclear(CFG->areascanincl);
+    gclear(CFG->arearename);
+    gclear(CFG->areapmscan);
+    gclear(CFG->areapmscanexcl);
+    gclear(CFG->areapmscanincl);
 }
 
 
@@ -729,6 +762,8 @@ CfgGed::CfgGed()
              __gver_name__, __gver_postname__, __gver_platform__);
     strcpy(tearline, "@longpid @version");
     strcpy(whoto, "All");
+    *xlatconfigset = NUL;   // empty: config is in the local charset
+    *xlatareaset = NUL;     // empty: area descriptions follow the config
     strcpy(xlatlocalset, get_charset());
     strcpy(xlatimport, get_dos_charset(xlatlocalset));
     strcpy(xlatexport, xlatimport);

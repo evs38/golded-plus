@@ -134,7 +134,14 @@ public:
 
     uint  col;       // Begining offset in the .text string
     uint  len;       // Text length
+#if defined(__WATCOMC__) || defined(__BORLANDC__)
+    //  Open Watcom and Borland C++ reject a zero-length array;
+    //  operator new() below already allocates more than it needs, so one
+    //  byte changes nothing.
+    char text[1];               // Text string itself
+#else
     __extension__ char text[0]; // Text string itself
+#endif
 
     text_item(uint __col, uint __len) : col(__col), len(__len) { }
     void* operator new(size_t size, uint text_len = 0)
@@ -145,10 +152,17 @@ public:
     {
         free(ptr);
     }
+#if !defined(__WATCOMC__) && !defined(__BORLANDC__)
+    //  The placement delete that pairs with the placement new above, for
+    //  the case where the constructor throws. Neither Open Watcom nor
+    //  either Borland C++ will have a second class operator delete at
+    //  all; the constructor here does nothing that can throw, so nothing
+    //  is lost.
     void operator delete(void* ptr, uint)
     {
         free(ptr);
     }
+#endif
 };
 
 //  ----------------------------------------------------------------
@@ -314,6 +328,41 @@ protected:
     //  ----------------------------------------------------------------
     //  Internal helper functions
 
+    //  ----------------------------------------------------------------
+    //  Byte offsets and screen columns
+    //
+    //  'col' is a byte offset into the current line's text. With a
+    //  single-byte charset that is also the screen column the cursor
+    //  sits at, which is why the two were interchangeable for so long.
+    //  In UTF-8 they are not: a character spans one to four bytes and
+    //  occupies zero, one or two columns. Anything compared against
+    //  mincol/maxcol, or handed to the cursor, has to be a column;
+    //  anything indexing the text has to be an offset.
+
+    uint  dispcol         (const Line* __line, uint __off) const;
+    uint  dispcol         () const;
+    uint  byteoff         (const Line* __line, uint __disp) const;
+    uint  linewidth       (const Line* __line) const;
+
+    //  Step an offset over one whole character.
+    uint  nextoff         (const Line* __line, uint __off) const;
+    uint  prevoff         (const Line* __line, uint __off) const;
+
+    //  Snap an offset onto a character boundary, so a cursor that was
+    //  carried over from another line never lands inside a character.
+    uint  snapoff         (const Line* __line, uint __off) const;
+
+    //  The character sitting under the cursor, as something the screen
+    //  can draw: one byte is not a character any more, so the cell has
+    //  to be painted with the whole thing.
+    vchar charunder       () const;
+
+    //  True when the character at __off is one that words are made of.
+    //  isxalnum() cannot answer this: it decides by whether changing the
+    //  case of a byte changes it, which says nothing useful about the
+    //  individual bytes of a multibyte character.
+    bool  iswordchar      (const Line* __line, uint __off) const;
+
     void  clreol          (int __col=-1, int __row=-1);
     void  cursoroff       ();
     void  cursoron        ();
@@ -339,6 +388,10 @@ protected:
     void  editimport      (Line* __line, char* __filename, bool imptxt = false);
     void  imptxt          (char* __filename, bool imptxt = false);
     void  insertchar      (char __ch);
+
+    //  Insert or overwrite one whole character, however many bytes it
+    //  takes. insertchar() is the single-byte case of this.
+    void  insertchars     (const char* __chars, uint __len);
     Line* insertlinebelow (Line* __currline, const char* __text = NULL, long __batch_mode = 0);
     int   isempty         (Line* __line=NULL);
     void  killkillbuf     ();
@@ -394,6 +447,14 @@ public:
     void ClearDeleteBuf ();
     void ClearPasteBuf  ();
     void CopyAboveChar  ();
+    //  Undo works a byte at a time, so a multibyte character needs one
+    //  item per byte. The first of them carries the caller's batch flag
+    //  and the rest BATCH_MODE, which is what makes the lot one undo
+    //  step; getting that rule right in six hand-written loops is what
+    //  these two exist to avoid.
+    void undo_erase (Line* __line, uint __from, uint __to, int __firstflags);
+    void undo_insert(Line* __line, uint __at, const char* __bytes, uint __len, int __firstflags);
+
     void DelChar        ();
     void DeleteEOL      ();
     void DeleteSOL      ();
@@ -451,7 +512,10 @@ public:
     void ZapQuoteBelow  ();
 
 private:
-    void ToggleCaseChar(gkey key, std::string::iterator it, Line *ln, int n);
+    //  Recase one character of __ln at byte offset __n, and return how
+    //  many bytes it occupies afterwards - the upper and lower forms of
+    //  a character need not be the same length.
+    uint ToggleCaseChar(gkey key, Line *ln, uint n);
 
     //  ----------------------------------------------------------------
 };

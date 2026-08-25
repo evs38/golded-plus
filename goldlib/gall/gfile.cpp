@@ -67,6 +67,53 @@
 
 #endif
 
+#if defined(__WATCOMC__)
+    //  Open Watcom keeps the plain POSIX spellings for everything above.
+    #undef  g_popen
+    #undef  g_pclose
+    #if defined(__NT__)
+        //  Its Win32 runtime has these two with a leading underscore.
+        #define g_popen(comm, mode)     _popen(comm, mode)
+        #define g_pclose(fp)            _pclose(fp)
+    #elif defined(__LINUX__)
+        #define g_popen(comm, mode)     popen(comm, mode)
+        #define g_pclose(fp)            pclose(fp)
+    #else
+        //  The DOS and OS/2 runtimes have no pipes at all. Fail the way
+        //  popen() does when it cannot start the child, so the callers -
+        //  which all check for NULL - carry on as they would anywhere.
+        #define g_popen(comm, mode)     (errno = ENOENT, (FILE*)NULL)
+        #define g_pclose(fp)            (-1)
+    #endif
+#endif
+
+#if defined(__BORLANDC__)
+    //  Borland keeps the POSIX spellings for the file calls, but its
+    //  pipes are Win32-only and under a leading underscore, and its
+    //  fdopen() takes a non-const mode string.
+    #undef  g_popen
+    #undef  g_pclose
+    #undef  g_fdopen
+    #undef  g_fsopen
+
+    //  Use the runtime's own share-aware fopen rather than the tree's
+    //  sopen()+fdopen() stand-in. Under the 32-bit DOS extender that
+    //  pair takes the runtime down: sopen() succeeds and fdopen() ends
+    //  in a divide by zero inside 32RTM's free-memory accounting.
+    //  _fsopen() does the same job and does not go near it.
+    #define g_fsopen(fn, of, sh)        _fsopen(fn, of, sh)
+    #if defined(__WIN32__)
+        #define g_popen(comm, mode)     _popen(comm, mode)
+        #define g_pclose(fp)            _pclose(fp)
+    #else
+        //  DOS has no pipes. Fail the way popen() does when it cannot
+        //  start the child; every caller here checks for NULL.
+        #define g_popen(comm, mode)     (errno = ENOENT, (FILE*)NULL)
+        #define g_pclose(fp)            (-1)
+    #endif
+    #define g_fdopen(fp, of)            fdopen(fp, (char*)(of))
+#endif
+
 #define g_lock(fh, off, len)        lock(fh, off, len)
 #define g_unlock(fh, off, len)      unlock(fh, off, len)
 
@@ -308,13 +355,18 @@ int gfile::Unlock(long __offset, long __len)
 
 //  ------------------------------------------------------------------
 
-int gfile::GetFTime(time32_t *__ftime)
+//  Declared with dword, as are both callers. Those are the same type as
+//  time32_t wherever time32_t is ours, but not on Solaris, which has a
+//  signed time32_t of its own - so say dword here too rather than let
+//  the two drift apart.
+
+int gfile::GetFTime(dword *__ftime)
 {
     struct stat s;
     if (fp) Fflush();
     int rv = fstat(fh, &s);
     status = (rv) ? errno : 0;
-    if (rv == 0) *__ftime = gfixstattime(time32_t(s.st_mtime));
+    if (rv == 0) *__ftime = (dword)gfixstattime(time32_t(s.st_mtime));
     else __ftime = 0;
     return rv;
 }

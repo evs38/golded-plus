@@ -57,7 +57,28 @@ if [ ! -f golded3/mygolded.h ]; then
 fi
 
 bines="${binesdir}/ged${binsuffix} ${binesdir}/gn${binsuffix} ${binesdir}/rddt${binsuffix}"
+
+#  A DJGPP binary needs a DPMI host, which plain DOS does not have -
+#  CWSDPMI is what provides it, the way DOS4GW does for the Watcom
+#  edition, and it has been shipped alongside since the DJGPP build
+#  first appeared. Take it from the DJGPP tree; %DJDIR% points there
+#  inside a DJGPP shell.
+cwsdpmi=""
+for d in "${DJDIR}/bin" /dev/env/DJDIR/bin ../bin . ; do
+  if [ -f "${d}/CWSDPMI.EXE" ] ; then cwsdpmi="${d}/CWSDPMI.EXE" ; break ; fi
+  if [ -f "${d}/cwsdpmi.exe" ] ; then cwsdpmi="${d}/cwsdpmi.exe" ; break ; fi
+done
+if [ -n "${cwsdpmi}" ] ; then
+  cp "${cwsdpmi}" "${binesdir}/CWSDPMI.EXE"
+  cwsdoc=`dirname "${cwsdpmi}"`/cwsdpmi.doc
+  [ -f "${cwsdoc}" ] && cp "${cwsdoc}" "${binesdir}/cwsdpmi.doc"
+else
+  echo "CWSDPMI.EXE not found - the package will need a DPMI host of its own"
+fi
+
 files="${bines} docs/copying docs/copying.lib golded.bat"
+[ -f "${binesdir}/CWSDPMI.EXE" ] && files="${files} ${binesdir}/CWSDPMI.EXE"
+[ -f "${binesdir}/cwsdpmi.doc" ] && files="${files} ${binesdir}/cwsdpmi.doc"
 files="${files} docs/golded.html docs/golded.txt docs/goldnode.html"
 files="${files} docs/goldnode.txt docs/license.txt docs/notework.txt"
 files="${files} docs/rddt.html docs/rddt.txt docs/readme.txt docs/notework.rus"

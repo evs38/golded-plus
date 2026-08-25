@@ -33,6 +33,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <gmemdbg.h>
+#include <gutf8.h>
 #include <gutlmisc.h>
 #include <gwinall.h>
 #include <gkbdcode.h>
@@ -286,7 +287,7 @@ int wcloseall()
     while(gwin.hidden!=NULL)
     {
         prev = gwin.hidden->prev;
-        throw_xfree(gwin.hidden->wbuf);
+        vfreesave(gwin.hidden->wbuf);
         throw_xfree(gwin.hidden);
         gwin.hidden = prev;
     }
@@ -330,25 +331,21 @@ int wshadow(vattr attr)
     while(crow<=erow)
     {
 
-        // read current screen characters/attributes and save in shadow's buffer
-        vatch tmp[2];
-        *q = vgetw(crow, ccol);
-#if defined(__USE_NCURSES__) || !defined(__UNIX__)
-        tmp[0] = vsattr(*q, attr);
-#else
-        tmp[0] = vsattr(' ', attr);
-#endif
-        q++;
-        *q = vgetw(crow, ccol + 1);
-#if defined(__USE_NCURSES__) || !defined(__UNIX__)
-        tmp[1] = vsattr(*q, attr);
-#else
-        tmp[1] = vsattr(' ', attr);
-#endif
-        q++;
+        // remember what is there, then recolour it where it stands
+        *q++ = vgetw(crow, ccol);
+        *q++ = vgetw(crow, ccol + 1);
 
-        // write characters back to screen using shadow's attribute
-        vputws(crow++, ccol, tmp, 2);
+#if defined(__UNIX__) && !defined(__USE_NCURSES__)
+        //  The plain-ANSI unix screen has no way to recolour in place.
+        vatch tmp[2];
+        tmp[0] = vsattr(' ', attr);
+        tmp[1] = vsattr(' ', attr);
+        vputws(crow, ccol, tmp, 2);
+#else
+        vsetattr(crow, ccol,     attr);
+        vsetattr(crow, ccol + 1, attr);
+#endif
+        crow++;
     }
 
     // start at lower left corner of shadow and work right
@@ -363,17 +360,23 @@ int wshadow(vattr attr)
     {
 
         // read attribs/chars and store in buffers
-        *q = vgetw(crow, ccol++);
-#if defined(__USE_NCURSES__) || !defined(__UNIX__)
-        *wptr++ = vsattr(*q, attr);
-#else
+        *q = vgetw(crow, ccol);
+#if defined(__UNIX__) && !defined(__USE_NCURSES__)
         *wptr++ = vsattr(' ', attr);
+#else
+        vsetattr(crow, ccol, attr);
 #endif
+        ccol++;
         q++;
     }
 
+#if defined(__UNIX__) && !defined(__USE_NCURSES__)
     // display complete buffer
     vputws(crow, scol+2, gvid->bufwrd, len);
+#else
+    (void)wptr;
+    (void)len;
+#endif
 
     // save info in window's record
     gwin.active->wsbuf  = wsbuf;
@@ -415,8 +418,14 @@ int wshadoff()
     // delete shadow to right of window
     while(crow<=erow)
     {
+#if defined(__UNIX__) && !defined(__USE_NCURSES__)
         vputw(crow,   ccol,   *q++);
-        vputw(crow++, ccol+1, *q++);
+        vputw(crow,   ccol+1, *q++);
+#else
+        vsetattr(crow, ccol,   vgattr(*q)); q++;
+        vsetattr(crow, ccol+1, vgattr(*q)); q++;
+#endif
+        crow++;
     }
 
     // start at lower left corner of shadow and work right
@@ -426,7 +435,15 @@ int wshadoff()
 
     // delete bottom shadow
     while(ccol<=stop)
-        vputw(crow,ccol++,*q++);
+    {
+#if defined(__UNIX__) && !defined(__USE_NCURSES__)
+        vputw(crow, ccol, *q);
+#else
+        vsetattr(crow, ccol, vgattr(*q));
+#endif
+        ccol++;
+        q++;
+    }
 
     // free memory held by shadow
     throw_xrelease(gwin.active->wsbuf);
@@ -1007,23 +1024,48 @@ int wputy(int wrow, int wcol, vattr attr, vchar chr, uint len)
 //  ------------------------------------------------------------------
 //  Displays a string inside active window
 
+//  Print a string into 'len' screen columns, padding what is left over
+//  with 'fill'.
+//
+//  'len' counts columns, and so must everything measured against it.
+//  This used to cut and pad by strlen(), which is a count of bytes -
+//  the same thing only while the text is single-byte. On a UTF-8 line
+//  the two part company: "\xd0\x9f\xd0\xb8..." is six characters wide and
+//  twelve bytes long, so the padding began six columns too far right
+//  and stopped six columns short, leaving whatever was underneath
+//  showing between the text and the fill.
+
 int wprintns(int wrow, int wcol, vattr attr,  const std::string &str, uint len, vchar fill, vattr fill_attr)
 {
     char* istr = throw_xstrdup(str.c_str());
-    char* ostr = istr;
-    char och = *ostr;
-    uint olen = strlen(istr);
-    if(len < olen)
+
+    //  How many bytes of it fit in 'len' columns, and how wide that is.
+    const char* p   = istr;
+    const char* end = istr + strlen(istr);
+    size_t width = 0;
+
+    while(p < end)
     {
-        ostr += len;
-        och = *ostr;
-        *ostr = NUL;
+        const char* nxt = g_utf8_next(p);
+        size_t w = g_utf8_width(p, (size_t)(nxt - p));
+        if(width + w > len)
+            break;
+        width += w;
+        p = nxt;
     }
+
+    size_t cut = (size_t)(p - istr);
+    char och = istr[cut];
+    istr[cut] = NUL;
+
     int retval = wprints(wrow, wcol, attr, istr);
-    if(len < olen)
-        *ostr = och;
-    else if(len > olen)
-        retval = wputx(wrow, wcol+olen, (fill_attr != DEFATTR) ? fill_attr : attr, fill, len-olen);
+    istr[cut] = och;
+
+    if(width < len)
+        retval = wputx(wrow, wcol+(int)width,
+                       (fill_attr != DEFATTR) ? fill_attr : attr,
+                       fill, len-(uint)width);
+
     throw_xfree(istr);
     return retval;
 }
@@ -1127,7 +1169,7 @@ int whide()
 
     // restore contents of active window's buffer
     vrestore(gwin.active->wbuf);
-    throw_xfree(gwin.active->wbuf);
+    vfreesave(gwin.active->wbuf);
     gwin.active->wbuf = p;
 
     // update visible window record linked list
@@ -1201,7 +1243,7 @@ int wunhide(int whandle)
 
     // restore contents of hidden window back to screen
     vrestore(found->wbuf);
-    throw_xfree(found->wbuf);
+    vfreesave(found->wbuf);
     found->wbuf=p;
 
     // update hidden window record linked list
@@ -2062,7 +2104,7 @@ void wpropbar(int xx, int yy, long len, vattr attr, long pos, long size)
     const vchar thumbchar = ' ';
     vattr thumbattr       = revsattr(attr);
 #else
-    const vchar thumbchar = '\xDB';
+    const vchar thumbchar = _block_char();
     vattr thumbattr       = attr;
 #endif
 
@@ -2180,7 +2222,7 @@ void wscrollbar(int orientation, uint total, uint maxpos, uint pos, int sadd)
     const vchar thumbchar      = ' ';
     vattr thumbattr            = revsattr(attr);
 #else
-    const vchar thumbchar      = '\xDB';
+    const vchar thumbchar      = _block_char();
     vattr thumbattr            = attr;
 #endif
 

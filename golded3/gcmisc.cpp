@@ -685,11 +685,11 @@ void ReadXlatTables()
                     ChsTable.t[n][1] = (uint8_t)n;  // The character
                 }
 
-                gfile ifp(mapIt->second.c_str(), "rb", CFG->sharemode);
+                gfile ifp((*mapIt).second.c_str(), "rb", CFG->sharemode);
                 if (ifp.isopen())
                 {
                     if (not quiet)
-                        STD_PRINTNL("* Reading " << mapIt->second);
+                        STD_PRINTNL("* Reading " << (*mapIt).second);
 
                     // Read the definition file
                     line = 1;
@@ -734,7 +734,7 @@ void ReadXlatTables()
                                     char *tp = strbtrim(ptr);
                                     if(strlen(tp) >= sizeof(ChsTable.imp))
                                     {
-                                        STD_PRINTNL("* " << mapIt->second << ": At line 4 charset name '" << tp
+                                        STD_PRINTNL("* " << (*mapIt).second << ": At line 4 charset name '" << tp
                                                     << "' too long. It is supposed no more than " << sizeof(ChsTable.imp)-1 << " characters. A file ignored.");
                                         cfgerrors++;
                                         ifp.Lseek(0, SEEK_END);
@@ -757,7 +757,7 @@ void ReadXlatTables()
                                         char *tp = strbtrim(ptr);
                                         if(strlen(tp) >= sizeof(ChsTable.exp))
                                         {
-                                            STD_PRINTNL("* " << mapIt->second << ": At line 4 charset name '" << tp
+                                            STD_PRINTNL("* " << (*mapIt).second << ": At line 4 charset name '" << tp
                                                         << "' too long. It is supposed no more than " << sizeof(ChsTable.exp)-1 << " characters. A file ignored.");
                                             cfgerrors++;
                                             ifp.Lseek(0, SEEK_END);
@@ -822,7 +822,7 @@ void ReadXlatTables()
                     }
                 }
                 else
-                    STD_PRINTNL("* XLAT table " << mapIt->second << " could not be opened.");
+                    STD_PRINTNL("* XLAT table " << (*mapIt).second << " could not be opened.");
 
                 ofp.Fwrite(&ChsTable, sizeof(Chs));
             }
@@ -832,11 +832,11 @@ void ReadXlatTables()
             {
                 // Assign defaults
                 memset(&EscTable, 0, sizeof(Esc));
-                gfile ifp(mapIt->second.c_str(), "rb", CFG->sharemode);
+                gfile ifp((*mapIt).second.c_str(), "rb", CFG->sharemode);
                 if (ifp.isopen())
                 {
                     if (not quiet)
-                        STD_PRINTNL("* Reading " << mapIt->second);
+                        STD_PRINTNL("* Reading " << (*mapIt).second);
 
                     // Read the definition file
                     line = 1;
@@ -907,7 +907,7 @@ void ReadXlatTables()
                     qsort(EscTable.t, EscTable.size, 5, (StdCmpCP)CmpEsc);
                 }
                 else
-                    STD_PRINTNL("* XLAT table " << mapIt->second << " could not be opened.");
+                    STD_PRINTNL("* XLAT table " << (*mapIt).second << " could not be opened.");
 
                 ofp.Fwrite(&EscTable, sizeof(Esc));
             }

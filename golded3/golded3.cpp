@@ -96,7 +96,13 @@
 //  Platform specific strings.
 
 #if defined(__MSDOS__)
-    #define __GVER_PLATFORM__      "/DPMI32"
+    #if defined(__WATCOMC__)
+        #define __GVER_PLATFORM__  "/DPMI32-Watcom"
+    #elif defined(__BORLANDC__)
+        #define __GVER_PLATFORM__  "/DPMI32-Borland"
+    #else
+        #define __GVER_PLATFORM__  "/DPMI32"
+    #endif
     #define __GVER_SHORTPLATFORM__ "DPMI"
     #define __GVER_SHORTLOGNAME__  "X"
     #define __GVER_CFGEXT__        ".gex"
@@ -106,7 +112,13 @@
     #define __GVER_SHORTLOGNAME__  "2"
     #define __GVER_CFGEXT__        ".geo"
 #elif defined(__OS2__)
-    #define __GVER_PLATFORM__      "/2"
+    #if defined(__WATCOMC__)
+        #define __GVER_PLATFORM__  "/2-Watcom"
+    #elif defined(__BORLANDC__)
+        #define __GVER_PLATFORM__  "/2-Borland"
+    #else
+        #define __GVER_PLATFORM__  "/2"
+    #endif
     #define __GVER_SHORTPLATFORM__ "2"
     #define __GVER_SHORTLOGNAME__  "2"
     #define __GVER_CFGEXT__        ".geo"
@@ -127,6 +139,10 @@
             #define __GVER_PLATFORM__      "/W32-MSVC"
         #elif defined(__MINGW32__)
             #define __GVER_PLATFORM__      "/W32-MINGW"
+        #elif defined(__WATCOMC__)
+            #define __GVER_PLATFORM__      "/W32-Watcom"
+        #elif defined(__BORLANDC__)
+            #define __GVER_PLATFORM__      "/W32-Borland"
         #else
             #define __GVER_PLATFORM__      "/W32"
         #endif
@@ -135,7 +151,11 @@
         #define __GVER_CFGEXT__        ".gew"
     #endif
 #elif defined(__linux__)
-    #define __GVER_PLATFORM__      "/LNX"
+    #if defined(__WATCOMC__)
+        #define __GVER_PLATFORM__  "/LNX-Watcom"
+    #else
+        #define __GVER_PLATFORM__  "/LNX"
+    #endif
     #define __GVER_SHORTPLATFORM__ "LNX"
     #define __GVER_SHORTLOGNAME__  "L"
     #define __GVER_CFGEXT__        ".gel"

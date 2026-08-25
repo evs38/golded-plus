@@ -56,7 +56,8 @@ protected:
 
 #if defined(__MSDOS__)
     int mpx;
-#if defined(__DJGPP__) || (defined(__WATCOMC__) && defined(__386__))
+#if defined(__DJGPP__) || (defined(__WATCOMC__) && defined(__386__)) \
+ || (defined(__BORLANDC__) && defined(__DPMI32__))
     int buffer;
 #else
     char* buffer;

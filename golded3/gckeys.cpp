@@ -939,11 +939,11 @@ void KeyCmdAdd(gkey keycmd, gkey keyval, int keytype)
     {
         while(tmp != CFG->cmdkey.end())
         {
-            if(tmp->type == keytype)
+            if((*tmp).type == keytype)
             {
-                if(tmp->key == keyval)
+                if((*tmp).key == keyval)
                 {
-                    tmp->cmd = keycmd;
+                    (*tmp).cmd = keycmd;
                     return;
                 }
             }
@@ -1005,6 +1005,7 @@ static void SetKeybDefaults()
 //  ------------------------------------------------------------------
 
 //bool CmdKeyCmp(CmdKey a, CmdKey b) {
+#if !defined(GOLD_TEMPLATE_EAGER)
 bool operator<(const CmdKey &a, const CmdKey &b)
 {
 
@@ -1013,6 +1014,7 @@ bool operator<(const CmdKey &a, const CmdKey &b)
         return (cmp < 0);
     return (CmpV(a.key, b.key) < 0);
 }
+#endif
 
 
 //  ------------------------------------------------------------------
@@ -1039,8 +1041,8 @@ int ReadKeysCfg()
         if (not quiet)
             STD_PRINTNL("* Reading " << cfg);
 
-        CFG->macro.clear();
-        CFG->cmdkey.clear();
+        gclear(CFG->macro);
+        gclear(CFG->cmdkey);
         if(CFG->switches.get(keybdefaults))
             SetKeybDefaults();
 
@@ -1150,12 +1152,12 @@ int ReadKeysCfg()
                     std::list<CmdKey>::iterator tmp = CFG->cmdkey.begin();
                     while(tmp != CFG->cmdkey.end())
                     {
-                        if(tmp->type == keytype)
+                        if((*tmp).type == keytype)
                         {
-                            if(tmp->key == keyval)
+                            if((*tmp).key == keyval)
                             {
                                 // delete it by setting type to an invalid value
-                                tmp->type = 0xFF;
+                                (*tmp).type = 0xFF;
                                 break;
                             }
                         }
@@ -1195,7 +1197,7 @@ int ReadKeysCfg()
     std::list<CmdKey>::iterator ck = CFG->cmdkey.begin();
     while(ck != CFG->cmdkey.end())
     {
-        switch(ck->type)
+        switch((*ck).type)
         {
         case KT_A:
             AreaKeys++;

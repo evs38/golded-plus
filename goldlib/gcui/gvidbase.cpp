@@ -30,9 +30,16 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstdarg>
+//  Borland C++ 5.2 has no <wchar.h> to forward to. Nothing here needs it
+//  unless curses is driving the screen with wide characters.
+#if !defined(__BORLANDC__)
+#include <cwchar>
+#endif
 #include <gmemall.h>
 #include <gmemdbg.h>
 #include <gstrall.h>
+#include <gutf8.h>
+#include <grecode.h>
 #include <gvidall.h>
 
 #if defined(__OS2__)
@@ -41,18 +48,52 @@
     #ifndef __EMX__
         #define PCCH CHAR*
     #endif
+    //  What the Vio calls want for a cell buffer. Open Watcom's OS/2
+    //  headers are specific about it and disagree between the two: the
+    //  reader takes a char*, the writers a __far16 unsigned char*, and a
+    //  plain BYTE* converts to neither.
+    #if defined(__WATCOMC__)
+        #define GVIO_CELL_R (PCH)
+        #define GVIO_CELL_W (PBYTE)
+    #else
+        #define GVIO_CELL_R (BYTE *)
+        #define GVIO_CELL_W (BYTE *)
+    #endif
 #endif
 
 #ifdef __WIN32__
     #include <windows.h>
 #endif
 
-#ifdef __GNUC__
+#if defined(__GNUC__) || (defined(__WATCOMC__) && defined(__LINUX__))
     #include <unistd.h>
+#endif
+
+#if defined(__WATCOMC__) && !defined(__LINUX__)
+    //  outp()/outpw() - the I/O port helpers used by the text-mode
+    //  cursor code below - live here in Open Watcom.
+    #include <conio.h>
 #endif
 
 #if defined(__DJGPP__)
     #include <sys/farptr.h>
+#endif
+
+
+//  ------------------------------------------------------------------
+//  refresh(), unless we have already given the terminal back
+//
+//  ncurses reads any drawing after endwin() as a request to come back,
+//  and re-enters the alternate screen. Once vshutdown() has handed the
+//  terminal over - because there is a message the user has to read -
+//  nothing may draw again, or the message ends up hidden behind a screen
+//  nobody asked for and the terminal is left sitting in it.
+
+#if defined(__USE_NCURSES__)
+static inline int gvid_refresh()
+{
+    return vscreendown() ? OK : refresh();
+}
 #endif
 
 
@@ -81,7 +122,44 @@
 
 static bool __vcurhidden = false;
 #if defined(__UNIX__) || defined(__USE_NCURSES__)
-    static uint32_t gvid_boxcvtc(char);
+    vchar gvid_boxcvtc(vchar);
+#endif
+
+#if defined(__USE_WIDE_NCURSES__)
+//  Turn what a screen cell holds into the wide character curses wants.
+//
+//  In UTF-8 mode the cell already holds a codepoint and the terminal is
+//  UTF-8, so it goes straight through.
+//
+//  In 8-bit mode the cell holds a byte in the local charset, and what
+//  that byte has to become depends on the locale, because wchar_t is
+//  only Unicode when the locale says so:
+//
+//    * A UTF-8 locale - a CP866 or KOI8-R message base shown on a UTF-8
+//      terminal. The byte means nothing to the C library on its own, so
+//      translate it through the charset the text is in, or the message
+//      comes out as mojibake.
+//
+//    * A single-byte locale - a KOI8-R or CP866 session, which is what
+//      people running those charsets actually have. Here the library has
+//      its own wide representation, which on the BSDs is not Unicode at
+//      all: handing it a codepoint makes wcrtomb() fail and curses draws
+//      a blank, so every Cyrillic letter vanished from the screen. Ask
+//      the library what the byte means to it instead. That value encodes
+//      back to the same byte, so it reaches the terminal untouched, the
+//      way it did before any of this was wide.
+
+static inline uint32_t g_local_to_unicode_wide(vchar chr)
+{
+    if(g_utf8_mode() or chr < 0x80 or chr > 0xFF)
+        return (uint32_t)chr;
+
+    wint_t wc = btowc((int)(unsigned char)chr);
+    if(wc != WEOF)
+        return (uint32_t)wc;
+
+    return g_local_to_unicode((unsigned char)chr);
+}
 #endif
 
 #if !defined(__USE_NCURSES__)
@@ -94,11 +172,25 @@ extern OSVERSIONINFO WinVer; // defined in gutlwin.cpp
 extern WCHAR oem2unicode[]; // defined in gutlwin.cpp
 
 //  ------------------------------------------------------------------
-//  Transform character < 32 into printable Unicode equivalent
+//  Turn what the program holds into the Unicode a console cell wants.
+//
+//  In UTF-8 mode the value already is a codepoint and passes straight
+//  through. In 8-bit mode it is a byte in the local charset, and
+//  oem2unicode[] - built by the system from the console's own codepage -
+//  says what it means. That table also renders the characters below 32
+//  as the glyphs CP437 assigns them, which is what GoldED means by them.
 
-
-inline WCHAR gvid_tcpr(vchar chr)
+WCHAR gvid_tcpr(vchar chr)
 {
+    if(g_utf8_mode() and chr > 0xFF)
+        return (WCHAR)chr;
+
+    if(g_utf8_mode() and chr >= 0x80)
+    {
+        //  A lone byte in that range cannot occur in well-formed UTF-8
+        //  text, so it is a codepoint that happens to be small.
+        return (WCHAR)chr;
+    }
 
     return oem2unicode[chr & 0xff];
 }
@@ -582,6 +674,30 @@ int gvid_dosattrcalc(int ourattr)
 //  Transform character < 32 into printable equivalent
 
 
+#if defined(__USE_WIDE_NCURSES__)
+
+vchar gvid_tcpr(vchar chr)
+{
+
+    //  GoldED inherits the DOS convention that a byte below 32 is a
+    //  glyph, not a control code - CP437 draws smileys and arrows there
+    //  and message text uses them. With the wide API we can render the
+    //  characters CP437 actually meant instead of approximating them
+    //  from the line-drawing set.
+
+    static const uint16_t gvid_cpr[32] =
+    {
+        0x0020, 0x263A, 0x263B, 0x2665, 0x2666, 0x2663, 0x2660, 0x2022,
+        0x25D8, 0x25CB, 0x25D9, 0x2642, 0x2640, 0x266A, 0x266B, 0x263C,
+        0x25BA, 0x25C4, 0x2195, 0x203C, 0x00B6, 0x00A7, 0x25AC, 0x21A8,
+        0x2191, 0x2193, 0x2192, 0x2190, 0x221F, 0x2194, 0x25B2, 0x25BC
+    };
+
+    return (chr < 32) ? (vchar)gvid_cpr[chr] : chr;
+}
+
+#else
+
 chtype gvid_tcpr(vchar chr)
 {
 
@@ -604,6 +720,194 @@ chtype gvid_tcpr(vchar chr)
         return gvid_cpr[ch] | at;
     else
         return ch | at;
+}
+
+#endif
+
+
+//  ------------------------------------------------------------------
+//  Emitting characters through curses.
+//
+//  gvid_addcp() puts a single character; gvid_addstr() puts a string,
+//  decoding it from UTF-8 when that is what we are holding text in, and
+//  optionally padding it out to a fixed number of screen columns.
+//
+//  Note that 'width' counts columns, not bytes: a padded field has to
+//  line up on screen, which is not the same as lining up in memory once
+//  characters stop being one byte each.
+
+//  ------------------------------------------------------------------
+//  Frames on a system that calls box drawing double-width
+//
+//  Solaris resolves the East Asian "ambiguous" width class as two
+//  columns, and every box-drawing character is in it - so is the solid
+//  block, the shade and the arrows. curses then advances two cells for a
+//  frame character while the rest of GoldED counts one: windows come out
+//  stretched, and anything landing in the last column has nowhere to go
+//  and wraps onto the next line.
+//
+//  The alternate character set draws the same lines and is always one
+//  column wide, so use it where that happens. Double-line frames come
+//  out single-line there, which is the price of having them line up.
+//  Decided once, from what the C library says about a plain horizontal
+//  line.
+
+bool gvid_acs_box(vchar chr, wchar_t* key)
+{
+#if defined(__USE_WIDE_NCURSES__)
+
+    static int needed = -1;
+
+    if(needed < 0)
+    {
+#if defined(GOLD_HAVE_WCWIDTH)
+        needed = (wcwidth((wchar_t)0x2500) != 1) ? 1 : 0;
+#else
+        //  No wcwidth() to ask. Every system that has been looked at
+        //  bar Solaris draws box characters one column wide, so take
+        //  that and leave the alternate character set alone.
+        needed = 0;
+#endif
+    }
+
+    if(not needed)
+        return false;
+
+    chtype acs = 0;
+
+    switch(chr)
+    {
+    case 0x2500: case 0x2550: acs = ACS_HLINE;    break;
+    case 0x2502: case 0x2551: acs = ACS_VLINE;    break;
+    case 0x250C: case 0x2554: acs = ACS_ULCORNER; break;
+    case 0x2510: case 0x2557: acs = ACS_URCORNER; break;
+    case 0x2514: case 0x255A: acs = ACS_LLCORNER; break;
+    case 0x2518: case 0x255D: acs = ACS_LRCORNER; break;
+    case 0x251C: case 0x2560: acs = ACS_LTEE;     break;
+    case 0x2524: case 0x2563: acs = ACS_RTEE;     break;
+    case 0x252C: case 0x2566: acs = ACS_TTEE;     break;
+    case 0x2534: case 0x2569: acs = ACS_BTEE;     break;
+    case 0x253C: case 0x256C: acs = ACS_PLUS;     break;
+    case 0x2588:              acs = ACS_BLOCK;    break;
+    case 0x2591: case 0x2592:
+    case 0x2593:              acs = ACS_CKBOARD;  break;
+    case 0x2190:              acs = ACS_LARROW;   break;
+    case 0x2191:              acs = ACS_UARROW;   break;
+    case 0x2192:              acs = ACS_RARROW;   break;
+    case 0x2193:              acs = ACS_DARROW;   break;
+    case 0x2022: case 0x25CF: acs = ACS_BULLET;   break;
+    default:                                      break;
+    }
+
+    if(not acs)
+        return false;
+
+    *key = (wchar_t)(acs & A_CHARTEXT);
+    return true;
+
+#else
+
+    (void)chr;
+    (void)key;
+    return false;
+
+#endif
+}
+
+
+//  ------------------------------------------------------------------
+
+static void gvid_addcp(vchar chr, int attr)
+{
+#if defined(__USE_WIDE_NCURSES__)
+
+    vatch   chat;
+    wchar_t wch[2];
+
+    //  Cells carry Unicode. In UTF-8 mode 'chr' already is a codepoint;
+    //  in 8-bit mode it is a byte in the local charset and has to be
+    //  translated, or a CP866 message base would come out as mojibake on
+    //  a UTF-8 terminal.
+    vchar cp = gvid_tcpr((vchar)g_local_to_unicode_wide(chr));
+
+    wch[0] = (wchar_t)cp;
+    wch[1] = L'\0';
+
+    if(gvid_acs_box(cp, &wch[0]))
+        attr |= A_ALTCHARSET;
+
+    setcchar(&chat, wch, (attr_t)(attr & ~A_COLOR), (short)PAIR_NUMBER(attr), NULL);
+    add_wch(&chat);
+
+#else
+
+    addch(gvid_tcpr(chr) | attr);
+
+#endif
+}
+
+
+//  A byte out of a CP437 string literal, as the character it stands for.
+//  Built once from the recoder, so it needs no table of its own.
+
+static uint32_t gvid_cp437_to_unicode(unsigned char b)
+{
+    static uint32_t table[256];
+    static bool     ready = false;
+
+    if(not ready)
+    {
+        g_build_charset_table("CP437", table);
+        ready = true;
+    }
+
+    return table[b];
+}
+
+
+static void gvid_addstr(const char* str, int attr, uint width, bool boxcvt)
+{
+    uint col = 0;
+
+    while(*str and (width == 0 or col < width))
+    {
+        int   used = 1;
+        vchar chr;
+
+        if(boxcvt)
+        {
+            //  These strings are runs of CP437 bytes written straight
+            //  into the source - the GoldED logo is one - so they are
+            //  not text in the current charset and must not be decoded
+            //  as such. Reading them as UTF-8 turned the logo into
+            //  replacement characters. Take one byte and say what CP437
+            //  means by it; gvid_boxcvtc() below recognises either form.
+            chr = g_utf8_mode() ? (vchar)gvid_cp437_to_unicode((unsigned char)*str)
+                                : (vchar)(unsigned char)*str;
+        }
+        else
+            chr = (vchar)g_utf8_decode(str, &used);
+
+        str += used ? used : 1;
+
+        if(boxcvt)
+            chr = gvid_boxcvtc(chr);
+
+        //  A double-width character that would hang over the end of the
+        //  field is dropped rather than half-drawn.
+        int cw = g_cp_width(chr);
+        if(width and col + (uint)cw > width)
+            break;
+
+        gvid_addcp(chr, attr);
+        col += cw ? cw : 1;
+    }
+
+    while(width and col < width)
+    {
+        gvid_addcp((vchar)' ', attr);
+        col++;
+    }
 }
 
 
@@ -629,8 +933,12 @@ void vputw(int row, int col, vatch chat)
 
 #if defined(__USE_NCURSES__)
 
+#if defined(__USE_WIDE_NCURSES__)
+    mvadd_wch(row, col, &chat);
+#else
     mvaddch(row, col, chat);
-    refresh();
+#endif
+    gvid_refresh();
 
 #elif defined(__MSDOS__)
 
@@ -656,7 +964,7 @@ void vputw(int row, int col, vatch chat)
 
 #elif defined(__OS2__)
 
-    VioWrtNCell((BYTE *)&chat, 1, (USHORT)row, (USHORT)col, 0);
+    VioWrtNCell(GVIO_CELL_W &chat, 1, (USHORT)row, (USHORT)col, 0);
 
 #elif defined(__WIN32__)
 
@@ -668,13 +976,7 @@ void vputw(int row, int col, vatch chat)
     rect.Left = col;
     rect.Bottom = row+size.Y-1;
     rect.Right = col+size.X-1;
-    if(WinVer.dwPlatformId == VER_PLATFORM_WIN32_NT)
-    {
-        chat.Char.UnicodeChar = gvid_tcpr(vgchar(chat));
-        WriteConsoleOutputW(gvid_hout, &chat, size, coord, &rect);
-    }
-    else
-        WriteConsoleOutputA(gvid_hout, &chat, size, coord, &rect);
+    WriteConsoleOutputW(gvid_hout, &chat, size, coord, &rect);
 
 #elif defined(__UNIX__)
 
@@ -701,8 +1003,12 @@ void vputws(int row, int col, vatch* buf, uint len)
 
     move(row, col);
     for(int counter = 0; counter < len; counter++)
+#if defined(__USE_WIDE_NCURSES__)
+        add_wch(&buf[counter]);
+#else
         addch(buf[counter]);
-    refresh();
+#endif
+    gvid_refresh();
 
 #elif defined(__MSDOS__)
 
@@ -744,16 +1050,8 @@ void vputws(int row, int col, vatch* buf, uint len)
     rect.Left = col;
     rect.Bottom = row+size.Y-1;
     rect.Right = col+size.X-1;
-    if(WinVer.dwPlatformId == VER_PLATFORM_WIN32_NT)
-    {
-        for(int i = 0; i < len; i++)
-        {
-            buf[i].Char.UnicodeChar = gvid_tcpr(vgchar(buf[i]));
-        }
-        WriteConsoleOutputW(gvid_hout, buf, size, coord, &rect);
-    }
-    else
-        WriteConsoleOutputA(gvid_hout, buf, size, coord, &rect);
+    //  The cells hold Unicode already, put there by vcatch().
+    WriteConsoleOutputW(gvid_hout, buf, size, coord, &rect);
 
 #elif defined(__UNIX__)
 
@@ -773,8 +1071,15 @@ void vputc(int row, int col, vattr atr, vchar chr)
 
 #if defined(__USE_NCURSES__)
 
+#if defined(__USE_WIDE_NCURSES__)
+    //  As in gvid_addcp(): the cell holds a codepoint, and in 8-bit mode
+    //  the caller handed us a byte in the local charset.
+    vatch chat = vcatch(gvid_tcpr((vchar)g_local_to_unicode_wide(chr)), atr);
+    mvadd_wch(row, col, &chat);
+#else
     mvaddch(row, col, vcatch(gvid_tcpr(chr), atr));
-    refresh();
+#endif
+    gvid_refresh();
 
 #elif defined(__MSDOS__)
 
@@ -826,12 +1131,23 @@ void vputvs(int row, int col, vattr atr, const vchar* str)
     int attr = gvid_attrcalc(atr);
     move(row, col);
     for(counter = 0; str[counter] != 0; counter++)
-        addch(gvid_tcpr(str[counter]) | attr);
-    refresh();
+        gvid_addcp(str[counter], attr);
+    gvid_refresh();
+
+#elif defined(__WIN32__)
+
+    //  Already a run of codepoints, so it goes straight into cells -
+    //  passing it to vputs() would mean reinterpreting it as bytes.
+    int i;
+    for(i = 0; str[i] && (i < gvid->numcols); i++)
+        gvid->bufwrd[i] = vcatch(str[i], atr);
+    if(i)
+        vputws(row, col, gvid->bufwrd, i);
 
 #else
 
-    vputs(row, col, atr, str);
+    //  Elsewhere a vchar is a byte, so the two are the same thing.
+    vputs(row, col, atr, (const char*)str);
 
 #endif
 }
@@ -843,13 +1159,9 @@ void vputvs(int row, int col, vattr atr, const vchar* str)
 void vputs_box(int row, int col, vattr atr, const char* str)
 {
 #if defined(__USE_NCURSES__)
-    uint counter;
-    int len = strlen(str);
-    int attr = gvid_attrcalc(atr);
     move(row, col);
-    for(counter = 0; counter < len; counter++)
-        addch(gvid_tcpr(gvid_boxcvtc(str[counter])) | attr);
-    refresh();
+    gvid_addstr(str, gvid_attrcalc(atr), 0, true);
+    gvid_refresh();
 #else
     vputs(row, col, atr, str);
 #endif
@@ -860,13 +1172,9 @@ void vputs(int row, int col, vattr atr, const char* str)
 
 #if defined(__USE_NCURSES__)
 
-    uint counter;
-    int len = strlen(str);
-    int attr = gvid_attrcalc(atr);
     move(row, col);
-    for(counter = 0; counter < len; counter++)
-        addch(gvid_tcpr(str[counter]) | attr);
-    refresh();
+    gvid_addstr(str, gvid_attrcalc(atr), 0, false);
+    gvid_refresh();
 
 #elif defined(__MSDOS__)
 
@@ -909,7 +1217,12 @@ void vputs(int row, int col, vattr atr, const char* str)
     int i;
 
     for(i = 0; *str && (i < gvid->numcols); i++)
-        gvid->bufwrd[i] = vcatch(*str++, atr);
+    {
+        int used = 1;
+        vchar chr = (vchar)g_utf8_decode(str, &used);
+        str += used ? used : 1;
+        gvid->bufwrd[i] = vcatch(chr, atr);
+    }
     if(i)
         vputws(row, col, gvid->bufwrd, i);
 
@@ -963,18 +1276,9 @@ void vputns(int row, int col, vattr atr, const char* str, uint width)
 
 #if defined(__USE_NCURSES__)
 
-    uint counter;
-    int len = strlen(str);
-    int attr = gvid_attrcalc(atr);
     move(row, col);
-    for(counter = 0; counter < width; counter++)
-    {
-        if(counter<len)
-            addch(gvid_tcpr(str[counter]) | attr);
-        else
-            addch(gvid_tcpr(fillchar) | attr);
-    }
-    refresh();
+    gvid_addstr(str, gvid_attrcalc(atr), width, false);
+    gvid_refresh();
 
 #elif defined(__MSDOS__)
 
@@ -1011,7 +1315,7 @@ void vputns(int row, int col, vattr atr, const char* str, uint width)
     if(width > len)
     {
         vatch filler = vcatch(fillchar, atr);
-        VioWrtNCell((BYTE *)&filler, (USHORT)(width-len), (USHORT)row, (USHORT)(col+len), 0);
+        VioWrtNCell(GVIO_CELL_W &filler, (USHORT)(width-len), (USHORT)row, (USHORT)(col+len), 0);
     }
 
 #elif defined(__WIN32__)
@@ -1022,7 +1326,12 @@ void vputns(int row, int col, vattr atr, const char* str, uint width)
         width = gvid->numcols;
 
     for(i = 0; (i < width) and *str; i++)
-        gvid->bufwrd[i] = vcatch(*str++, atr);
+    {
+        int used = 1;
+        vchar chr = (vchar)g_utf8_decode(str, &used);
+        str += used ? used : 1;
+        gvid->bufwrd[i] = vcatch(chr, atr);
+    }
     vatch filler = vcatch(fillchar, atr);
     for(; i < width; i++)
         gvid->bufwrd[i] = filler;
@@ -1086,8 +1395,13 @@ void vputx(int row, int col, vattr atr, vchar chr, uint len)
 
 #if defined(__USE_NCURSES__)
 
+#if defined(__USE_WIDE_NCURSES__)
+    vatch chat = vcatch(gvid_tcpr((vchar)g_local_to_unicode_wide(chr)), atr);
+    mvhline_set(row, col, &chat, len);
+#else
     mvhline(row, col, vcatch(gvid_tcpr(chr), atr), len);
-    refresh();
+#endif
+    gvid_refresh();
 
 #elif defined(__MSDOS__)
 
@@ -1114,7 +1428,7 @@ void vputx(int row, int col, vattr atr, vchar chr, uint len)
 #elif defined(__OS2__)
 
     vatch filler = vcatch(chr, atr);
-    VioWrtNCell((BYTE *)&filler, (USHORT)len, (USHORT)row, (USHORT)col, 0);
+    VioWrtNCell(GVIO_CELL_W &filler, (USHORT)len, (USHORT)row, (USHORT)col, 0);
 
 #elif defined(__WIN32__)
 
@@ -1167,8 +1481,13 @@ void vputy(int row, int col, vattr atr, vchar chr, uint len)
 
 #if defined(__USE_NCURSES__)
 
+#if defined(__USE_WIDE_NCURSES__)
+    vatch chat = vcatch(gvid_tcpr((vchar)g_local_to_unicode_wide(chr)), atr);
+    mvvline_set(row, col, &chat, len);
+#else
     mvvline(row, col, vcatch(gvid_tcpr(chr), atr), len);
-    refresh();
+#endif
+    gvid_refresh();
 
 #elif defined(__MSDOS__)
 
@@ -1199,7 +1518,7 @@ void vputy(int row, int col, vattr atr, vchar chr, uint len)
 
     vatch filler = vcatch(chr, atr);
     for(int n=0; n<len; n++)
-        VioWrtNCell((BYTE *)&filler, 1, (USHORT)row++, (USHORT)col, 0);
+        VioWrtNCell(GVIO_CELL_W &filler, 1, (USHORT)row++, (USHORT)col, 0);
 
 #elif defined(__WIN32__)
 
@@ -1259,7 +1578,14 @@ vatch vgetw(int row, int col)
 
 #if defined(__USE_NCURSES__)
 
+#if defined(__USE_WIDE_NCURSES__)
+    vatch chat;
+    if(mvin_wch(row, col, &chat) == ERR)
+        return vcatch(' ', BLACK_|_BLACK);
+    return chat;
+#else
     return mvinch(row, col);
+#endif
 
 #elif defined(__MSDOS__)
 
@@ -1287,7 +1613,7 @@ vatch vgetw(int row, int col)
     vatch chat;
     USHORT len=sizeof(chat);
 
-    VioReadCellStr((BYTE *)&chat, &len, (USHORT)row, (USHORT)col, 0);
+    VioReadCellStr(GVIO_CELL_R &chat, &len, (USHORT)row, (USHORT)col, 0);
 
     return chat;
 
@@ -1393,7 +1719,113 @@ static void _vscroll(int srow, int scol, int erow, int ecol, int atr, int lines)
 void vscroll(int srow, int scol, int erow, int ecol, vattr atr, int lines)
 {
 
-#if defined(__USE_NCURSES__)
+#if defined(__USE_WIDE_NCURSES__)
+
+    //  Let curses scroll its own window.
+    //
+    //  This used to read the region back with in_wchnstr() and write it
+    //  out again one row over. That cannot work once a cell may be two
+    //  columns wide: the read gives one element per character while the
+    //  write is asked for one per column, so every row holding a wide
+    //  character came back shifted, with the tail of that character left
+    //  standing on screen. Reading the screen back is the wrong tool
+    //  anyway - curses already knows where its wide characters are.
+
+    vatch filler = vcatch(' ', atr);
+
+    int height = 1 + erow - srow;
+    int width  = 1 + ecol - scol;
+
+    if((height <= 0) or (width <= 0) or (lines == 0))
+        return;
+
+    int count = lines;
+    if(count >  height) count =  height;
+    if(count < -height) count = -height;
+
+    if(absolute(count) < height)
+    {
+        //  Move the cells with copywin() rather than scrolling a subwin.
+        //  A subwindow shares its lines with the parent, and wscrl() is
+        //  free to rearrange them; what came back had lost the colour
+        //  pair on part of the region while keeping the other
+        //  attributes, so a scrolled quote turned from yellow into the
+        //  terminal's default. copywin() moves whole cells - character,
+        //  attributes and colour pair together - and is what vsave() and
+        //  vrestore() already use here.
+        int rows    = height - absolute(count);
+        int srcrow  = (count > 0) ? srow + count : srow;
+        int dstrow  = (count > 0) ? srow : srow - count;
+
+        //  A pad, not a window: it has no place on the screen, so it
+        //  cannot take part in the update at all - a plain newwin() sits
+        //  over stdscr and curses has to reason about the overlap.
+        WINDOW* tmp = newpad(rows, width);
+        if(tmp)
+        {
+            copywin(stdscr, tmp, srcrow, scol, 0, 0, rows-1, width-1, FALSE);
+            copywin(tmp, stdscr, 0, 0, dstrow, scol,
+                    dstrow+rows-1, scol+width-1, FALSE);
+            delwin(tmp);
+            //  Mark exactly the rows that were moved, and no others.
+            //  touchwin() here claimed the whole screen had changed,
+            //  which sent the scroll optimisation off a stale model of
+            //  the terminal and left moved rows drawn without their
+            //  colour; leaving it out entirely lost the destination
+            //  rows that copywin() did not itself flag.
+            //  NetBSD's own curses mis-tracks one row of a scrolled
+            //  region - its update optimisation decides the row already
+            //  matches and never rewrites it, so a quote line is left in
+            //  the terminal's default colour. Marking the rows changed
+            //  and telling curses the terminal contents there are
+            //  unknown covers both implementations.
+            //  The rows that moved, and no others: touchwin() over the
+            //  whole screen sent the update optimisation off a stale
+            //  model of the terminal and left moved rows without their
+            //  colour.
+            //
+            //  NetBSD's own curses still mis-tracks exactly one row of a
+            //  scrolled region under one particular rhythm of keys - it
+            //  decides that row already matches and never rewrites it.
+            //  Neither wtouchln() nor redrawwin() reaches it; the cell is
+            //  correct in memory throughout. pkgsrc ncurses does not do
+            //  it, so build with GOLD_EXTERNAL_CURSES=ON there if it
+            //  matters.
+            wredrawln(stdscr, srow, height);
+        }
+    }
+
+    //  Blank what the scroll left behind, in the caller's attribute
+    //  rather than the window's background.
+    if(count > 0)
+        for(int n = 0; n < count; n++)
+            mvhline_set(1 + erow - count + n, scol, &filler, width);
+    else
+        for(int n = 0; n < -count; n++)
+            mvhline_set(srow + n, scol, &filler, width);
+
+    //  Flush the move now. Leaving it to the caller's repaint meant that
+    //  anything refreshing in between - the status-line clock, once a
+    //  second - pushed out a half-moved screen, and one row could be
+    //  left standing in the wrong colour.
+    gvid_refresh();
+
+#ifdef GOLD_PAIR_PROBE
+    if(getenv("GOLD_PAIR_PROBE"))
+    {
+        fprintf(stderr, "PAIRS after scroll(count=%d, rows %d..%d):", count, srow, erow);
+        for(int r = srow; r <= erow; r++)
+        {
+            cchar_t c; attr_t a; short pr; wchar_t w[8];
+            mvin_wch(r, scol + 2, &c);
+            getcchar(&c, w, &a, &pr, NULL);
+            fprintf(stderr, " %d:%d/%lx", r, (int)pr, (unsigned long)(a & A_BOLD ? 1 : 0));
+        }
+        fprintf(stderr, "\n");
+    }
+#endif
+
+#elif defined(__USE_NCURSES__)
 
     vatch filler = vcatch(' ', atr);
 
@@ -1413,7 +1845,7 @@ void vscroll(int srow, int scol, int erow, int ecol, vattr atr, int lines)
 
         for(int counter = 0; counter < lines; counter++)
             mvhline(1 + erow + counter - lines, scol, filler, 1 + ecol - scol);
-        refresh();
+        gvid_refresh();
     }
     else
     {
@@ -1429,7 +1861,7 @@ void vscroll(int srow, int scol, int erow, int ecol, vattr atr, int lines)
 
         for(int counter = 0; counter < lines; counter++)
             mvhline(srow + counter, scol, filler, 1 + ecol - scol);
-        refresh();
+        gvid_refresh();
     }
 
 #elif defined(__MSDOS__)
@@ -1456,9 +1888,9 @@ void vscroll(int srow, int scol, int erow, int ecol, vattr atr, int lines)
     vatch filler = vcatch(' ', atr);
 
     if(lines > 0)
-        VioScrollUp((USHORT)srow, (USHORT)scol, (USHORT)erow, (USHORT)ecol, (USHORT)lines, (BYTE *)&filler, 0);
+        VioScrollUp((USHORT)srow, (USHORT)scol, (USHORT)erow, (USHORT)ecol, (USHORT)lines, GVIO_CELL_W &filler, 0);
     else
-        VioScrollDn((USHORT)srow, (USHORT)scol, (USHORT)erow, (USHORT)ecol, (USHORT)-lines, (BYTE *)&filler, 0);
+        VioScrollDn((USHORT)srow, (USHORT)scol, (USHORT)erow, (USHORT)ecol, (USHORT)-lines, GVIO_CELL_W &filler, 0);
 
 #elif defined(__WIN32__)
 
@@ -1554,7 +1986,7 @@ void vposset(int row, int col)
 #if defined(__USE_NCURSES__)
 
     move(row, col);
-    refresh();
+    gvid_refresh();
 
 #elif defined(__MSDOS__)
 
@@ -1624,9 +2056,13 @@ void vclrscr(vattr atr)
     clearok(stdscr, TRUE);
     vatch filler = vcatch(' ', atr);
     for(int row = 0; row < LINES; row++)
+#if defined(__USE_WIDE_NCURSES__)
+        mvhline_set(row, 0, &filler, COLS);
+#else
         mvhline(row, 0, filler, COLS);
+#endif
     move(0, 0);
-    refresh();
+    gvid_refresh();
 
 #elif defined(__MSDOS__)
 
@@ -1648,7 +2084,7 @@ void vclrscr(vattr atr)
 #elif defined(__OS2__)
 
     vatch filler = vcatch(' ', atr);
-    VioScrollUp(0, 0, 0xFFFF, 0xFFFF, 0xFFFF, (BYTE *)&filler, 0);
+    VioScrollUp(0, 0, 0xFFFF, 0xFFFF, 0xFFFF, GVIO_CELL_W &filler, 0);
 
 #elif defined(__WIN32__)
 
@@ -1704,40 +2140,70 @@ vsavebuf* vsave(int srow, int scol, int erow, int ecol)
     int num_rows = erow - srow + 1;
     int num_cols = ecol - scol + 1;
 
-#if defined(__USE_NCURSES__) && defined(__USE_WIDE_NCURSES__)
-    vsavebuf *sbuf = reinterpret_cast<vsavebuf *>(throw_xmalloc(
-        sizeof(vsavebuf) + num_rows * (num_cols) * sizeof(cchar_t) +
-        sizeof(cchar_t)));
+#if defined(__USE_NCURSES__)
+
+    //  Let curses keep the rectangle for us.
+    //
+    //  Reading the cells back into an array of our own does not survive
+    //  contact with wide characters: in_wchnstr() returns one element per
+    //  character while the array is indexed per column, so everything to
+    //  the right of a double-width character came back displaced -
+    //  restoring a dialog over Japanese text scrambled it. NetBSD's
+    //  curses adds an off-by-one of its own on top, losing the last
+    //  column of every row. copywin() moves cells between windows inside
+    //  curses, where the widths are known, and has neither problem.
+
+    //  Take a column extra on each side. A double-width character
+    //  straddling the edge would otherwise be saved by halves, and half a
+    //  character cannot be put back - curses blanks both of its cells, so
+    //  a dialog opened over Japanese text left a hole behind it.
+    int padl = (scol > 0) ? 1 : 0;
+    int padr = (ecol < gvid->numcols - 1) ? 1 : 0;
+
+    scol     -= padl;
+    ecol     += padr;
+    num_cols += padl + padr;
+
+    vsavebuf *sbuf = reinterpret_cast<vsavebuf *>(throw_xmalloc(sizeof(vsavebuf)));
+
+    if(sbuf)
+    {
+        sbuf->top    = srow;
+        sbuf->left   = scol;
+        sbuf->bottom = erow;
+        sbuf->right  = ecol;
+        sbuf->padl   = padl;
+        sbuf->padr   = padr;
+
+        WINDOW* w = newwin(num_rows, num_cols, 0, 0);
+        sbuf->win  = w;
+
+        if(w == NULL)
+        {
+            throw_xfree(sbuf);
+            return NULL;
+        }
+
+        copywin(stdscr, w, srow, scol, 0, 0, num_rows - 1, num_cols - 1, FALSE);
+    }
+
+    return sbuf;
+
 #else
+
     vsavebuf *sbuf = reinterpret_cast<vsavebuf *>(throw_xmalloc(
         sizeof(vsavebuf) + num_rows * (num_cols) * sizeof(vatch) +
         sizeof(vatch)));
-#endif
 
     if (sbuf)
       {
-#if defined(__USE_NCURSES__) && defined(__USE_WIDE_NCURSES__)
-      cchar_t *buf = reinterpret_cast<cchar_t *>(sbuf->data);
-#else
       vatch *buf = sbuf->data;
-#endif
 
       sbuf->top = srow;
       sbuf->left = scol;
       sbuf->bottom = erow;
       sbuf->right = ecol;
-#if defined(__USE_NCURSES__)
-
-        for (int row = srow; row <= erow; row++) {
-#if defined(__USE_WIDE_NCURSES__)
-          mvin_wchnstr(row, scol, buf, num_cols);
-#else
-          mvinchnstr(row, scol, buf, num_cols);
-#endif
-          buf += num_cols;
-        }
-
-#elif defined(__MSDOS__)
+#if defined(__MSDOS__)
 
         int len1 = ecol-scol+1;
 
@@ -1811,6 +2277,45 @@ vsavebuf* vsave(int srow, int scol, int erow, int ecol)
     }
 
     return sbuf;
+
+#endif  /* __USE_NCURSES__ */
+}
+
+
+//  ------------------------------------------------------------------
+//  Recolour one cell, leaving its character alone
+
+void vsetattr(int row, int col, vattr atr)
+{
+#if defined(__USE_NCURSES__)
+
+    int attr = gvid_attrcalc(atr);
+    mvchgat(row, col, 1, (attr_t)(attr & ~A_COLOR), (short)PAIR_NUMBER(attr), NULL);
+
+#else
+
+    //  Elsewhere a cell is a byte and a word, and writing it back is the
+    //  same thing.
+    vputw(row, col, vsattr(vgetw(row, col), atr));
+
+#endif
+}
+
+
+//  ------------------------------------------------------------------
+//  Release a buffer from vsave()
+
+void vfreesave(vsavebuf* sbuf)
+{
+    if(sbuf == NULL)
+        return;
+
+#if defined(__USE_NCURSES__)
+    if(sbuf->win)
+        delwin((WINDOW*)sbuf->win);
+#endif
+
+    throw_xfree(sbuf);
 }
 
 
@@ -1839,36 +2344,41 @@ void vrestore(vsavebuf* sbuf, int srow, int scol, int erow, int ecol)
 {
 
     if(srow != -1)  sbuf->top = srow;
-    if(scol != -1)  sbuf->left = scol;
     if(erow != -1)  sbuf->bottom = erow;
+
+#if defined(__USE_NCURSES__)
+    //  The saved rectangle is a column wider on each side than what the
+    //  caller asked for; a caller giving new coordinates means the same
+    //  rectangle somewhere else, so pad those the same way.
+    if(scol != -1)  sbuf->left  = scol - sbuf->padl;
+    if(ecol != -1)  sbuf->right = ecol + sbuf->padr;
+#else
+    if(scol != -1)  sbuf->left = scol;
     if(ecol != -1)  sbuf->right = ecol;
+#endif
 
     srow = sbuf->top;
     scol = sbuf->left;
     erow = sbuf->bottom;
     ecol = sbuf->right;
 
-#if defined(__USE_NCURSES__) && defined(__USE_WIDE_NCURSES__)
-    cchar_t *buf = reinterpret_cast<cchar_t *>(sbuf->data);
-#else
-    vatch *buf = sbuf->data;
-#endif
-
 #if defined(__USE_NCURSES__)
-    int num_cols = ecol - scol + 1;
 
-    for (int row = srow; row <= erow; row++)
+    WINDOW* w = (WINDOW*)sbuf->win;
+
+    if(w)
     {
-#if defined(__USE_WIDE_NCURSES__)
-      mvadd_wchnstr(row, scol, buf, num_cols);
-#else
-      mvaddchnstr(row, scol, buf, num_cols);
-#endif
-      buf+=num_cols;
+        copywin(w, stdscr, 0, 0, srow, scol, erow, ecol, FALSE);
+        gvid_refresh();
     }
-    refresh();
 
-#elif defined(__MSDOS__)
+    return;
+
+#else
+
+    vatch *buf = sbuf->data;
+
+#if defined(__MSDOS__)
 
     int len1 = ecol-scol+1;
 
@@ -1950,6 +2460,8 @@ void vrestore(vsavebuf* sbuf, int srow, int scol, int erow, int ecol)
     }
 
 #endif
+
+#endif  /* __USE_NCURSES__ */
 }
 
 
@@ -2183,6 +2695,38 @@ void vcursmall()
 //          14 - solid block
 //  ------------------------------------------------------------------
 
+//  ------------------------------------------------------------------
+//  The box characters as Unicode.
+//
+//  Used wherever a screen cell holds a codepoint - the wide curses API
+//  and the Windows console both do - so that every box type is drawn as
+//  the characters it was designed as rather than approximated.
+
+const uint16_t gvid_unibox[9][15] =
+{
+    //  box type 0  Single border
+    { 0x250C, 0x2500, 0x2510, 0x2502, 0x2502, 0x2514, 0x2500, 0x2518, 0x253C, 0x251C, 0x2524, 0x252C, 0x2534, 0x2591, 0x2592 },
+    //  box type 1  Double border
+    { 0x2554, 0x2550, 0x2557, 0x2551, 0x2551, 0x255A, 0x2550, 0x255D, 0x256C, 0x2560, 0x2563, 0x2566, 0x2569, 0x2591, 0x2592 },
+    //  box type 2  Single top
+    { 0x2553, 0x2500, 0x2556, 0x2551, 0x2551, 0x2559, 0x2500, 0x255C, 0x256B, 0x255F, 0x2562, 0x2565, 0x2568, 0x2591, 0x2592 },
+    //  box type 3  Double top
+    { 0x2552, 0x2550, 0x2555, 0x2502, 0x2502, 0x2558, 0x2550, 0x255B, 0x256A, 0x255E, 0x2561, 0x2564, 0x2567, 0x2591, 0x2592 },
+    //  box type 4  With empty border
+    { 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x2591, 0x2592 },
+    //  box type 5  No border at all
+    { 0x250C, 0x2500, 0x2510, 0x2502, 0x2502, 0x2514, 0x2500, 0x2518, 0x253C, 0x251C, 0x2524, 0x252C, 0x2534, 0x2591, 0x2592 },
+    //  box type 6  Blocky border
+    { 0x2584, 0x2584, 0x2584, 0x258C, 0x2590, 0x2580, 0x2580, 0x2580, 0x258C, 0x258C, 0x258C, 0x258C, 0x258C, 0x2591, 0x2592 },
+    //  box type 7  ASCII border
+    { 0x002E, 0x002D, 0x002E, 0x007C, 0x007C, 0x0060, 0x002D, 0x0027, 0x002B, 0x007C, 0x007C, 0x002D, 0x002D, 0x0020, 0x0023 },
+    //  box type 8  xterm single border
+    { 0x006C, 0x0071, 0x006B, 0x0078, 0x0078, 0x006D, 0x0071, 0x006A, 0x006E, 0x0074, 0x0075, 0x0077, 0x0076, 0x0061, 0x0061 },
+};
+
+
+//  ------------------------------------------------------------------
+
 #if !defined(__USE_NCURSES__)
 
 char* __box_table[] =
@@ -2214,10 +2758,68 @@ char* __box_table[] =
 
 #endif
 };
+
+
+//  ------------------------------------------------------------------
+//  The table holds CP437 bytes. In UTF-8 mode a byte is not a
+//  character, so hand back the codepoint that byte stands for; the
+//  frames are drawn from constants baked into the source, not from
+//  message text, so they cannot be decoded like the rest.
+
+vchar _box_table(int type, int c)
+{
+    if(type < 0 or type > 8)
+        type = 0;
+    if(c < 0 or c > 14)
+        c = 14;
+
+    if(g_utf8_mode())
+        return (vchar)gvid_unibox[type][c];
+
+    return (vchar)(unsigned char)__box_table[type][c];
+}
+
+
+vchar _block_char()
+{
+    return g_utf8_mode() ? (vchar)0x2588 : (vchar)0xDB;
+}
 #else
 
 // ncurses ACS_nnn characters are usually computed at runtime, so
 // we cannot use a static array
+
+#if defined(__USE_WIDE_NCURSES__)
+
+//  With the wide API every box type can be drawn as the characters it
+//  was designed as, instead of being flattened onto the single-line ACS
+//  set: a double border stays double, a blocky one stays blocky.
+
+
+vchar _box_table(int type, int c)
+{
+
+    if(type < 0 or type >= (int)ARRAYSIZE(gvid_unibox))
+        type = 0;
+    if(c < 0 or c > 14)
+        c = 14;
+
+    return (vchar)gvid_unibox[type][c];
+}
+
+
+vchar _block_char()
+{
+    return (vchar)0x2588;
+}
+
+#else
+
+chtype _block_char()
+{
+    return ACS_BLOCK;
+}
+
 
 chtype _box_table(int type, int c)
 {
@@ -2283,92 +2885,83 @@ chtype _box_table(int type, int c)
 
 #endif
 
+#endif
+
 
 //  ------------------------------------------------------------------
 
-#if defined(__UNIX__)
-void gvid_boxcvt(char* s)
-{
-    while(*s)
-        *s++ = (char)gvid_boxcvtc(*s);
-}
+#if defined(__UNIX__) || defined(__USE_NCURSES__)
 
-static uint32_t gvid_boxcvtc(char c)
+//  ------------------------------------------------------------------
+//  Box character substitution.
+//
+//  Text coming from help files, templates and the colour setup is
+//  written with the CP437 line-drawing characters. On a terminal those
+//  have to be replaced by whatever the current box type draws with -
+//  the ACS set, or the real Unicode characters on a wide build.
+//
+//  A character may arrive either as its CP437 byte (8-bit mode) or as
+//  the codepoint it stands for (UTF-8 mode), so both are recognised.
+
+static const struct
 {
-    switch(c)
+    uint8_t  dos;       // the CP437 byte
+    uint16_t uni;       // the same character as a codepoint
+    uint8_t  type;      // which box type it belongs to
+    uint8_t  slot;      // and which position in it
+}
+gvid_boxmap[] =
+{
+    { 0xDA, 0x250C, 0,  0 },
+    { 0xC4, 0x2500, 0,  1 },
+    { 0xBF, 0x2510, 0,  2 },
+    { 0xB3, 0x2502, 0,  4 },
+    { 0xC0, 0x2514, 0,  5 },
+    { 0xD9, 0x2518, 0,  7 },
+    { 0xC5, 0x253C, 0,  8 },
+    { 0xC3, 0x251C, 0,  9 },
+    { 0xB4, 0x2524, 0, 10 },
+    { 0xC2, 0x252C, 0, 11 },
+    { 0xC1, 0x2534, 0, 12 },
+    { 0xC9, 0x2554, 1,  0 },
+    { 0xCD, 0x2550, 1,  1 },
+    { 0xBB, 0x2557, 1,  2 },
+    { 0xBA, 0x2551, 1,  4 },
+    { 0xC8, 0x255A, 1,  5 },
+    { 0xBC, 0x255D, 1,  7 },
+    { 0xCE, 0x256C, 1,  8 },
+    { 0xCC, 0x2560, 1,  9 },
+    { 0xB9, 0x2563, 1, 10 },
+    { 0xCB, 0x2566, 1, 11 },
+    { 0xCA, 0x2569, 1, 12 },
+};
+
+
+vchar gvid_boxcvtc(vchar c)
+{
+    for(size_t n = 0; n < ARRAYSIZE(gvid_boxmap); n++)
     {
-#if 0
-    case 'Ú':
-        return _box_table(8, 0);
-    case 'Ä':
-        return _box_table(8, 1);
-    case '¿':
-        return _box_table(8, 2);
-    case '³':
-        return _box_table(8, 4);
-    case 'À':
-        return _box_table(8, 5);
-    case 'Ù':
-        return _box_table(8, 7);
-    case 'Å':
-        return _box_table(8, 8);
-    case 'Ã':
-        return _box_table(8, 9);
-    case '´':
-        return _box_table(8, 10);
-    case 'Â':
-        return _box_table(8, 11);
-    case 'Á':
-        return _box_table(8, 12);
-#else
-    case 'Ú':
-        return _box_table(0, 0);
-    case 'Ä':
-        return _box_table(0, 1);
-    case '¿':
-        return _box_table(0, 2);
-    case '³':
-        return _box_table(0, 4);
-    case 'À':
-        return _box_table(0, 5);
-    case 'Ù':
-        return _box_table(0, 7);
-    case 'Å':
-        return _box_table(0, 8);
-    case 'Ã':
-        return _box_table(0, 9);
-    case '´':
-        return _box_table(0, 10);
-    case 'Â':
-        return _box_table(0, 11);
-    case 'Á':
-        return _box_table(0, 12);
-    case 'É':
-        return _box_table(1, 0);
-    case 'Í':
-        return _box_table(1, 1);
-    case '»':
-        return _box_table(1, 2);
-    case 'º':
-        return _box_table(1, 4);
-    case 'È':
-        return _box_table(1, 5);
-    case '¼':
-        return _box_table(1, 7);
-    case 'Î':
-        return _box_table(1, 8);
-    case 'Ì':
-        return _box_table(1, 9);
-    case '¹':
-        return _box_table(1, 10);
-    case 'Ë':
-        return _box_table(1, 11);
-    case 'Ê':
-        return _box_table(1, 12);
-#endif
+        if(c == gvid_boxmap[n].dos or c == gvid_boxmap[n].uni)
+            return _box_table(gvid_boxmap[n].type, gvid_boxmap[n].slot);
     }
     return c;
 }
+
+
+void gvid_boxcvt(char* s)
+{
+    //  Only meaningful byte-for-byte, so it stays an 8-bit operation;
+    //  a substitution that widened the string would overrun the buffer
+    //  the caller handed us. Strings that may hold multibyte characters
+    //  go through gvid_addstr(), which converts as it draws.
+    for(; *s; s++)
+    {
+        vchar c = gvid_boxcvtc((vchar)(unsigned char)*s);
+        if(c < 0x100)
+            *s = (char)c;
+    }
+}
+
 #endif
 
 

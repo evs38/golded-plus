@@ -175,7 +175,7 @@ void CfgInternetgate()
     if(ptr)
     {
         *ptr++ = NUL;
-        strxcpy(tmp.name, strtrim(val), sizeof(Name));
+        strxcpy_utf8(tmp.name, strtrim(val), sizeof(Name));
     }
     else
     {

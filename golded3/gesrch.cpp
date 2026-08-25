@@ -265,13 +265,16 @@ void golded_search_manager::prepare_from_string(const char* prompt, int what)
                 *b++ = *p++;
             break;
 
-        // Skip whitespace
-        case ' ':
-            p++;
-
         case NUL:
             break;
 
+        //  A space is part of the pattern, not a separator: someone who
+        //  types `New nodes' means those two words with a space between
+        //  them. It used to be dropped while the pattern went on being
+        //  built, so the two words were run together into `Newnodes'
+        //  and nothing ever matched. `&' and `|' are still what puts
+        //  two patterns side by side, and quotes are still the way to
+        //  include one of those characters in a pattern.
         default:
             *b++ = *p++;
         }
@@ -279,6 +282,12 @@ void golded_search_manager::prepare_from_string(const char* prompt, int what)
         if(item_complete or (*p == NUL))
         {
             item_complete = false;
+
+            //  Trailing spaces belong to the syntax rather than to the
+            //  pattern - `OS/2 & Warp' means `OS/2', not `OS/2 '.
+            while((b > buf) and (b[-1] == ' '))
+                b--;
+
             *b = NUL;
             if(*buf != NUL)
             {

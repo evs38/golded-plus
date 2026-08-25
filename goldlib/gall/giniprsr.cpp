@@ -31,15 +31,38 @@ using namespace std;
 namespace ini
 {
 
+//  Open Watcom's C++ library has no std::getline() for strings, and its
+//  <cstdio> drops the POSIX getline() into namespace std, which makes
+//  that look like an overload mismatch rather than an absence. Reading
+//  the line here costs nothing on a file this size and needs no #ifdef.
+static bool gini_getline(std::istream& is, std::string& line)
+{
+    strerase(line);
+
+    char c;
+    bool got = false;
+
+    while(is.get(c))
+    {
+        got = true;
+        if(c == '\n')
+            return true;
+        line += c;
+    }
+
+    return got;
+}
+
+
 bool ReadIniFile(const char* fileName, Sections& sections)
 {
     ifstream file(fileName);
 
-    if (!file.is_open())
+    if (!file)
         return false;
 
     string currentSection;
-    for (string line; getline(file, line);)
+    for (string line; gini_getline(file, line);)
     {
         strltrim(strtrim(line));
         // Skip comments and empty lines

@@ -79,9 +79,7 @@ EscTab* I51TP = NULL;
 EscTab* MNETP = NULL;
 ChsTab* ChsTP = NULL;
 
-#ifdef HAS_ICONV
-    iconv_t iconv_cd = (iconv_t)(-1);
-#endif
+GRecoder* CharRecoder = NULL;
 
 bool quiet = true;
 bool ignore = false;

@@ -6,8 +6,23 @@
 
 $(TARGET): $(FLIBPATH)/lib$(TARGET)$(LIBEXT)
 
+ifeq ($(WATCOM_AR),1)
+
+#  wlib has its own command language: -q quiet, -b no backup, -n start a
+#  new library, and every object named with a leading `+'. It has no
+#  index to build afterwards, so there is nothing for ranlib to do.
+$(FLIBPATH)/lib$(TARGET)$(LIBEXT): $(OBJS)
+	@echo -n Creating library $(TARGET)...
+	@rm -f $@
+	@$(AR) -q -b -n $@ $(addprefix +,$(wildcard $(FOBJPATH)/*$(OBJEXT)))
+	@echo done
+
+else
+
 $(FLIBPATH)/lib$(TARGET)$(LIBEXT): $(OBJS)
 	@echo -n Creating library $(TARGET)...
 	@$(AR) cru $@ $(FOBJPATH)/*$(OBJEXT)
 	@$(RANLIB) $@
 	@echo done
+
+endif

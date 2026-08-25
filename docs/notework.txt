@@ -13,6 +13,326 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
++ GoldED+ can now hold text in UTF-8 internally. Set XLATLOCALSET to
+  UTF-8 to use it. This is about the operating system - console,
+  filenames, editing - and not about the wire: the transport charset
+  stays whatever XLATEXPORT says, so messages still go into the base
+  as CP866 unless told otherwise, which is what FidoNet echoes carry.
+  A UTF-8 session announces its messages as CHRS level 4, a
+  single-byte one as level 2, per FSC-0054.
+
+  Text is measured in screen columns rather than bytes wherever the
+  two differ - field widths, truncation, the message list, the reader
+  header, the thread tree - and where a field has to be cut to fit,
+  whether on screen or into the fixed-width header fields of a message
+  base, it is cut between characters and never through one.
+
+  Build it with GOLD_UTF8=1 (on by default where the platform can
+  carry it) - cmake -DGOLD_UTF8=ON, or make GOLD_UTF8=1.
+
++ Charset conversion has been rewritten and now lives in one place,
+  goldlib/gall/grecode.cpp. It uses, in this order, whichever is
+  available: iconv; the operating system's own converter - the Win32
+  codepage API on Windows, ULS on OS/2; and only where neither exists
+  the compiled-in tables in gcptabs.inc. Names that turn up in a CHRS
+  kludge ("IBMPC 2", "LATIN-1 2",
+  "+7_FIDO") are mapped onto what the converter understands, and the
+  recoders used on every line of a message are cached.
+
+  goldlib/gall/gutf8.cpp holds the primitives underneath: decoding,
+  encoding, stepping a character at a time, and - the one that matters
+  most - measuring how many screen columns a string occupies.
+
++ New keyword XLATAREASET, naming the charset area descriptions are
+  written in. Those usually come out of an area file the tosser writes,
+  so they follow whatever it is set to, which is a different question
+  from the charset GoldED+'s own files are in - a tosser writing CP866
+  beside a KOI8-R language file is an ordinary enough arrangement.
+  Left out it follows XLATCONFIGSET, which is what that keyword did on
+  its own before, so nothing changes for a configuration that already
+  had one.
+
++ New keyword XLATCONFIGSET, naming the charset GoldED+'s own
+  configuration is written in - golded.cfg and the language file with
+  it. A language file can be in any charset: goldlang.rus is CP866,
+  goldlang.ru2 is KOI8-R, and either can now be read in a UTF-8
+  session, with every label and menu converted as it is read. Values
+  are converted as each line is read, so this keyword and XLATLOCALSET
+  belong at the top of the file. Left unset, the configuration is
+  assumed to be in the charset GoldED+ is working in, as before.
+
++ The "change charset" menu is built from what the recoder can do when
+  no .chs tables are configured, which is the normal state of affairs
+  once iconv or the system's own converter is doing the work. It used
+  to be empty in that case, since it was assembled from the tables
+  alone. A charset typed into the configuration still reaches the
+  converter whether or not it is one of the names listed there.
+
+! With no XLATLOCALSET in the configuration, the local charset is now
+  taken from the system rather than assumed: GetConsoleOutputCP() on
+  Windows, DosQueryCp() on OS/2, the country information on DOS, and
+  the locale on unix. A UTF-8 console is recognised as such.
+
+! golded.cfg is looked for in more places, and in a defined order:
+  the -c argument; the GOLDED and GED environment variables; any of
+  CFGUSERPATH1, CFGUSERPATH2 or CFGPATH set at build time; the
+  directory the binary is in; the current directory; then the user's
+  own configuration, then the machine's, then <prefix>/etc/golded
+  from the build.
+
+  On unix the middle two follow the XDG Base Directory specification -
+  $XDG_CONFIG_HOME (~/.config/golded when unset), with ~/.golded,
+  ~/fido/etc and ~/ftn/etc behind it, then /etc/golded and
+  $XDG_CONFIG_DIRS (/etc/xdg/golded). Elsewhere each system's own
+  convention is used: ~/config/settings/golded and
+  /boot/system/settings/golded on BeOS and Haiku, %APPDATA%\GoldED
+  then %LOCALAPPDATA%\GoldED on Windows, %HOME%\GoldED and
+  %ETC%\golded on OS/2. DOS keeps the program's own directory, which
+  is all it ever had.
+
+  Two of these steps are new rather than merely reordered: the
+  directory the binary sits in was skipped entirely on unix, so a
+  self-contained FTN install did not work there, and there was no
+  system-wide configuration directory at all - CFGPATH was documented
+  as one but pointed into the user's home.
+
++ Where curses is used it can now drive the screen through the
+  wide-character API - add_wch(), get_wch(), setcchar() - which is
+  what puts UTF-8 on the screen and takes it from the keyboard.
+  Configure picks a wide-capable curses when there is one and falls
+  back to the 8-bit API otherwise; make WIDE_NCURSES=0 or
+  cmake -DWIDE_NCURSES=OFF to insist on the latter.
+
+- MIME encoded-words in a header were decoded twice when the line
+  parser had already converted the text, turning what it had produced
+  back into nonsense. The whole-string conversion is still used for a
+  field taken straight out of the message base; text that has already
+  been through the parser now has only its encoded words touched.
+
+- The Windows clipboard went through the OEM codepage in both
+  directions, which threw away every character that codepage has no
+  byte for while GoldED was holding UTF-8. It now converts through
+  the wide API, and reads CF_UNICODETEXT, CF_TEXT and CF_OEMTEXT each
+  in its own charset.
+
+- Quote colouring looked random in some messages. The cause was not
+  the quote code at all: the UUE detector claimed any pure-ASCII line
+  of 42 to 62 bytes, which is a great many ordinary quoted lines, and
+  the reader then coloured them as encoded data. The detector now
+  checks that the line's length is one a UUE encoder could actually
+  have produced.
+
+- A search for two words separated by a space found nothing, though
+  each word on its own was found. The space was dropped while the
+  pattern went on being built, so "New nodes" searched for
+  "Newnodes". A space is now part of the pattern - "New nodes" is a
+  phrase - while '&' and '|' remain what puts two patterns side by
+  side, and quotes are still the way to put one of those characters
+  into a pattern. Trailing spaces are trimmed, so "OS/2 & Warp" still
+  searches for "OS/2".
+
+- Backspace in an input field deleted a whole word rather than a
+  character, which in a one-word field looked like the field being
+  wiped, while Ctrl-Backspace deleted a single character - the two
+  were the wrong way round. Nearly every terminal sends DEL for
+  Backspace and the byte was mapped to Ctrl-Backspace. Which byte
+  means erase is now taken from the terminal itself, through
+  erasechar().
+
+- A message list showed the subject in the wrong charset whenever the
+  message did not use the one the area imports - a UTF-8 message in a
+  CP866 echo came out as mojibake in the list, and correct the moment
+  it was opened. A CHRS kludge belongs to the message text, and the
+  list does not read the text: reading every message just to draw a
+  list would be far too slow, so all it had to go on was XLATIMPORT.
+
+  Several message bases can produce it far more cheaply than that,
+  and those now do:
+
+  - JAM keeps the kludges as header subfields, which are read and
+    parsed whenever a header is read;
+  - SMB keeps the charset as a header field, which smb_getmsghdr()
+    has already fetched;
+  - Squish keeps the kludges in a control block of their own, ahead
+    of the text and with its own length, and the file is sitting at
+    the start of it once the header has been read;
+  - a *.MSG kludge is at the top of the text, in a file that is open
+    and positioned behind the header already - so a short bounded
+    read of the top finds it, and the open() it would have cost has
+    been paid.
+
+  The drivers pass the message's own charset up with the header, and
+  the message list and the thread list decode their header fields
+  with it exactly as the reader does.
+
+  Hudson and the rest are unchanged, and deliberately: there the text
+  is in a second file that loading a header never touches, so this
+  would cost a seek and a read per line of the list. For those the
+  area's XLATIMPORT is still what the list goes by, which is what to
+  set on an echo that does not carry the local charset.
+
++ New: dist-hpkg.sh and docs/haiku.txt - a Haiku package and how to
+  make one. Haiku is built as the BeOS target (make PLATFORM=be); the
+  makefiles notice it from `uname -s` and lift it out of the limited
+  platforms, because it is a complete unix under the BeOS API. The
+  script stages the files the way a package is unpacked, writes a
+  .PackageInfo and calls Haiku's own `package create`.
+
+- dist-sx86.sh lost the date out of the package name, leaving
+  "golded-plus-x86-115-.pkg". Solaris's own sed does not take \{8\}
+  after a character class and quietly matched nothing; the script
+  looks for GNU sed now, as the makefiles do on that platform.
+
+- CWSDPMI is packed with the DOS build again. A DJGPP binary needs a
+  DPMI host and plain DOS has none - CWSDPMI is what provides it, the
+  way DOS4GW does for the Watcom edition, and it travelled with the
+  DJGPP edition from the day that edition appeared. It had fallen out
+  of dist-gpd.sh at some point, so the archive held binaries that
+  would not start on a bare DOS. The script takes it from the DJGPP
+  tree now - %DJDIR%/bin - along with its documentation, and says so
+  rather than silently going without if it is not there.
+
+! CPU identification (goldlib/gall/gutlvers.cpp) has been rewritten.
+  The hand-written 32-bit inline assembler could not be assembled in
+  64-bit mode at all; it is now one portable helper over <cpuid.h> or
+  __cpuidex(). The extended family and model fields are decoded, so
+  modern processors are no longer reported as an Athlon 64 or a
+  Pentium III, and anything unrecognised falls back to the CPUID
+  brand string compacted to fit ("Intel Core i7-9750H"; define
+  GCFG_CPUNAME_SEP as '_' to keep it a single word). Targets that
+  have no CPUID - aarch64, riscv64, ppc64le - leave the name empty
+  and uname() answers instead. All the sprintf() calls in the file
+  are bounded now.
+
+- Two pointer differences were taken through a long, which is
+  narrower than a pointer on 64-bit Windows: throw_find_overrun() and
+  throw_find_underrun() in gmemdbg.cpp, and one in getpls.cpp. MSVC
+  x64 compiled both with a warning and truncated the result.
+
++ The CMake build has been reworked. It now finds curses and iconv by
+  trying each candidate and linking a test against it, rather than
+  naming one and hoping, and it pairs the header with the library from
+  the same prefix - several systems ship both twice and the two halves
+  are not interchangeable. GNU libiconv renames iconv_open() in its
+  header, so that header against the C library's iconv links to
+  nothing; a pkgsrc curses header against the base libcurses compiles
+  and then misbehaves at run time.
+
+  The package manager's copy comes first - pkgsrc, ports, Homebrew,
+  MacPorts, OpenCSW - with the base system's behind it, and the
+  built-in tables only where neither exists. No toolchain is singled
+  out: MSVC normally has neither library installed, finds neither, and
+  lands on the Win32 console and codepage API it would have used
+  anyway. Turn the preference around with -DGOLD_EXTERNAL_CURSES=OFF
+  and -DGOLD_EXTERNAL_ICONV=OFF, or refuse curses entirely with
+  -DGOLD_CURSES=none.
+
+  A mingw build is kept away from the MSYS tree: /mingw64 is the
+  native Win32 side of MSYS2, while the unix-looking /usr belongs to
+  the MSYS runtime, whose headers are a different C library. Left in
+  the search it does not merely produce a hybrid binary - the build
+  stops.
+
+  enable_language(RC) is declared on Windows so CMake sets up rc.exe
+  under MSVC and windres under mingw, and the compiler switches no
+  longer reach the resource compiler, which answered "invalid option
+  -f" to them. Three things that had been behind if(MSVC) belong to
+  any Windows build and are behind if(WIN32) now: gutlwin.cpp and
+  gutlwinm.cpp, goldlib/glibc - no Windows C runtime has POSIX regex -
+  and the resource script with winmm.
+
++ The GNU makefiles have had the same treatment: curses is found by a
+  link probe rather than assumed, the package prefixes follow the same
+  rule as above, and the wide curses API is asked for where the
+  platform can carry it. The cross-built targets - DOS, OS/2, the
+  Watcom ones - keep the package prefixes out on purpose, since those
+  are found on the build host and have no business on a DOS compile
+  line.
+
++ New: gedbcc.mak, a makefile for Borland's own toolkit, driving
+  bcc32, tlib and tlink32 directly. Three configurations - Win32 with
+  Borland C++ 5.5.1 (the default), Win32 with 5.02, and 32-bit DOS
+  with 5.02 and the PowerPack extender, which is 5.02's alone since
+  5.5.1 is Win32 only. Use gedbcc.bat rather than calling make: MAKE
+  5.0 gives up with "Command arguments too long" as soon as it
+  inherits a present-day Windows PATH, so the wrapper trims it. The
+  compiler switches live in response files for the same reason.
+
+  Borland C++ 5.02 predates the standard C++ library by years, and
+  goldlib/borland holds the <cxxx> headers it has never had. Its
+  RogueWave library needed working around in a number of places - no
+  vector::clear(), map and multimap wanting an explicit comparator,
+  iterators that are not pointers, string::erase() spelled remove().
+  goldlib/gall/gutlbcx.c supplies the Win32 entry points the DOS
+  extender's runtime does not.
+
+  Its DOS target also predefines __WIN32__, because the RogueWave
+  library needs that name to find a mutex implementation and will not
+  compile without it - while nothing this tree tests __WIN32__ for is
+  true under a DOS extender. gcmpall.h reads the library in while the
+  name still means to it what it expects, then takes the name away and
+  says plainly which platform this is.
+
++ New: gedwcc.mak, the same for Open Watcom - wpp386, wlib and wlink
+  driven directly, with four targets: Win32, OS/2, 32-bit DOS under
+  DOS/4GW, and Linux. gedwcc.bat sets the environment. The directory
+  the tools are taken from follows the host running wmake rather than
+  the target being built.
+
++ OS/2 builds again, with either toolchain: Open Watcom, and gcc over
+  kLIBC through the GNU makefiles (make PLATFORM=emx). Charset
+  conversion there goes through ULS, the operating system's own
+  Unicode API, which every OS/2 compiler can reach - so the OS/2
+  builds need neither iconv nor the compiled-in tables. The screen is
+  VIO, which is a byte per cell and cannot show UTF-8 however well the
+  text was converted; a curses build is available for the day a
+  UTF-8 terminal exists there (make PLATFORM=emx OS2_NCURSES=1).
+
++ The OS/2 binaries can also be cross-built off the machine, which is
+  a good deal faster than building on the box itself - cross-os2emx on
+  a unix host will do it. The application icon needs a resource
+  compiler: OS/2's own rc where the build is native, Open Watcom's wrc
+  where it is not, and where neither is on PATH the step is skipped
+  with a note and only the icon is missing.
+
++ The DJGPP build can recode through iconv too, which leaves nothing
+  on the compiled-in tables: GNU libiconv exists for DJGPP as a package
+  of its own, and it is a static library, so the DOS binary stays
+  self-contained. Ask for it with
+
+      make PLATFORM=djg ICONV=1
+
+  and unpack libiconv into the DJGPP tree first - the headers into
+  sys-include and the libraries into lib, or into the cross toolchain's
+  <target>/ equivalents. Without ICONV=1 the tables are still what DOS
+  uses, so nothing changes for a build that does not ask. It costs
+  about 0.9 MB: 3.7 MB stripped against 2.9 MB, which is libiconv's
+  own conversion tables.
+
+  This is how the DOS binaries are built for release.
+
+- `make strip' ran the host's strip, which answers "file format not
+  recognized" for a cross-built binary. It follows the compiler now.
+
+- The 32-bit DOS builds handed int386x() and int86x() uninitialised
+  segment registers, which under an extender means a bad selector and
+  a fault on the first one loaded. segread() fills them in now.
+
+! Verified end to end, each built and started, and the message-base
+  ones driven through real areas:
+
+    macOS (clang), NetBSD 11.0, FreeBSD 14.3, OpenBSD 7.9,
+    Solaris 11.4, Haiku, AlmaLinux and Ubuntu;
+    Windows with MSVC 18 (x64 and x86), Visual C++ 6.0, Cygwin,
+    MSYS2 (both msys and mingw64), Open Watcom and
+    Borland C++ 5.02 and 5.5.1;
+    OS/2 with Open Watcom and with gcc/kLIBC;
+    DOS with DJGPP and with Open Watcom - the DJGPP one both with
+    the tables and, through iconv, without them.
+
+  The one that builds and starts but does not run is Borland's 32-bit
+  DOS target: it faults inside the extender's own runtime.
+
 + Update the vsave and vrestore window buffer methods to use wide
   character ncurses methods for builds with wide ncurses enabled.
 

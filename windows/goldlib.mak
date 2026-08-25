@@ -25,6 +25,17 @@ NULL=
 NULL=nul
 !ENDIF
 
+
+#  The UTF-8 internal representation is on by default, the same as in the
+#  CMake and GNU makefile builds. To get the single-byte behaviour these
+#  Win32 builds had before it, define the macro empty on the command line:
+#
+#      NMAKE /f gedwin.mak CFG=Release GOLD_UTF8_FLAGS=
+#
+!IFNDEF GOLD_UTF8_FLAGS
+GOLD_UTF8_FLAGS=/D "GOLD_UTF8"
+!ENDIF
+
 !IF  "$(CFG)" == "goldlib - Win32 Release"
 
 OUTDIR=.\bin\release\win32
@@ -33,7 +44,7 @@ INTDIR=.\obj\release\win32
 OutDir=.\bin\release\win32
 # End Custom Macros
 
-CPP_PROJ=/nologo /Zm128 /MD /W3 /Gm /GX /Zi /O1 /I "..\goldlib" /I "..\goldlib\gall" /I "..\goldlib\gcui" /I "..\goldlib\gcfg" /I "..\goldlib\glibc" /I "..\goldlib\gmb3" /I "..\goldlib\smblib" /I "..\goldlib\uulib" /I "..\goldlib" /D "WIN32" /D "NDEBUG" /D "_LIB" /D "HAVE_STDARG_H" /D "HAVE_CONFIG_H" /D "__INCLUDE_NEW_KEYWORDS__" /Fo"$(INTDIR)\\" /Fd"$(INTDIR)\\" /J /FD /c
+CPP_PROJ=/nologo /Zm128 /MD /W3 /Gm /GX /Zi /O1 /I "..\goldlib" /I "..\goldlib\gall" /I "..\goldlib\gcui" /I "..\goldlib\gcfg" /I "..\goldlib\glibc" /I "..\goldlib\gmb3" /I "..\goldlib\smblib" /I "..\goldlib\uulib" /I "..\goldlib" /D "WIN32" /D "NDEBUG" /D "_LIB" /D "HAVE_STDARG_H" /D "HAVE_CONFIG_H" /D "__INCLUDE_NEW_KEYWORDS__" $(GOLD_UTF8_FLAGS) /Fo"$(INTDIR)\\" /Fd"$(INTDIR)\\" /J /FD /c
 
 !ELSEIF  "$(CFG)" == "goldlib - Win32 Debug"
 
@@ -43,7 +54,7 @@ INTDIR=.\obj\debug\win32
 OutDir=.\bin\debug\win32
 # End Custom Macros
 
-CPP_PROJ=/nologo /Zm128 /MDd /W3 /Gm /Gi /GX /ZI /Od /I "..\goldlib" /I "..\goldlib\gall" /I "..\goldlib\gcui" /I "..\goldlib\gcfg" /I "..\goldlib\glibc" /I "..\goldlib\gmb3" /I "..\goldlib\smblib" /I "..\goldlib\uulib" /I "..\goldlib" /D "WIN32" /D "_DEBUG" /D "_LIB" /D "HAVE_STDARG_H" /D "HAVE_CONFIG_H" /D "__INCLUDE_NEW_KEYWORDS__" /Fo"$(INTDIR)\\" /Fd"$(INTDIR)\\" /J /FD /GZ /c
+CPP_PROJ=/nologo /Zm128 /MDd /W3 /Gm /Gi /GX /ZI /Od /I "..\goldlib" /I "..\goldlib\gall" /I "..\goldlib\gcui" /I "..\goldlib\gcfg" /I "..\goldlib\glibc" /I "..\goldlib\gmb3" /I "..\goldlib\smblib" /I "..\goldlib\uulib" /I "..\goldlib" /D "WIN32" /D "_DEBUG" /D "_LIB" /D "HAVE_STDARG_H" /D "HAVE_CONFIG_H" /D "__INCLUDE_NEW_KEYWORDS__" $(GOLD_UTF8_FLAGS) /Fo"$(INTDIR)\\" /Fd"$(INTDIR)\\" /J /FD /GZ /c
 
 !ENDIF
 
@@ -136,6 +147,7 @@ CLEAN :
 	-@erase "$(INTDIR)\gmsgattr.obj"
 	-@erase "$(INTDIR)\gprnutil.obj"
 	-@erase "$(INTDIR)\gregex.obj"
+	-@erase "$(INTDIR)\grecode.obj"
 	-@erase "$(INTDIR)\gsearch.obj"
 	-@erase "$(INTDIR)\gsnd.obj"
 	-@erase "$(INTDIR)\gsndwrap.obj"
@@ -155,6 +167,7 @@ CLEAN :
 	-@erase "$(INTDIR)\gusrpcb.obj"
 	-@erase "$(INTDIR)\gusrra2.obj"
 	-@erase "$(INTDIR)\gusrxbbs.obj"
+	-@erase "$(INTDIR)\gutf8.obj"
 	-@erase "$(INTDIR)\gutlclip.obj"
 	-@erase "$(INTDIR)\gutlcode.obj"
 	-@erase "$(INTDIR)\gutlgrp.obj"
@@ -374,6 +387,7 @@ LIB32_OBJS= \
 	"$(INTDIR)\gmsgattr.obj" \
 	"$(INTDIR)\gprnutil.obj" \
 	"$(INTDIR)\gregex.obj" \
+	"$(INTDIR)\grecode.obj" \
 	"$(INTDIR)\gsearch.obj" \
 	"$(INTDIR)\gsnd.obj" \
 	"$(INTDIR)\gsndwrap.obj" \
@@ -393,6 +407,7 @@ LIB32_OBJS= \
 	"$(INTDIR)\gusrpcb.obj" \
 	"$(INTDIR)\gusrra2.obj" \
 	"$(INTDIR)\gusrxbbs.obj" \
+	"$(INTDIR)\gutf8.obj" \
 	"$(INTDIR)\gutlclip.obj" \
 	"$(INTDIR)\gutlcode.obj" \
 	"$(INTDIR)\gutlgrp.obj" \
@@ -739,6 +754,12 @@ SOURCE=..\goldlib\gall\gregex.cpp
 	$(CPP) $(CPP_PROJ) $(SOURCE)
 
 
+SOURCE=..\goldlib\gall\grecode.cpp
+
+"$(INTDIR)\grecode.obj" : $(SOURCE) "$(INTDIR)"
+	$(CPP) $(CPP_PROJ) $(SOURCE)
+
+
 SOURCE=..\goldlib\gall\gsearch.cpp
 
 "$(INTDIR)\gsearch.obj" : $(SOURCE) "$(INTDIR)"
@@ -851,6 +872,12 @@ SOURCE=..\goldlib\gall\gusrra2.cpp
 SOURCE=..\goldlib\gall\gusrxbbs.cpp
 
 "$(INTDIR)\gusrxbbs.obj" : $(SOURCE) "$(INTDIR)"
+	$(CPP) $(CPP_PROJ) $(SOURCE)
+
+
+SOURCE=..\goldlib\gall\gutf8.cpp
+
+"$(INTDIR)\gutf8.obj" : $(SOURCE) "$(INTDIR)"
 	$(CPP) $(CPP_PROJ) $(SOURCE)
 
 

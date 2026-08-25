@@ -487,13 +487,22 @@ int EditHeaderinfo(int mode, GMsgHeaderView &view, bool doedithdr)
         vcurshow();
         if(not (hedit.lookup or AA->isnet()))
         {
-            char date2[25] = "";
-            strsetsz(date2, view.width - CFG->disphdrdateset.pos);
+            //  Blanks the date area, which is as wide as the window
+            //  leaves it - on a wide terminal that is a good deal more
+            //  than the 25 bytes this buffer used to have.
+            CREATEBUFFER(char, date2, MAXCOL+1);
+            *date2 = NUL;
+            strsetsz(date2, MinV((int)(view.width - CFG->disphdrdateset.pos), (int)MAXCOL));
             view.window.prints(3, CFG->disphdrdateset.pos, view.to_color, date2);
         }
 
-        view.window.prints(5, view.width-strlen(LNG->HeaderEditHelp1)-1, view.title_color, LNG->HeaderEditHelp1);
-        view.window.prints(5, view.width-strlen(LNG->HeaderEditHelp1)-strlen(LNG->HeaderEditHelp2)-3, view.title_color, LNG->HeaderEditHelp2);
+        //  Right-aligned, so the width these take on the screen is what
+        //  decides where they start - and a language file is not ASCII,
+        //  so that is a count of columns and not of bytes.
+        int _help1 = (int)g_utf8_width(LNG->HeaderEditHelp1);
+        int _help2 = (int)g_utf8_width(LNG->HeaderEditHelp2);
+        view.window.prints(5, view.width-_help1-1, view.title_color, LNG->HeaderEditHelp1);
+        view.window.prints(5, view.width-_help1-_help2-3, view.title_color, LNG->HeaderEditHelp2);
 
         hedit.run(H_Header);
         vcurhide();

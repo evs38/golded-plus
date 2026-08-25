@@ -53,13 +53,13 @@ struct GroupInfo
     uint16_t index;
 };
 
-typedef map<string, GroupInfo> Groups;
+typedef map<string, GroupInfo, less<string> > Groups;
 
 const string& GetValue(const Variables& vars, const std::string& name)
 {
     static string empty;
     Variables::const_iterator it = vars.find(name);
-    return it == vars.end() ? empty : it->second;
+    return it == vars.end() ? empty : (*it).second;
 }
 
 Groups getGroups(const Sections& sections)
@@ -69,8 +69,8 @@ Groups getGroups(const Sections& sections)
 
     for (Sections::const_iterator grpIt = sections.begin(); grpIt != sections.end(); ++grpIt)
     {
-        const string& section = grpIt->first;
-        const Variables& vars = grpIt->second;
+        const string& section = (*grpIt).first;
+        const Variables& vars = (*grpIt).second;
         if (section.rfind("grp:", 0) == 0)
         {
             // Ignore duplicates
@@ -99,10 +99,10 @@ void readIniFile(string file, const string& path, const gareafile& areafile)
 
         for (Sections::const_iterator secIt = sections.begin(); secIt != sections.end(); ++secIt)
         {
-            if (secIt->first.rfind("sub:", 0) != 0)
+            if ((*secIt).first.rfind("sub:", 0) != 0)
                 continue;
 
-            string section(secIt->first.substr(4));
+            string section((*secIt).first.substr(4));
             size_t pos = section.rfind(':');
             if (pos == string::npos)
                 continue;
@@ -114,8 +114,8 @@ void readIniFile(string file, const string& path, const gareafile& areafile)
             if (grpIt == groups.end())
                 continue;
 
-            const GroupInfo& groupInfo = grpIt->second;
-            const Variables& sectionInfo = secIt->second;
+            const GroupInfo& groupInfo = (*grpIt).second;
+            const Variables& sectionInfo = (*secIt).second;
 
             /* A sub-board's internal code is the combination of the grp's code_prefix & the sub's code_suffix */
             string subCode = groupInfo.prefix + suffix;
@@ -130,7 +130,11 @@ void readIniFile(string file, const string& path, const gareafile& areafile)
             aa.groupid = 0x8000 + groupInfo.index;
             string dataDir = GetValue(sectionInfo, "data_dir");
             string subCodeLwr(subCode);
-            strlwr(subCodeLwr);
+            //  Qualified: this file says `using namespace std', and
+            //  Borland's runtime has a strlwr of its own in std, which
+            //  its lookup finds first and then stops - never reaching
+            //  the std::string overload out here.
+            ::strlwr(subCodeLwr);
             if(!dataDir.empty())
                 MakePathname(file, dataDir, subCodeLwr);
             else

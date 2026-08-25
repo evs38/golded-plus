@@ -191,10 +191,9 @@ void  Latin2Local(std::string &str);
 std::string XlatStr(const char* src, int level, Chs* chrtbl, int qpencoded=false, bool i51=false);
 char* mime_header_decode(char* decoded, const char* encoded, char* charset = NULL);
 char* strxmimecpy(char* dest, const char* source, int level, int size, bool detect = false);
+char* strxmimecpy_local(char* dest, const char* source, int size);
 void InvalidateControlInfo(GMsg *msg);
-#ifdef HAS_ICONV
-    void IconvClear(void);
-#endif
+void IconvClear(void);
 
 
 //  ------------------------------------------------------------------
@@ -493,6 +492,11 @@ vattr quotecolor(const char* line);
 bool  doinvalidate(std::string& text, const std::string& find, const std::string& replace, bool is_tearline = false);
 bool find(const std::vector<const char *> &vec, const char *str);
 bool find(const std::vector<std::string> &vec, const std::string &str);
+//  Every caller passes a literal, and without this one that literal
+//  builds a std::string for the length of the call.  Open Watcom's
+//  OS/2 target faults destroying that temporary on the way out; the
+//  allocation was never wanted anywhere else either.
+bool find(const std::vector<std::string> &vec, const char *str);
 vattr GetColorName(const char *name, Addr &addr, vattr color);
 
 

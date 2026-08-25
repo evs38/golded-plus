@@ -33,6 +33,7 @@
 #include <climits>
 #include <gstrall.h>
 #include <gmemdbg.h>
+#include <gutf8.h>
 #include <gbmh.h>
 
 
@@ -42,6 +43,9 @@ gbmh::gbmh()
 {
 
     pat = NULL;
+    patlen = 0;
+    skip2 = 0;
+    ignore_case = false;
 }
 
 
@@ -59,7 +63,21 @@ gbmh::~gbmh()
 void gbmh::init(const char* pattern, bool ignorecase)
 {
 
+    //  Fold both sides up front and let the match compare bytes. This
+    //  is necessary for multibyte text, where case belongs to the whole
+    //  character, and it is better for single-byte text too, because
+    //  the fold then follows the charset rather than the process
+    //  locale. So ignoring case always means folding, and the match
+    //  itself never has to know about case.
     ignore_case = ignorecase;
+
+    std::string folded;
+    if(ignore_case)
+    {
+        folded = g_utf8_fold(pattern);
+        pattern = folded.c_str();
+    }
+
     patlen = strlen(pattern);
 
     pat = new char [patlen+1];
@@ -67,15 +85,6 @@ void gbmh::init(const char* pattern, bool ignorecase)
 
     // Copy pattern
     strcpy(pat, pattern);
-    if(ignore_case)
-    {
-#ifndef _MSC_VER
-        strupr(pat);
-#else /* strupr() is wrong on windows 9x (patch from Ianos Gnatiuc 2:469/335.155) */
-        for(char *ptr = pat; *ptr; ptr++)
-            *ptr = g_toupper(*ptr);
-#endif
-    }
 
     // initialize skip array
     int i;
@@ -84,13 +93,9 @@ void gbmh::init(const char* pattern, bool ignorecase)
     for(i=0; i<patlen; i++)
     {
         skip[pat[i] & 0xff] = patlen - i - 1;
-        if(ignore_case)
-            skip[g_tolower((uint8_t)pat[i])] = patlen - i - 1;
     }
     char lastpatchar = pat[patlen - 1];
     skip[lastpatchar & 0xff] = INT_MAX;
-    if(ignore_case)
-        skip[g_tolower((uint8_t)lastpatchar)] = INT_MAX;
 
     // Horspool's fixed second shift
     skip2 = patlen;
@@ -104,6 +109,25 @@ void gbmh::init(const char* pattern, bool ignorecase)
 
 bool gbmh::find(const char* buffer)
 {
+
+    if(ignore_case)
+    {
+        //  Both sides folded, so the comparison below is exact.
+        foldbuf = g_utf8_fold(buffer);
+        return find_raw(foldbuf.c_str());
+    }
+
+    return find_raw(buffer);
+}
+
+
+//  ------------------------------------------------------------------
+
+bool gbmh::find_raw(const char* buffer) const
+{
+
+    if(pat == NULL or patlen == 0)
+        return false;
 
     int buflen = strlen(buffer);
 
@@ -126,16 +150,8 @@ bool gbmh::find(const char* buffer)
         int j = patlen - 1;
         const char* s = buffer + (i - j);
 
-        if(ignore_case)
-        {
-            while(--j >= 0 and g_toupper((uint8_t)s[j]) == pat[j])
-                ;
-        }
-        else
-        {
-            while(--j >= 0 and s[j] == pat[j])
-                ;
-        }
+        while(--j >= 0 and s[j] == pat[j])
+            ;
 
         if(j < 0)
             return true;

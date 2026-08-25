@@ -140,7 +140,7 @@ void CfgAddressmacro()
                         ptr++;
                     }
                 }
-                strxcpy(tmp.subj, ptr, sizeof(Subj));
+                strxcpy_utf8(tmp.subj, ptr, sizeof(Subj));
 
                 // Got quoted subj, so look for attribs
                 if(subjwasquoted)

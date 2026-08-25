@@ -44,6 +44,8 @@
 #include <gdirposx.h>
 #include <gutlos.h>
 #include <glog.h>
+#include <grecode.h>
+#include <gcharset.h>
 #include <iomanip>
 #include <iostream>
 #include <fstream>
@@ -481,7 +483,7 @@ static bool cmp_anlsts(const _GEIdx &A, const _GEIdx &B)
 
 
 //  ------------------------------------------------------------------
-#if defined(_MSC_VER)
+#if defined(GOLD_LIST_SORT_NO_PRED)
 enum { sort_by_address=0, sort_by_name } static sort_type;
 bool operator<(const _GEIdx &A, const _GEIdx &B)
 {
@@ -1004,11 +1006,11 @@ static void read_nodelists()
 #endif
         // At last, sort the nodes
         geidxlist::iterator curr, prev;
-        std::map<long, dword> namepos;
+        std::map<long, dword, std::less<long> > namepos;
 
         // Sort by name
         if(not quiet) std::cout << NL << "* Sorting by name " << std::flush;
-#if defined(_MSC_VER)
+#if defined(GOLD_LIST_SORT_NO_PRED)
         sort_type = sort_by_name;
         nodeidx.sort();
 #else
@@ -1043,12 +1045,12 @@ static void read_nodelists()
 
                 if(ignoredups)
                 {
-                    if(prev != nodeidx.end() && match_addr_mask(&curr->addr, &prev->addr))
+                    if(prev != nodeidx.end() && match_addr_mask(&(*curr).addr, &(*prev).addr))
                     {
-                        if(strieql(curr->name, prev->name))
+                        if(strieql((*curr).name, (*prev).name))
                         {
 #ifdef DEBUG
-                            if(not quiet) std::cout << "* Dupe: " << curr->addr.zone << ':' << curr->addr.net << '/' << curr->addr.node << '.' << curr->addr.point << ' ' << curr->name << NL;
+                            if(not quiet) std::cout << "* Dupe: " << (*curr).addr.zone << ':' << (*curr).addr.net << '/' << (*curr).addr.node << '.' << (*curr).addr.point << ' ' << (*curr).name << NL;
 #endif
                             nodeidx.erase(curr);
                             curr = prev;
@@ -1061,11 +1063,11 @@ static void read_nodelists()
                 else
                     fp.Fwrite(&(*curr), sizeof(_GEIdx));
 
-                namepos[curr->pos] = nodenum++;
+                namepos[(*curr).pos] = nodenum++;
                 if (fidouser)
                 {
                     char buf[256];
-                    fido.Printf("%-36.36s%24.24s\n", curr->name, make_addr_str(buf, &curr->addr, ""));
+                    fido.Printf("%-36.36s%24.24s\n", (*curr).name, make_addr_str(buf, &(*curr).addr, ""));
                 }
             }
 
@@ -1074,7 +1076,7 @@ static void read_nodelists()
 
         // Sort by address
         if(not quiet) std::cout << ' ' << NL "* Sorting by node " << std::flush;
-#if defined(_MSC_VER)
+#if defined(GOLD_LIST_SORT_NO_PRED)
         sort_type = sort_by_address;
         nodeidx.sort();
 #else
@@ -1092,7 +1094,7 @@ static void read_nodelists()
             {
                 if(ISTWIRLY(nn++))
                     twirly();
-                fp.Fwrite(&namepos[curr->pos], sizeof(dword));
+                fp.Fwrite(&namepos[(*curr).pos], sizeof(dword));
             }
             fp.Fclose();
         }
@@ -1430,6 +1432,15 @@ static int parse_config(const char *__configfile, Addr& zoneaddr)
                         _MapPath(value);
                         PathCopy(nodepath, value);
                         break;
+                    case CRC_XLATLOCALSET:
+                        //  GoldNODE has to agree with GoldED about the
+                        //  charset. A nodelist may be UTF-8 (there is a
+                        //  DAILYUTF), and the index holds names in a
+                        //  fixed-size field: without knowing the charset
+                        //  the copy cuts a name mid-character and leaves
+                        //  an ill-formed sequence in the index.
+                        g_set_local_charset(value);
+                        break;
                     case CRC_ADDRESS:
                     case CRC_AKA:
                         if(not zoneaddr.net)
@@ -1632,11 +1643,11 @@ static bool read_config(const char *cfg, const char *argv_0)
     else
         strxcpy(buf, cfg, sizeof(Path));
 
-    nodelist.clear();
-    nodezone.clear();
-    userlist.clear();
-    userzone.clear();
-    mappath.clear();
+    gclear(nodelist);
+    gclear(nodezone);
+    gclear(userlist);
+    gclear(userzone);
+    gclear(mappath);
     if(not parse_config(buf, zoneaddr))
     {
         errorlevel = 1;
@@ -1778,6 +1789,10 @@ int main(int argc, char *argv[])
 
     // set locale
     setlocale(LC_CTYPE, "");
+
+    //  The same default GoldED uses: whatever the console is in. A
+    //  config saying XLATLOCALSET overrides it while being read.
+    g_set_local_charset(get_charset());
 #if defined(GUTLOS_FUNCS)
     g_init_os(0);
 #endif

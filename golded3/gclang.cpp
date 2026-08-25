@@ -538,6 +538,33 @@ static int CmpLangCrc(LangCrc* a, LangCrc* b)
 //  ------------------------------------------------------------------
 //  Call the function matching the keyword
 
+//  ------------------------------------------------------------------
+//  A language file is part of the configuration, and the configuration
+//  need not be in the charset GoldED holds text in: goldlang.rus is
+//  CP866, goldlang.ru2 is KOI8-R, and either can be read in a UTF-8
+//  session. XLATCONFIGSET says which; without it the file is taken to
+//  be in the charset GoldED is working in, which is what it has always
+//  been assumed to be.
+//
+//  Only the values are converted. The keywords beside them are ASCII,
+//  and their CRCs would not survive being recoded anyway.
+
+static std::string XlatLangStr(const char* __str)
+{
+    if((__str == NULL) or (*__str == NUL))
+        return std::string();
+
+    if((*CFG->xlatconfigset == NUL) or strieql(CFG->xlatconfigset, CFG->xlatlocalset))
+        return std::string(__str);
+
+    GRecoder& rec = g_recoder(CFG->xlatconfigset, CFG->xlatlocalset);
+    if(rec.is_open() and not rec.is_identity())
+        return rec.convert(__str, strlen(__str));
+
+    return std::string(__str);
+}
+
+
 static bool SwitchLanguage(word crc, char* str)
 {
     LangCrc* lptr;
@@ -705,7 +732,9 @@ void LoadLanguage(const char* file)
                     strschg(str, "\\r", "\r");
                     strschg(str, "\\\"", "\"");
                 }
-                if(SwitchLanguage(strCrc16(strupr(ptr)), str))
+                std::string _conv = XlatLangStr(str);
+                std::vector<char> _val(_conv.c_str(), _conv.c_str() + _conv.length() + 1);
+                if(SwitchLanguage(strCrc16(strupr(ptr)), &_val[0]))
                 {
                     if(cmdlineoldkeyw == false)
                     {
@@ -770,7 +799,9 @@ bool ReadLangCfg()
                     strschg(str, "\\\"", "\"");
                 }
 
-                if (SwitchLanguage(strCrc16(strupr(ptr)), str))
+                std::string _conv = XlatLangStr(str);
+                std::vector<char> _val(_conv.c_str(), _conv.c_str() + _conv.length() + 1);
+                if (SwitchLanguage(strCrc16(strupr(ptr)), &_val[0]))
                 {
                     if (cmdlineoldkeyw == false)
                     {

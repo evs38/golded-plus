@@ -25,6 +25,7 @@
 //  ------------------------------------------------------------------
 
 #include <golded.h>
+#include <grecode.h>
 
 
 //  ------------------------------------------------------------------
@@ -262,22 +263,91 @@ static bool have_origin(GMsg *msg)
 
 //  ------------------------------------------------------------------
 
+//  ------------------------------------------------------------------
+//  Settle which charset a message is written to the base in, arrange
+//  for the text to be converted on the way out, and announce it in the
+//  CHRS kludge.
+//
+//  The lines are held in the local charset. When the area exports in a
+//  different one - a UTF-8 session writing into a CP866 echo, say - a
+//  recoder is put in place and LinesToText() converts as it goes.
+//
+//  The level matters: FSC-0054 level 2 means a single-byte charset, and
+//  a multibyte one such as UTF-8 has to be announced as level 4, or
+//  every reader downstream will take the bytes one at a time.
+
+//  While the message is still being edited its lines are in the local
+//  charset and stay that way; MakeMsg3() converts once, just before the
+//  message is written. Converting here as well would run the text
+//  through the recoder twice.
+
+static void SetLocalCharset(GMsg* msg)
+{
+    LoadCharset(-1);
+    msg->charsetlevel = 2;
+    gsprintf(PRINTF_DECLARE_BUFFER(msg->charset), "%s %d", CFG->xlatlocalset,
+             GRecoder::is_utf8(CFG->xlatlocalset) ? 4 : 2);
+}
+
+
+//  ------------------------------------------------------------------
+
+static void SetExportCharset(GMsg* msg)
+{
+    const char* exp = AA->Xlatexport();
+
+    if((exp == NULL) or (*exp == NUL) or strieql(exp, CFG->xlatlocalset))
+    {
+        // Stored as it is held; nothing to convert.
+        LoadCharset(-1);
+        exp = CFG->xlatlocalset;
+        msg->charsetlevel = 2;
+    }
+    else
+    {
+        msg->charsetlevel = LoadCharset(CFG->xlatlocalset, exp);
+        if(msg->charsetlevel == 0)
+        {
+            // No way to get there from here: keep the text as it is and
+            // say so, rather than mislabelling it.
+            LoadCharset(-1);
+            exp = CFG->xlatlocalset;
+            msg->charsetlevel = 2;
+        }
+    }
+
+    gsprintf(PRINTF_DECLARE_BUFFER(msg->charset), "%s %d", exp,
+             GRecoder::is_utf8(exp) ? 4 : 2);
+}
+
+
+//  ------------------------------------------------------------------
+//  Put the export conversion back in force, just before it is used.
+//
+//  A good deal happens between choosing the charset and writing the
+//  message - carbon copies, kludges, repainting the header - and any of
+//  it may load a different charset for its own purposes. So the
+//  conversion is derived again here from what the message says it is
+//  stored in, rather than trusting whatever ran last.
+
+static void ApplyExportCharset(GMsg* msg)
+{
+    if((*msg->charset == NUL) or strieql(strlword(msg->charset), CFG->xlatlocalset))
+        LoadCharset(-1);
+    else
+        LoadCharset(CFG->xlatlocalset, msg->charset);
+}
+
+
+//  ------------------------------------------------------------------
+
 static void MakeMsg3(int& mode, GMsg* msg)
 {
 
     int n;
     std::vector<gaka>::iterator u;
 
-    msg->charsetlevel = 0;
-    if (*AA->Xlatexport())
-    {
-        msg->charsetlevel = LoadCharset(CFG->xlatlocalset, AA->Xlatexport());
-        if (msg->charsetlevel)
-            gsprintf(PRINTF_DECLARE_BUFFER(msg->charset), "%s %d", AA->Xlatexport(),
-                CharTable ? CharTable->displaylevel : msg->charsetlevel);
-        else
-            gsprintf(PRINTF_DECLARE_BUFFER(msg->charset), "%s 2", CFG->xlatlocalset);
-    }
+    SetExportCharset(msg);
 
     // Do Timefields
     if(msg->attr.fmu())
@@ -329,6 +399,7 @@ static void MakeMsg3(int& mode, GMsg* msg)
         update_statuslinef(LNG->StatusCC, "ST_STATUSCC", msg->to, msg->dest.make_string(temp).c_str());
     }
 
+    ApplyExportCharset(msg);
     msg->LinesToText();
 
     if(AA->isnet() and (msg->attr.frq() or msg->attr.att() or msg->attr.urq()) and specfiles >= 1)
@@ -636,9 +707,7 @@ static void MakeMsg2(int& mode, int& status, int& forwstat, int& topline, GMsg* 
                 }
                 if(status != MODE_QUIT)
                 {
-                    LoadCharset(-1);
-                    strcpy(stpcpy(msg->charset, CFG->xlatlocalset), " 2");
-                    msg->charsetlevel = 2;
+                    SetLocalCharset(msg);
                 }
             }
             else if(forwstat == NO and (EDIT->Internal() or not *EDIT->External()))
@@ -694,9 +763,7 @@ static void MakeMsg2(int& mode, int& status, int& forwstat, int& topline, GMsg* 
                         }
                         line = line->next;
                     }
-                    LoadCharset(-1);
-                    strcpy(stpcpy(msg->charset, CFG->xlatlocalset), " 2");
-                    msg->charsetlevel = 2;
+                    SetLocalCharset(msg);
                     msg->LinesToText();
                 }
                 w_info(NULL);
@@ -833,7 +900,7 @@ void MakeMsg(int mode, GMsg* omsg, bool ignore_replyto)
 
     // Prepare crossposting
     int crosspost = NO;
-    post_xparea.clear();
+    gclear(post_xparea);
 
     do
     {
@@ -849,16 +916,12 @@ void MakeMsg(int mode, GMsg* omsg, bool ignore_replyto)
 
             msg->TextToLines(CFG->dispmargin-1);
             msg->orig = AA->Aka().addr;
-            msg->charsetlevel = LoadCharset(CFG->xlatlocalset, AA->Xlatexport());
-            if (msg->charsetlevel)
-                gsprintf(PRINTF_DECLARE_BUFFER(msg->charset), "%s %d", AA->Xlatexport(),
-                    CharTable ? CharTable->displaylevel : msg->charsetlevel);
-            else
-                gsprintf(PRINTF_DECLARE_BUFFER(msg->charset), "%s 2", CFG->xlatlocalset);
+            SetExportCharset(msg);
             strcpy(msg->odom, CFG->aka[AkaMatch(&msg->orig, &AA->Aka().addr)].domain);
             if(AA->isecho() or have_origin(msg))
                 DoTearorig(mode, msg);
             DoKludges(mode, msg);
+            ApplyExportCharset(msg);
             msg->LinesToText();
             post_xparea.pop_back();
         }
@@ -1155,7 +1218,7 @@ void MakeMsg(int mode, GMsg* omsg, bool ignore_replyto)
                         msg->fwdorig = msg->orig;
                         strcpy(msg->fwdto, msg->To());
                         msg->fwddest = msg->dest;
-                        strxcpy(msg->fwdsubj, msg->re, sizeof(Subj));
+                        strxcpy_utf8(msg->fwdsubj, msg->re, sizeof(Subj));
                         Area* fwdarea = AL.AreaIdToPtr(OrigArea);
                         strcpy(msg->fwdarea, fwdarea->isecho() ? fwdarea->echoid() : "");
                         strcpy(msg->fwdmsgid, msg->msgids);
@@ -1277,7 +1340,7 @@ void MakeMsg(int mode, GMsg* omsg, bool ignore_replyto)
 
         if(status != MODE_SAVE)
         {
-            post_xparea.clear();
+            gclear(post_xparea);
             crosspost = NO;
         }
 

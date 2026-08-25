@@ -27,6 +27,7 @@
 #include <cerrno>
 #include <fcntl.h>
 #include <golded.h>
+#include <gutf8.h>
 #include <geusrbse.h>
 #include <gftnnl.h>
 #include <gstrall.h>
@@ -222,8 +223,10 @@ void guserbase::do_delayed()
 void guserbase::print_line(uint idx, uint pos, bool isbar)
 {
 
-    CREATEBUFFER(char, buf, MAXCOL);
-    const size_t buflen = MAXCOL;
+    //  MAXCOL counts screen columns, and a column can take several
+    //  bytes once the text is no longer single-byte.
+    CREATEBUFFER(char, buf, MAXCOL*4);
+    const size_t buflen = MAXCOL*4;
     buf[buflen - 1] = '\0';
 
     read_entry(idx);
@@ -247,15 +250,27 @@ void guserbase::print_line(uint idx, uint pos, bool isbar)
         }
     }
 
-    gsprintf(PRINTF_DECLARE_BUFFER_AUTO(buf, MAXCOL), "%c %-*.*s %-*.*s %s ",
+    //  The field widths are screen columns; printf's "%-*.*s" measures
+    //  bytes, so the columns are laid out here instead.
+    std::string _name = g_utf8_fit(entry.name, cwidth);
+    std::string _org  = g_utf8_fit(entry.organisation, (cwidth*2)/3);
+
+    gsprintf(PRINTF_DECLARE_BUFFER_AUTO(buf, MAXCOL*4), "%c %s %s %s ",
              entry.is_deleted ? 'D' : ' ',
-             cwidth, (int)cwidth, entry.name,
-             (cwidth*2)/3, (int)(cwidth*2)/3, entry.organisation,
+             _name.c_str(),
+             _org.c_str(),
              useraddr.c_str() );
 
 
     std::string line_to_print(buf);
-    line_to_print.resize(xlen,' ');
+    //  resize() counts bytes; pad to the width the window actually has.
+    {
+        size_t _w = g_utf8_width(line_to_print);
+        if(_w > (size_t)xlen)
+            line_to_print = g_utf8_truncate(line_to_print, xlen);
+        else
+            line_to_print.append(xlen - _w, ' ');
+    }
     window.prints(pos, 0, isbar ? sattr : wattr, line_to_print.c_str());
 }
 

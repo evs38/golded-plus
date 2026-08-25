@@ -136,7 +136,7 @@ static void update_line(const gstrarray &strarr, r_t* r, int wrow, int upcurr)
     for(int j=0; j<r->strsperline; j++)
     {
         int ccolbeg = ccol;
-        wprintns(wrow, ccolbeg, (upcurr and r->curr==celem) ? r->barattr : r->winattr, nomore ? "" : strarr[celem], r->maxstrlen);
+        wprintns(wrow, ccolbeg, (upcurr and r->curr==celem) ? r->barattr : r->winattr, nomore ? "" : strarr[celem].c_str(), r->maxstrlen);
         ccol += r->maxstrlen;
         if(++celem >= r->numelems)
             nomore = true;

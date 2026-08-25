@@ -73,6 +73,43 @@ inline byte& KCodScn(gkey &key)
 
 
 //  ------------------------------------------------------------------
+//  What a key was typed as, in the local charset.
+//
+//  A gkey has one byte for the character, which was enough while a
+//  character was a byte. Rather than widening it - and every table and
+//  binding built on it - the text travels alongside, and the few places
+//  that actually insert into a message pick it up here.
+//
+//  One record rather than loose variables: it is saved, restored,
+//  pushed back and buffered in four places, and as separate fields
+//  those copies drifted - one of the buffers ended up smaller than the
+//  global it was copied from, so restoring read past its end.
+
+struct GKbdChar
+{
+    //  Longer than one character on purpose: converting a codepoint
+    //  into a single-byte charset may transliterate it into several -
+    //  the German sharp s becomes "ss".
+    int  len;           // bytes in buf, 0 if the key was not a character
+    char buf[16];       // the character in the local charset
+};
+
+//  The last key as text in the local charset - its UTF-8 encoding in
+//  UTF-8 mode, the single byte otherwise. Empty when the last key was
+//  not a character.
+
+const char* gkbd_lastchars(int* len);
+
+//  Put a character back into that side channel - used when a key
+//  comes out of GoldED's own buffer rather than from the keyboard.
+void gkbd_setlastchars(const char* chars, int len);
+
+//  The bytes 'key' stands for, or NULL when it was not a whole
+//  character - see the note on the definition.
+const char* gkbd_keychars(gkey key, int* len, bool checkfirst = true);
+
+
+//  ------------------------------------------------------------------
 //  Definition of kbuf record
 
 struct KBuf
@@ -80,6 +117,10 @@ struct KBuf
     KBuf* prev;         // previous record
     KBuf* next;         // next record
     gkey   xch;         // keypress
+    //  What the key was typed as, so that a key put back here and read
+    //  again is still the character it was. Without this a Cyrillic
+    //  letter that started an edit arrived as one stray byte.
+    GKbdChar last;
 };
 
 

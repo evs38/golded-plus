@@ -270,6 +270,10 @@ gkey getxch(int __tick)
         {
             gkbd.source = GEVT_BUFFER;
             k = gkbd.kbuf->xch;
+            //  Hand back what the key was typed as, so a field asking
+            //  gkbd_lastchars() gets the whole character and not the one
+            //  byte the keycode carries.
+            gkbd_setlastchars(gkbd.kbuf->last.buf, gkbd.kbuf->last.len);
             KBuf* _kbuf = gkbd.kbuf->next;
             throw_free(gkbd.kbuf);
             gkbd.kbuf = _kbuf;

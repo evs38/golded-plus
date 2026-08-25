@@ -356,6 +356,15 @@ int SMBArea::load_hdr(gmsg* __msg, smbmsg_t *smsg)
         GFTRK(0);
         return false;
     }
+    //  Smb stores the charset as a header field, so it costs nothing
+    //  to pass it on - see the note on gmsg::hdrchrs.
+    for(uint16_t _hf = 0; _hf < smsgp->total_hfields; _hf++)
+        if(smsgp->hfield[_hf].type == FIDOCHARSET)
+        {
+            __msg->set_hdrchrs((char *)smsgp->hfield_dat[_hf]);
+            break;
+        }
+
     __msg->link.to_set(smsgp->hdr.thread_orig);
     __msg->link.next_set(smsgp->hdr.thread_next);
     __msg->link.first_set(smsgp->hdr.thread_first);

@@ -1341,6 +1341,12 @@ SwitchX:
     case CRC_XLATIMPORT       :
         CfgXlatimport       ();
         break;
+    case CRC_XLATAREASET      :
+        CfgXlatareaset      ();
+        break;
+    case CRC_XLATCONFIGSET    :
+        CfgXlatconfigset    ();
+        break;
     case CRC_XLATLOCALSET     :
         CfgXlatlocalset     ();
         break;
@@ -1537,6 +1543,33 @@ int ReadCfg(const char* cfgfile, int ignoreunknown)
 
                 // Extract key and val
                 crc = getkeyvalcrc(&key, &val);
+
+                //  The value is in whatever charset the configuration
+                //  is written in, which need not be the one GoldED
+                //  holds text in - a CP866 golded.cfg read in a UTF-8
+                //  session, say. Convert it once here rather than in
+                //  each of the handlers below; a keyword is ASCII and
+                //  needs nothing, and so does a value that is.
+                //
+                //  This is why the charset keywords belong at the top
+                //  of the file: a line read before XLATCONFIGSET cannot
+                //  know what it is in.
+                //
+                //  Converted in place. Two of the handlers below work
+                //  out how much room is left with (buf+sizeof(buf))-val,
+                //  so val has to go on pointing into buf; where the
+                //  converted form would not fit, the line is left as it
+                //  was rather than cut.
+                if(*CFG->xlatconfigset and *val and not strieql(CFG->xlatconfigset, CFG->xlatlocalset))
+                {
+                    GRecoder& _rec = g_recoder(CFG->xlatconfigset, CFG->xlatlocalset);
+                    if(_rec.is_open() and not _rec.is_identity())
+                    {
+                        std::string _out = _rec.convert(val, strlen(val));
+                        if(_out.length() < (size_t)((buf + sizeof(buf)) - val))
+                            memcpy(val, _out.c_str(), _out.length() + 1);
+                    }
+                }
 
                 int _gotcond = true;
                 switch(crc)

@@ -253,6 +253,10 @@ public:
     void puts(const char* text);
     void printc(int row, int col, vattr color, vchar ch);
     void prints(int row, int col, vattr color, const char* text);
+    //  For text built from CP437 box constants rather than from a
+    //  message: the bytes are drawn as the characters CP437 gives
+    //  them, whatever charset the session is in.
+    void prints_box(int row, int col, vattr color, const char* text);
     void printvs(int row, int col, vattr color, const vchar* text);
     void prints(int row, int col, vattr color, const std::string& text);
     void printns(int row, int col, vattr color, const char* text, int len, vchar fill=' ', vattr fill_color = DEFATTR);
@@ -639,6 +643,16 @@ inline void gwindow::prints(int row, int col, vattr color, const char* text)
 
     activate_quick();
     wprints(row, col, color == DEFATTR ? window_color : color, text);
+}
+
+
+//  ------------------------------------------------------------------
+
+inline void gwindow::prints_box(int row, int col, vattr color, const char* text)
+{
+
+    activate_quick();
+    wprints_box(row, col, color == DEFATTR ? window_color : color, text);
 }
 
 

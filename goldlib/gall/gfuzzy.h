@@ -30,6 +30,7 @@
 
 //  ------------------------------------------------------------------
 
+#include <string>
 #include <gdefs.h>
 
 
@@ -51,6 +52,14 @@ protected:
     int*  loffs;
     int*  roffs;    // Used to calculate start of match
     bool  casing;
+
+    //  Case-insensitive matching of multibyte text has to fold whole
+    //  characters, so both sides are folded up front and the inner loop
+    //  compares bytes. The fold keeps byte lengths (see g_utf8_fold),
+    //  so start/end and length() still describe the original text.
+    bool        fold;
+    std::string foldpat;
+    std::string foldtext;
 
 public:
 

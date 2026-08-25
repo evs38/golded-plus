@@ -514,7 +514,9 @@ void CfgUsername()
                     CfgAddress(tmp.addr.make_string(tmp.name));  // tmp.name is temp-var
             }
 
-            strxcpy(tmp.name, strbtrim(val), sizeof(Name));
+            //  Name is the standard 36 bytes, so a longer one is cut -
+            //  but between characters, not through one.
+            strxcpy_utf8(tmp.name, strbtrim(val), sizeof(Name));
 
             // Check if we have it already
             std::vector<Node>::iterator u;
@@ -756,6 +758,22 @@ void CfgXlatimport()
     else
         strcpy(CFG->xlatimport, buf);
 }
+
+//  ------------------------------------------------------------------
+
+void CfgXlatconfigset()
+{
+
+    strupr(strxcpy(CFG->xlatconfigset, val, sizeof(CFG->xlatconfigset)));
+}
+
+
+void CfgXlatareaset()
+{
+
+    strupr(strxcpy(CFG->xlatareaset, val, sizeof(CFG->xlatareaset)));
+}
+
 
 //  ------------------------------------------------------------------
 

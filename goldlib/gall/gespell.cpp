@@ -835,7 +835,7 @@ void CSpellChecker::Close()
     {
         delete(*it);
     }
-    mLangs.clear();
+    gclear(mLangs);
     mInited = false;
 }
 
@@ -883,7 +883,7 @@ void CSpellChecker::UnLoad()
     {
         (*it)->UnLoad();
     }
-    mLangsLoaded.clear();
+    gclear(mLangsLoaded);
 }
 
 
@@ -942,7 +942,7 @@ bool CSpellChecker::Check(const char *text)
 
 CSpellSuggestV &CSpellChecker::Suggest(const char* text)
 {
-    mSuggest.clear();
+    gclear(mSuggest);
     if (!IsLoaded()) return mSuggest;
 
     CSpellLangV::iterator it;

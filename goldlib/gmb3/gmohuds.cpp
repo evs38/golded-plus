@@ -29,6 +29,17 @@
 #include <gmoprot.h>
 #include <gmohuds.h>
 
+#if defined(__BORLANDC__) && (__BORLANDC__ < 0x0550)
+//  Borland C++ 5.02 does not instantiate a class template's out-of-line
+//  members on its own, however visible their definitions are - it emits
+//  external references and leaves it there. Ask for the four sets this
+//  tree uses, once, here.
+template class _HudsWide<word,  word,    byte, byte, HudsLast, 1>;
+template class _HudsWide<dword, int32_t, word, word, GoldLast, 0>;
+template class _HudsArea<word,  word,    byte, byte, HudsLast, 1>;
+template class _HudsArea<dword, int32_t, word, word, GoldLast, 0>;
+#endif
+
 
 //  ------------------------------------------------------------------
 

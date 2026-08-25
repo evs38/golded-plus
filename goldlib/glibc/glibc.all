@@ -1,4 +1,4 @@
-regex    cpp     all                                 emx         cyg
+regex    cpp     all                                 emx         wco wcx bcx wcn cyg
 fnmatch  c       all
 glob     c       all
 dummy    c       all nov bcd bco bcx wcn wco wcx lnx     djg rsx     be sun osx

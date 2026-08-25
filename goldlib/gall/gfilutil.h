@@ -36,7 +36,9 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#ifndef _MSC_VER
+/*  Neither MSVC nor Borland has <unistd.h>; both put what is wanted
+ *  from it in <io.h> and <direct.h>. */
+#if !defined(_MSC_VER) && !defined(__BORLANDC__)
     #include <unistd.h>
 #else
     #include <cstdlib>
@@ -148,7 +150,10 @@ struct Stamp
 //  ------------------------------------------------------------------
 //  Prototypes
 
-#if !defined(__GNUC__) || defined(__MINGW32__)
+//  Open Watcom's Linux target has the POSIX two-argument mkdir(); its
+//  DOS, OS/2 and Windows ones have the single-argument form.
+#if (!defined(__GNUC__) || defined(__MINGW32__)) \
+    && !(defined(__WATCOMC__) && defined(__LINUX__))
     #define mkdir(path,unused) mkdir(path)
 #endif
 
@@ -317,7 +322,10 @@ int unlock(int handle, long offset, long length);
 #undef sopen
 #endif
 
-#if !defined(__DJGPP__) && defined(__GNUC__)
+//  Open Watcom on Linux compiles the same definitions in gfilport.cpp -
+//  they are guarded on __UNIX__ there - so it needs the prototypes too.
+#if !defined(__DJGPP__) && (defined(__GNUC__) \
+    || (defined(__WATCOMC__) && defined(__LINUX__)))
 int lock(int handle, long offset, long length);
 int unlock(int handle, long offset, long length);
 #if !defined(__QNXNTO__) && !defined(__MINGW32__)

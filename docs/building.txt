@@ -67,24 +67,67 @@ make call:
  "USE_NCURSES=0"   if you dislike curses library (Linux version requires to
                    use curses)
 
- "WIDE_NCURSES=1"  if it is needed to use wide characters with curses library
+ "WIDE_NCURSES=0"  Use the 8-bit curses API. The wide-character one is the
+                   default wherever curses is used at all.
+
+ "GOLD_UTF8=0"     Hold message text in a single-byte charset, the way
+                   Golded+ did before UTF-8 support. UTF-8 is the default
+                   on every platform that can carry it; DOS keeps the
+                   8-bit behaviour it always had.
 
  "BUGGY_NCURSES=1" if Golded+ requires additional keypresses to pass areascan
 
  "KOI8=1"          Better koi-8 support for linux. Do not set this for
                    international builds since latin-1 support will be broken.
 
- "ICONV=1"         Use iconv library for recoding text. Experimental! Do not
-                   set this if you don't sure!
+ "ICONV=0"         Do not use iconv at all; recode through the built-in
+                   charset tables. iconv is on by default.
+
+ "EXTERNAL_CURSES=1"
+                   Look for curses in the package-manager prefixes
+                   (/usr/pkg, /usr/local, /opt/local, /opt/homebrew,
+                   /opt/csw, /usr/sfw) instead of using the one that
+                   comes with the operating system.
+
+ "EXTERNAL_ICONV=1"
+                   Link GNU libiconv from one of those prefixes instead
+                   of the iconv the system provides.
+
+                   Both default to 0: curses and iconv are taken from the
+                   operating system. On a native Windows build neither is
+                   used at all - the Win32 console layer draws the screen
+                   and the Win32 codepage API converts the text - so no
+                   curses is even looked for there. Cygwin is a POSIX
+                   environment and is not affected by that: it uses
+                   curses like any other unix.
+
+                   Header and library always come from the same side.
+                   GNU libiconv renames iconv_open() to libiconv_open(),
+                   so its header against the system iconv links to
+                   nothing, and a pkgsrc ncurses header against the base
+                   libcurses compiles and then misbehaves at run time.
 
  "PLATFORM=xxx"    Overwrite platform auto detection. Here "xxx" may be:
-                   "cyg" - for MinGW or Cygwin (MinGW build),
-                   "lnx" - for GNU/Linux or any BSD,
+                   "cyg" - a *native Win32* binary built with the Cygwin
+                           toolchain. Despite the name this is the MinGW
+                           build, not a Cygwin one: it does not link
+                           cygwin1.dll, it draws through the Win32
+                           console layer and needs no curses. For a real
+                           Cygwin binary do not set PLATFORM at all -
+                           auto detection gives "lnx", which is right,
+                           and the result links cygwin1.dll and Cygwin's
+                           own ncursesw and iconv.
+                   "lnx" - for GNU/Linux, any BSD, or Cygwin,
                    "emx" - for OS/2 EMX
                    "sun" - for SunOS (Solaris)
                    "osx" - for OS X
                    "djg" - for DJGPP (DOS with DPMI)
-                   "be"  - for BeOS
+                   "be"  - for BeOS and for Haiku. Haiku is detected
+                           automatically, and because it is a complete
+                           unix under the BeOS API it gets ncurses,
+                           iconv and UTF-8 like any other; classic BeOS
+                           keeps its own terminal code and its 8-bit
+                           behaviour.
 
 If you do not know that means the parameter, please do not specify it in
 command line.

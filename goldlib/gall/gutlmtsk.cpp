@@ -28,6 +28,7 @@
 #include <cstdlib>
 #include <gmemall.h>
 #include <gutlmtsk.h>
+#include <gtimall.h>       //  usleep(), where the runtime has none
 
 #ifdef __OS2__
     #define INCL_BASE

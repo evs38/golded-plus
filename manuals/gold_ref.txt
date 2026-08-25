@@ -4968,6 +4968,55 @@ Here is the complete keyword list:
     See the Character Translation chapter for details.
 
 
+XLATAREASET <charsetid>
+
+    The charset area descriptions are written in.
+
+    Descriptions are a different matter from GoldED+'s own
+    configuration: they usually come out of an area file written by the
+    tosser, so they are in whatever the tosser is set to. A tosser
+    writing CP866 beside a KOI8-R language file is a perfectly ordinary
+    arrangement:
+
+        XLATLOCALSET  UTF-8
+        XLATCONFIGSET KOI8-R
+        XLATAREASET   CP866
+        AreaFile FidoConfig /usr/local/etc/fido/husky/areas
+
+    Left unset it follows XLATCONFIGSET, which is how this behaved when
+    XLATCONFIGSET was the only keyword; with neither given the
+    descriptions are assumed to be in the local charset.
+
+
+XLATCONFIGSET <charsetid>
+
+    The charset GoldED+'s own configuration is written in - golded.cfg
+    and the language file with it. A language file can be in any
+    charset: goldlang.rus is CP866, goldlang.ru2 is KOI8-R, and either
+    can be read in a UTF-8 session.
+
+    Text taken from them is put on screen as it stands, so it has to be
+    in the charset GoldED+ works in. That is normally so and the
+    keyword can be left out; it matters when the two differ - typically
+    after moving XLATLOCALSET to UTF-8 while the language file is still
+    the CP866 one:
+
+        XLATLOCALSET  UTF-8
+        XLATCONFIGSET CP866
+
+    Left unset, the configuration is assumed to be in the charset
+    GoldED+ is working in: what the system says - LANG, or the
+    DOS/Windows/OS-2 codepage - or what XLATLOCALSET names, which
+    overrides it.
+
+    Values are converted as each line is read, so a line cannot be
+    converted before the charset is known: this keyword and
+    XLATLOCALSET belong at the top of the file.
+
+    Area descriptions do not follow this keyword unless XLATAREASET is
+    absent; see XLATAREASET.
+
+
 XLATESCSET <import> <export> <escfile>
 
     This keyword defines escape sequence translation table files.

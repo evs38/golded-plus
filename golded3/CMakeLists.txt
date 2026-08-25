@@ -58,18 +58,23 @@ set(golded_SOURCES
   gehtml.cpp
   golded3.cpp
 )
-if (MSVC)
+if (WIN32)
   list(APPEND golded_SOURCES gedcyg.rc)
 endif()
 
 include_directories(../goldlib/gall ../goldlib/gcui ../goldlib/gmb3 ../goldlib/gcfg ../goldlib/smblib ../goldlib/uulib ../goldlib/glibc)
 add_executable(golded ${golded_SOURCES})
 target_link_libraries(golded gmb3 gcfg  uulib gall  gcui smblib hunspell)
-if (MSVC)
-  target_link_libraries(golded glibc winmm.lib)
+if (WIN32)
+  #  winmm carries mciSendString(), used by the sound layer. Spell it
+  #  without the .lib suffix so mingw's linker takes it as well.
+  target_link_libraries(golded glibc winmm)
 endif()
-if (CURSES_NCURSES_LIBRARY)
-  target_link_libraries(golded ${CURSES_NCURSES_LIBRARY})
+if (CURSES_FOUND OR CURSES_NCURSES_LIBRARY)
+  target_link_libraries(golded ${CURSES_LIBRARIES})
+endif()
+if (GOLD_ICONV_LIBS)
+  target_link_libraries(golded ${GOLD_ICONV_LIBS})
 endif()
 
 INSTALL(TARGETS golded

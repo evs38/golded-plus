@@ -25,6 +25,7 @@
 //  ------------------------------------------------------------------
 
 #include "golded.h"
+#include <gutf8.h>
 
 
 //  ------------------------------------------------------------------
@@ -90,12 +91,19 @@ inline bool isstylechar(char c)
     return (c == '*') or (c == '/') or (c == '_') or (c == '#');
 }
 
+
 void Container::StyleCodeHighlight(const char* text, int row, int col, bool dohide, vattr color)
 {
 
+    //  Counted in screen columns, not bytes: it is added to 'col' to
+    //  place each run, and a character is no longer one byte wide.
     uint sclen = 0;
     const char* txptr = text;
-    CREATEBUFFER(char, buf, MAXCOL+1);
+    //  Sized in bytes for the widest line this can be handed. The copies
+    //  below are byte ranges taken out of 'text', and one screen column
+    //  is no longer one byte: a full line of Cyrillic is twice MAXCOL
+    //  bytes, and more for anything outside the BMP.
+    CREATEBUFFER(char, buf, MAXCOL*GUTF8_MAXLEN+1);
     const char* ptr = text;
     const char* stylemargins = " -|\\";    // we probably have to make a keyword for it
     char* punctchars = CFG->stylecodepunct;
@@ -177,13 +185,13 @@ void Container::StyleCodeHighlight(const char* text, int row, int col, bool dohi
                                         int colorindex = (bb ? 1 : 0) | (bi ? 2 : 0) | (bu ? 4 : 0) | (br ? 8 : 0);
                                         strxcpy(buf, txptr, (uint)(beginstyle-txptr)+1);
                                         prints(row, col+sclen, color, buf);
-                                        sclen += strlen(buf);
+                                        sclen += (uint)g_utf8_width(buf);
                                         if(dohide)
                                             strxcpy(buf, beginword, (uint)(endword-beginword)+2);
                                         else
                                             strxcpy(buf, beginstyle, (uint)(endstyle-beginstyle)+2);
                                         prints(row, col+sclen, C_STYLE[colorindex], buf);
-                                        sclen += strlen(buf);
+                                        sclen += (uint)g_utf8_width(buf);
                                         txptr = end;
                                         ptr = end-1;
                                     }
@@ -208,10 +216,10 @@ void Container::StyleCodeHighlight(const char* text, int row, int col, bool dohi
                     {
                         strxcpy(buf, txptr, (uint)(ptr-txptr)+1);
                         prints(row, col+sclen, color, buf);
-                        sclen += strlen(buf);
+                        sclen += (uint)g_utf8_width(buf);
                         strxcpy(buf, ptr, (uint)(end-ptr)+1);
                         prints(row, col+sclen, C_READU, buf);
-                        sclen += strlen(buf);
+                        sclen += (uint)g_utf8_width(buf);
                         txptr = end;
                         ptr = end-1;
                     }
@@ -255,10 +263,10 @@ void Container::StyleCodeHighlight(const char* text, int row, int col, bool dohi
                         {
                             strxcpy(buf, txptr, (uint)(ptr-txptr)+1);
                             prints(row, col+sclen, color, buf);
-                            sclen += strlen(buf);
+                            sclen += (uint)g_utf8_width(buf);
                             strxcpy(buf, ptr, (uint)(commerce_at-ptr)+1);
                             prints(row, col+sclen, C_READU, buf);
-                            sclen += strlen(buf);
+                            sclen += (uint)g_utf8_width(buf);
                             txptr = commerce_at;
                             ptr = commerce_at-1;
                         }
@@ -272,11 +280,15 @@ void Container::StyleCodeHighlight(const char* text, int row, int col, bool dohi
     if(*txptr)
     {
         prints(row, col+sclen, color, txptr);
-        sclen += strlen(txptr);
+        sclen += (uint)g_utf8_width(txptr);
     }
-    uint splen = strlen(text) - sclen;
+    //  Blank out the rest of the field the text was measured against.
+    uint textwidth = (uint)g_utf8_width(text);
+    uint splen = (textwidth > sclen) ? (textwidth - sclen) : 0;
     if(splen)
     {
+        if(splen > MAXCOL)
+            splen = MAXCOL;
         memset(buf, ' ', splen);
         buf[splen] = NUL;
         prints(row, col+sclen, color, buf);

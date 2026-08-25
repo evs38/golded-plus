@@ -32,6 +32,19 @@
 #include <gkbdcode.h>
 #include <gkbdbase.h>
 #include <gmemall.h>
+#include <gutf8.h>
+#include <grecode.h>
+#if !(defined(__BORLANDC__) && (__BORLANDC__ < 0x0550))
+    //  Borland C++ 5.02 has no <wchar.h> at all; nothing below needs it
+    //  on that target, where the console is byte-oriented.
+    #include <cwchar>
+#endif
+#if defined(__UNIX__)
+#include <sys/select.h>
+#include <sys/time.h>
+#include <unistd.h>
+#endif
+#include <string.h>
 
 #include <stdlib.h>
 
@@ -59,7 +72,13 @@
     #include <gcurses.h>
 #endif
 
-#if defined(__linux__)
+//  GOLD_LINUX_TIOCL: the console shift state, read through TIOCLINUX.
+//  It needs a kernel header, which Open Watcom's Linux target does not
+//  ship - it carries a C library and nothing else - so that build asks
+//  the terminal for nothing and reports no modifiers, which is what the
+//  other Unix targets do anyway.
+#if defined(__linux__) && !defined(__WATCOMC__)
+    #define GOLD_LINUX_TIOCL 1
     #include <sys/ioctl.h>
     #include <linux/tiocl.h>
     #include <stdio.h>
@@ -138,6 +157,121 @@ int blanked = false;
 bool right_alt_same_as_left = false;
 
 //  ------------------------------------------------------------------
+//  The last typed character.
+//
+//  A gkey has one byte for the character, which stopped being enough
+//  when a character stopped being a byte. So the keyboard also records
+//  what it really read here, and the few places that insert text into a
+//  message pick it up. Every platform's keyboard fills this in, so it
+//  lives outside the per-platform sections below.
+
+static GKbdChar gkbd_last = { 0, "" };
+
+
+const char* gkbd_lastchars(int* len)
+{
+    if(len)
+        *len = gkbd_last.len;
+    return gkbd_last.buf;
+}
+
+
+//  The bytes the key stands for, or NULL when the key was not a whole
+//  character. A gkey has one byte for the character, so a key that was
+//  typed as two or more arrives here as a fragment; the rest is in the
+//  side channel above.
+//
+//  'checkfirst' compares the first byte against the key, guarding
+//  against the key having been remapped on the way. The area picker
+//  asks for that to be skipped: by the time it sees the key it has been
+//  case-folded, and in a UTF-8 locale that maps a lead byte like 0xD0
+//  onto 0xF0. A length above one is guard enough there, because
+//  gkbd_setlastcp(0) clears the side channel for every key that is not
+//  a character.
+
+const char* gkbd_keychars(gkey key, int* len, bool checkfirst)
+{
+    int _len = 0;
+    const char* _chars = gkbd_lastchars(&_len);
+
+    if(len)
+        *len = 0;
+
+    if(_len <= 1)
+        return NULL;
+    if(checkfirst and ((byte)_chars[0] != KCodAsc(key)))
+        return NULL;
+
+    if(len)
+        *len = _len;
+    return _chars;
+}
+
+
+//  ------------------------------------------------------------------
+//  Record the character just typed, as bytes in the local charset.
+//
+//  'islocalwide' says the value came from the C library's wide input in
+//  a single-byte locale, where it is the library's own representation
+//  and not a codepoint - see g_local_to_unicode_wide() in gvidbase.cpp
+//  for the same problem on the way out. There the byte is what the
+//  library says it is, and no charset conversion belongs in between.
+
+void gkbd_setlastchars(const char* chars, int len)
+{
+    if(len > (int)sizeof(gkbd_last.buf) - 1)
+        len = (int)sizeof(gkbd_last.buf) - 1;
+    if(len < 0)
+        len = 0;
+
+    gkbd_last.len = len;
+    memcpy(gkbd_last.buf, chars, len);
+    gkbd_last.buf[len] = NUL;
+}
+
+
+//  ------------------------------------------------------------------
+
+static void gkbd_setlastcp(uint32_t cp, bool islocalwide = false)
+{
+    gkbd_last.len = 0;
+
+    if(cp == 0)
+        return;
+
+#if defined(__USE_WIDE_NCURSES__)
+    if(islocalwide and not g_utf8_mode())
+    {
+        int byte = wctob((wint_t)cp);
+        if(byte != EOF)
+        {
+            gkbd_last.buf[0] = (char)byte;
+            gkbd_last.buf[1] = NUL;
+            gkbd_last.len    = 1;
+            return;
+        }
+    }
+#else
+    (void)islocalwide;
+#endif
+
+    //  The keyboard reports a codepoint; text is held in the local
+    //  charset. This is the same conversion a message goes through on
+    //  its way in, so typing a character and receiving one give the
+    //  same result - a charset without an exact byte for it gets the
+    //  converter's approximation rather than a bare question mark.
+    std::string enc = g_local_from_unicode(cp);
+
+    gkbd_last.len = (int)enc.length();
+    if(gkbd_last.len > (int)sizeof(gkbd_last.buf) - 1)
+        gkbd_last.len = (int)sizeof(gkbd_last.buf) - 1;
+
+    memcpy(gkbd_last.buf, enc.data(), gkbd_last.len);
+    gkbd_last.buf[gkbd_last.len] = NUL;
+}
+
+
+//  ------------------------------------------------------------------
 //  Keyboard Class Initializer
 
 void GKbd::Init()
@@ -163,10 +297,52 @@ void GKbd::Init()
     // curses, you might have to compile curses yourself to achieve this.  -jt
 #if defined(NCURSES_VERSION)
     if(not getenv("ESCDELAY")) // If not specified by user via environment, set
-        ESCDELAY = 50; // ms, slow for a 300bps terminal, fast for humans :-)
+    {
+        // ms, slow for a 300bps terminal, fast for humans :-)
+        //
+        //  ESCDELAY is a plain variable in some builds of ncurses and a
+        //  macro reading a function in others - the reentrant ones, and
+        //  the DLL that Cygwin ships - where assigning to it does not
+        //  compile. set_escdelay() is the supported way, and has been
+        //  there since 5.9.
+  #if defined(NCURSES_VERSION_MAJOR) && \
+      ((NCURSES_VERSION_MAJOR > 5) || \
+       (NCURSES_VERSION_MAJOR == 5 && NCURSES_VERSION_MINOR >= 9))
+        set_escdelay(50);
+  #else
+        ESCDELAY = 50;
+  #endif
+    }
 #endif
     // For more ncurses-dependent code, look at the gkbd_curstable array
     // and at the kbxget_raw() function  -jt
+
+    //  Moved here from the constructor along with initscr() above: all
+    //  of it wants curses to be up, and none of it may run before the
+    //  program has decided it wants the screen.
+#ifdef HAVE_EXTENDED_NAMES
+    use_extended_names(TRUE);
+#endif
+
+    for(modifier_t m = modifier(MOD_MIN); m <= modifier(MOD_MAX); m++)
+    {
+        for(arrow_t a = ARR_UP; a <= ARR_LFT; a++)
+        {
+            gkbd_setarrow(m, a, L_KEY_UNUSED);
+        }
+    }
+
+    gkbd_setarrow(modifier(MOD_ALT),  ARR_UP,  L_KEY_AUP);
+    gkbd_setarrow(modifier(MOD_ALT),  ARR_DN,  L_KEY_ADOWN);
+    gkbd_setarrow(modifier(MOD_ALT),  ARR_RIT, L_KEY_ARIGHT);
+    gkbd_setarrow(modifier(MOD_ALT),  ARR_LFT, L_KEY_ALEFT);
+
+    gkbd_setarrow(modifier(MOD_CTRL), ARR_UP,  L_KEY_CUP);
+    gkbd_setarrow(modifier(MOD_CTRL), ARR_DN,  L_KEY_CDOWN);
+    gkbd_setarrow(modifier(MOD_CTRL), ARR_RIT, L_KEY_CRIGHT);
+    gkbd_setarrow(modifier(MOD_CTRL), ARR_LFT, L_KEY_CLEFT);
+
+    gkbd_setfnkeys();
 
 #elif defined(__OS2__)
 
@@ -220,38 +396,39 @@ GKbd::GKbd()
     extkbd = true;
 #elif defined(__DJGPP__)
     extkbd = _farpeekb (_dos_ds, 0x0496) & (1 << 4);
+#elif defined(__BORLANDC__) && defined(__DPMI32__)
+    //  The BIOS data area is out of reach here: the extender maps the
+    //  first megabyte nowhere the program can address, and peekb() wants
+    //  a protected-mode selector rather than a real-mode segment, so
+    //  neither a plain pointer nor peekb(0x0000, ...) will do. Anything
+    //  running a 386 DOS extender has an enhanced keyboard, which is the
+    //  same assumption the Win32 and OS/2 builds make.
+    extkbd = true;
 #elif defined(__MSDOS__)
     extkbd = *((byte*)0x0496) & (1 << 4);
 #elif defined(__OS2__) || defined(__WIN32__)
     extkbd = true;
 #endif
 
+#if defined(__USE_NCURSES__)
+
+    //  Not from here. This object is a global, so its constructor runs
+    //  before main(), and under curses Init() calls initscr() - which
+    //  takes the terminal over and switches to the alternate screen
+    //  before the program has read its own command line. Everything
+    //  printed after that went onto a screen the user never sees and
+    //  vanished at exit: the startup banner, the -H help, warnings
+    //  about the command line. With a TERM curses does not know it was
+    //  worse, since initscr() ends the process where it stands.
+    //
+    //  Initialize() calls Init() at the point the screen is really
+    //  wanted. Every other platform keeps the old behaviour, where the
+    //  keyboard setup touches no terminal state and costs nothing.
+
+#else
+
     Init();
 
-#if defined(__USE_NCURSES__)
-#ifdef HAVE_EXTENDED_NAMES
-    use_extended_names(TRUE);
-#endif
-
-    for(modifier_t m = modifier(MOD_MIN); m <= modifier(MOD_MAX); m++)
-    {
-        for(arrow_t a = ARR_UP; a <= ARR_LFT; a++)
-        {
-            gkbd_setarrow(m, a, L_KEY_UNUSED);
-        }
-    }
-
-    gkbd_setarrow(modifier(MOD_ALT),  ARR_UP,  L_KEY_AUP);
-    gkbd_setarrow(modifier(MOD_ALT),  ARR_DN,  L_KEY_ADOWN);
-    gkbd_setarrow(modifier(MOD_ALT),  ARR_RIT, L_KEY_ARIGHT);
-    gkbd_setarrow(modifier(MOD_ALT),  ARR_LFT, L_KEY_ALEFT);
-
-    gkbd_setarrow(modifier(MOD_CTRL), ARR_UP,  L_KEY_CUP);
-    gkbd_setarrow(modifier(MOD_CTRL), ARR_DN,  L_KEY_CDOWN);
-    gkbd_setarrow(modifier(MOD_CTRL), ARR_RIT, L_KEY_CRIGHT);
-    gkbd_setarrow(modifier(MOD_CTRL), ARR_LFT, L_KEY_CLEFT);
-
-    gkbd_setfnkeys();
 #endif
 #if defined(__UNIX__) && !defined(__USE_NCURSES__) && !defined(__BEOS__)
 
@@ -360,7 +537,11 @@ GKbd::GKbd()
     gkbd_define_keysym("\033\x0D", Key_A_Ent);
     gkbd_define_keysym("\033\x09", Key_A_Tab);
 
-#elif defined(__BEOS__)
+//  Only when curses is not driving the keyboard: this branch is the
+//  BeOS stand-in for the raw-terminal path above, and gkbd_keymap_init()
+//  and gkbd_define_keysym() do not even exist in an ncurses build. Haiku
+//  has ncurses and takes that route instead.
+#elif defined(__BEOS__) && !defined(__USE_NCURSES__)
 
     gkbd_keymap_init();
 
@@ -608,8 +789,30 @@ gkey keyscanxlat(gkey k)
         case 0x08:  // CtrlH or BackSpace                     23/0E
             if(k == Key_BS)
                 return k;
-            else
-                break;
+#if defined(__USE_NCURSES__)
+            //  See the note under 0x7F: where the terminal erases with
+            //  DEL, a bare ^H is what Ctrl-Backspace sends.
+            if(erasechar() == 0x7F)
+                return Key_C_BS;
+#endif
+            break;
+
+#if defined(__USE_NCURSES__)
+        case 0x7F:  // DEL
+            //  Which byte the Backspace key sends is the terminal's
+            //  business, and it says so: erasechar() reports what
+            //  `stty erase' is set to. On nearly every terminal today
+            //  that is DEL, not ^H.
+            //
+            //  The scancode table maps 0x7F to Ctrl-Backspace, which
+            //  is only right for a terminal that erases with ^H. On the
+            //  usual one it made the plain Backspace key delete a whole
+            //  word - and in a one-word input field that looks exactly
+            //  like the field being wiped.
+            if(erasechar() == 0x7F)
+                return Key_BS;
+            break;
+#endif
 
         case 0x09:  // CtrlI or Tab                           17/0F
             if(k == Key_Tab)
@@ -1073,20 +1276,225 @@ void gkbd_setfnkeys()
 #endif
 }
 
+//  ------------------------------------------------------------------
+//  Pushing a key back.
+//
+//  This cannot be left to curses. ungetch() takes a byte, which is no
+//  longer enough once get_wch() has consumed every byte of a multibyte
+//  character; and unget_wch(), which would be the obvious answer,
+//  cannot be relied on either - NetBSD's curses remembers the value but
+//  forgets that it was a character, so the next get_wch() reports it
+//  with KEY_CODE_YES and the caller takes a typed letter for a function
+//  key. Keeping the pushback here makes it behave the same everywhere.
+//
+//  A stack rather than a single slot: reading an escape sequence peeks
+//  two keys and can push both back, and the last one pushed has to come
+//  out first.
+
+struct GKbdPush
+{
+    int      key;
+    GKbdChar last;
+};
+
+static GKbdPush gkbd_pushstack[8];
+static int      gkbd_pushed = 0;
+
+
+//  ------------------------------------------------------------------
+//  Saving and restoring the record of the last typed character.
+//
+//  Probing for modifier keys reads ahead and pushes what it finds back;
+//  without this the probe would leave the record describing the key
+//  after the one the caller is about to be handed.
+
+static void gkbd_savelast(GKbdChar& sv)
+{
+    sv = gkbd_last;
+}
+
+
+static void gkbd_restorelast(const GKbdChar& sv)
+{
+    gkbd_last = sv;
+}
+
+
+//  ------------------------------------------------------------------
+//  Push a key back so that the next read sees it again.
+
+static void gkbd_ungetch(int key)
+{
+    if(gkbd_pushed >= (int)ARRAYSIZE(gkbd_pushstack))
+    {
+        //  Nothing sensible to do but drop it; the stack is far larger
+        //  than the two entries the escape-sequence reader ever needs.
+        return;
+    }
+
+    GKbdPush& p = gkbd_pushstack[gkbd_pushed++];
+    p.key  = key;
+    p.last = gkbd_last;
+}
+
+
+//  ------------------------------------------------------------------
+//  Take back a pushed key, restoring what was known about it.
+
+static bool gkbd_repeek(int* key)
+{
+    if(gkbd_pushed <= 0)
+        return false;
+
+    const GKbdPush& p = gkbd_pushstack[--gkbd_pushed];
+    *key      = p.key;
+    gkbd_last = p.last;
+    return true;
+}
+
+
+//  ------------------------------------------------------------------
+//  Getting the Escape key out of NetBSD's own curses
+//
+//  That curses will not hand back a lone Escape. It reads the byte,
+//  decides it might begin a key sequence, and keeps it - and the wait it
+//  is supposed to give up after never ends. Setting ESCDELAY, blocking,
+//  timing out and retrying the read all leave it stuck; the key only
+//  comes out when some other byte arrives and settles the question.
+//
+//  It is held, though, not thrown away, and that is enough to work
+//  around. select() says whether the terminal had anything to read; if
+//  it did and the read produced no key, this curses is sitting on an
+//  Escape. Wait ESCDELAY for a byte that would complete a real sequence,
+//  and when none comes, report the Escape ourselves. The one curses is
+//  still holding is then swallowed when it finally appears, so the key
+//  is delivered once.
+
+#if defined(__USE_NCURSES__) && !defined(NCURSES_VERSION)
+#define GOLD_CURSES_ESC_STUCK 1
+#endif
+
+#ifdef GOLD_CURSES_ESC_STUCK
+
+static bool   gkbd_esc_held  = false;   // curses is holding an Escape
+static double gkbd_esc_since = 0.0;     // since when
+static int    gkbd_esc_owed  = 0;       // Escapes reported ahead of curses
+
+static double gkbd_now()
+{
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (double)tv.tv_sec + (double)tv.tv_usec / 1000000.0;
+}
+
+
+static bool gkbd_input_ready()
+{
+    fd_set fds;
+    struct timeval tv;
+
+    FD_ZERO(&fds);
+    FD_SET(STDIN_FILENO, &fds);
+    tv.tv_sec  = 0;
+    tv.tv_usec = 0;
+
+    return select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv) > 0;
+}
+
+#endif
+
+
 int gkbd_cursgetch(eKeyModes mode)
 {
 
     int key;
+
+#ifdef GOLD_CURSES_ESC_STUCK
+    bool _had_input = gkbd_input_ready();
+#endif
 #ifndef BUGGY_NCURSES
     nodelay(stdscr, mode);
 #else
     wtimeout(stdscr, (mode != KeyMode_Wait) ? 0 : -1);
 #endif
+    //  A key put back earlier comes out before anything new is read.
+    if(gkbd_repeek(&key))
+    {
+#ifndef BUGGY_NCURSES
+        nodelay(stdscr, FALSE);
+#else
+        wtimeout(stdscr, -1);
+#endif
+        return key;
+    }
+
+#if defined(__USE_WIDE_NCURSES__)
+    {
+        wint_t wch = 0;
+        int rc = get_wch(&wch);
+
+        if(rc == ERR)
+        {
+            key = ERR;
+        }
+        else if(rc == KEY_CODE_YES)
+        {
+            //  A function key. These are the values above KEY_MIN that
+            //  the caller looks up in its translation table.
+            key = (int)wch;
+        }
+        else
+        {
+            //  A typed character. Its codepoint can be far above
+            //  KEY_MIN - every Cyrillic letter is - so it must not be
+            //  handed back as-is, or the caller would mistake it for a
+            //  function key. The codepoint goes into the side-channel
+            //  and the key carries the first byte of its encoding,
+            //  which is all the caller needs to see that something was
+            //  typed.
+            gkbd_setlastcp((uint32_t)wch, true);
+            key = gkbd_last.len ? (unsigned char)gkbd_last.buf[0] : (int)wch;
+        }
+    }
+#else
     key = getch();
+#endif
 #ifndef BUGGY_NCURSES
     nodelay(stdscr, FALSE);
 #else
     wtimeout(stdscr, -1);
+#endif
+
+#ifdef GOLD_CURSES_ESC_STUCK
+    if(key == ERR)
+    {
+        if(_had_input)
+        {
+            //  Something was there to read and nothing came of it.
+            gkbd_esc_held  = true;
+            gkbd_esc_since = gkbd_now();
+        }
+        else if(gkbd_esc_held and
+                ((gkbd_now() - gkbd_esc_since) * 1000.0 >= (double)ESCDELAY))
+        {
+            //  Long enough: no sequence is coming.
+            gkbd_esc_held = false;
+            gkbd_esc_owed++;
+            key = 27;
+        }
+    }
+    else
+    {
+        gkbd_esc_held = false;
+
+        if((key == 27) and gkbd_esc_owed)
+        {
+            //  The one curses was holding, let go now that another key
+            //  has arrived. It has been reported already.
+            gkbd_esc_owed--;
+            key = ERR;
+        }
+    }
 #endif
 
     return key;
@@ -1259,7 +1667,27 @@ int gkbd_nt2bios(INPUT_RECORD& inp)
 
     int keycode = inp.Event.KeyEvent.wVirtualKeyCode;
     int state   = inp.Event.KeyEvent.dwControlKeyState;
-    int ascii   = inp.Event.KeyEvent.uChar.AsciiChar;
+
+    //  The console is read through the wide calls, so this is a
+    //  codepoint. A gkey has one byte for the character, so the
+    //  codepoint goes into the side-channel (see gkbd_lastchars) and
+    //  what is returned here is the first byte of its encoding in the
+    //  local charset - enough for the caller to see that a character
+    //  was typed, and enough for every existing binding to keep working.
+    uint32_t unicode = inp.Event.KeyEvent.uChar.UnicodeChar;
+    int ascii = 0;
+
+    if(unicode)
+    {
+        gkbd_setlastcp(unicode);
+        int len = 0;
+        const char* chars = gkbd_lastchars(&len);
+        ascii = len ? (unsigned char)chars[0] : (int)(unicode & 0xFF);
+    }
+    else
+    {
+        gkbd_setlastcp(0);
+    }
 
     // Look up the virtual keycode in the table. Ignore unrecognized keys.
 
@@ -1361,7 +1789,7 @@ const word numpad_keys[] =
 
 #endif
 
-#if defined(__linux__)
+#if defined(GOLD_LINUX_TIOCL)
 bool linux_cui_key(gkey k)
 {
     switch(k)
@@ -1471,7 +1899,10 @@ gkey kbxget_raw(eKeyModes mode)
     if(mode == KeyMode_Shift)
     {
         // We can't do much but we can at least this :-)
+        GKbdChar _saved;
+        gkbd_savelast(_saved);
         k = kbxget_raw(KeyMode_Test);
+        gkbd_restorelast(_saved);
         key = 0;
         switch(k)
         {
@@ -1503,10 +1934,26 @@ gkey kbxget_raw(eKeyModes mode)
         return key;
     }
 
-    // Get keystroke
+    //  Get keystroke.
+    //
+    //  A read that finds nothing has to leave the last character alone.
+    //  GoldED polls the keyboard while it idles - to move the clock on,
+    //  among other things - and a poll landing between a key being read
+    //  and being used would otherwise wipe the bytes it was typed as.
+    //  Every field that asks gkbd_lastchars() what was typed then saw an
+    //  empty answer and fell back to the single byte the key carries,
+    //  which for anything outside ASCII is a fragment of a character.
+
+    GKbdChar _lastsv;
+    gkbd_savelast(_lastsv);
+
+    gkbd_setlastcp(0);      // no character typed unless we say otherwise
     key = gkbd_cursgetch(mode);
     if(key == ERR)
+    {
+        gkbd_restorelast(_lastsv);
         return 0;
+    }
 
     // Prefix for Meta-key or Alt-key sequences
     if(key == 27)
@@ -1534,12 +1981,12 @@ gkey kbxget_raw(eKeyModes mode)
         {
             // No correct Alt-sequence; ungetch last key and return Esc
             if (mode != KeyMode_Test)
-                ungetch(key2);
+                gkbd_ungetch(key2);
             k = Key_Esc;
         }
 
         if((key2 != ERR) and (mode == KeyMode_Test))
-            ungetch(key2);
+            gkbd_ungetch(key2);
     }
     // Curses sequence; lookup in nice table above
     else if((key >= KEY_MIN)
@@ -1558,7 +2005,7 @@ gkey kbxget_raw(eKeyModes mode)
         return 0;	// Incorrect or unsupported key don't ungetch()
 
     if(mode == KeyMode_Test)
-        ungetch(key);
+        gkbd_ungetch(key);
 
 #elif defined(__MSDOS__)
     int dos_mode = (int)mode;
@@ -1711,7 +2158,7 @@ gkey kbxget_raw(eKeyModes mode)
 
         // Peek at next key
         k = 0;
-        PeekConsoleInput(gkbd_hin, &inp, 1, &nread);
+        PeekConsoleInputW(gkbd_hin, &inp, 1, &nread);
         if(nread)
         {
             if((inp.EventType == KEY_EVENT) and inp.Event.KeyEvent.bKeyDown)
@@ -1727,7 +2174,7 @@ gkey kbxget_raw(eKeyModes mode)
             if ((inp.EventType != MOUSE_EVENT) || (WinVer.dwPlatformId == VER_PLATFORM_WIN32_NT))
             {
                 // Discard other events
-                ReadConsoleInput(gkbd_hin, &inp, 1, &nread);
+                ReadConsoleInputW(gkbd_hin, &inp, 1, &nread);
             }
         }
     }
@@ -1741,7 +2188,7 @@ gkey kbxget_raw(eKeyModes mode)
         while(1)
         {
 
-            PeekConsoleInput(gkbd_hin, &inp, 1, &nread);
+            PeekConsoleInputW(gkbd_hin, &inp, 1, &nread);
             if(not nread)
             {
                 WaitForSingleObject(gkbd_hin, 1000);
@@ -1772,7 +2219,7 @@ gkey kbxget_raw(eKeyModes mode)
                 }
                 else
                 {
-                    ReadConsoleInput(gkbd_hin, &inp, 1, &nread);
+                    ReadConsoleInputW(gkbd_hin, &inp, 1, &nread);
                 }
 
                 // Fix Win9x anomaly
@@ -1837,7 +2284,7 @@ gkey kbxget_raw(eKeyModes mode)
             else
             {
                 // Discard other events
-                ReadConsoleInput(gkbd_hin, &inp, 1, &nread);
+                ReadConsoleInputW(gkbd_hin, &inp, 1, &nread);
             }
         }
     }
@@ -1846,7 +2293,7 @@ gkey kbxget_raw(eKeyModes mode)
 
     if(mode == KeyMode_Shift)
     {
-#if defined(__linux__)
+#if defined(GOLD_LINUX_TIOCL)
         // Under Linux we could use TIOCLINUX ioctl_console with
         // TIOCL_GETSHIFTSTATE subcode to read the shift state variable.
         // Of course it is very unportable but should produce good results :-)
@@ -1876,7 +2323,7 @@ gkey kbxget_raw(eKeyModes mode)
 
 #endif
 
-#ifdef __linux__
+#ifdef GOLD_LINUX_TIOCL
     char shifts = TIOCL_GETSHIFTSTATE;
     if(linux_cui_key(k))
     {
@@ -2332,6 +2779,11 @@ int kbput(gkey xch)
 
     // add keypress info to new record
     kbuf->xch=xch;
+
+    //  Remember what was typed along with it.
+    {
+        kbuf->last = gkbd_last;
+    }
 
     // if kbuf pointer was NULL, point it to new record
     if(gkbd.kbuf == NULL)
