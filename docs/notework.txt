@@ -62,10 +62,19 @@ ______________________________________________________________________
   every emoji, was never displayed: a console cell holds a single
   UTF-16 unit and the character was cut down to sixteen bits on its way
   into one, so it came out as an unrelated glyph or as nothing at all.
-  Text now goes to the console through its stream interface, which
-  takes the whole character. The character under the cursor in the
-  editor was drawn by a separate route and cut the same way; it is
-  fixed too.
+  Such a character is now written the way the console at hand can
+  draw it, and the two kinds disagree: a classic conhost draws the
+  surrogate pair laid across two cells but shuffles a row if a stream
+  write lands on it, while Windows Terminal draws the pair only from a
+  stream write. GoldED+ recognises a classic conhost by its window and
+  writes cells there, and writes the run through the stream interface
+  everywhere else; everything that fits in a cell goes as cells in both,
+  as it always did. Should the guess come out wrong for some console,
+  the environment variable GOLDED_CONSOLE - "cells" or "stream" -
+  overrides it; it is an environment variable rather than a keyword
+  because the same golded.cfg serves both kinds of window. The
+  character under the cursor in the editor was drawn by a separate
+  route and cut down to sixteen bits; that is fixed too.
 
 - Three of the places that write a message out did not say which
   charset conversion to use, and got whichever one happened to be in

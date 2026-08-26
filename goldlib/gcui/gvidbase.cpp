@@ -944,18 +944,89 @@ static int gvid_utf16(vchar cp, WCHAR* w)
 }
 
 
+//  The two consoles want an astral character written differently, and
+//  neither way suits both - measured in each:
+//
+//    conhost           the pair across two cells draws and stays put;
+//                      a stream write onto a row otherwise written as
+//                      cells makes conhost lay the row out afresh, and
+//                      the characters shuffle as the cursor moves.
+//    Windows Terminal  the pair across two cells draws as two unknown
+//                      characters (microsoft/terminal#10810); only the
+//                      stream draws it.
+//
+//  Windows Terminal sets WT_SESSION for the programs it starts, which
+//  is the documented way of knowing it is there. The real cure is a
+//  VT backend like FAR Manager's - see todowork.txt.
+
+static bool gvid_wt_console()
+{
+    static int known = -1;
+
+    if(known < 0)
+    {
+        //  GOLDED_CONSOLE overrides the guess: "cells" for a console
+        //  that draws a surrogate pair from two cells (classic
+        //  conhost), "stream" for one that only draws it written as a
+        //  stream (Windows Terminal). The variable rather than a
+        //  configuration keyword because the same golded.cfg serves
+        //  both kinds of window; which console this is belongs to the
+        //  window, and a shortcut can set it.
+        const char* ov = getenv("GOLDED_CONSOLE");
+        if(ov and strieql(ov, "cells"))
+            known = 0;
+        else if(ov and strieql(ov, "stream"))
+            known = 1;
+        else
+        {
+            //  The one positive mark of a classic conhost: a visible
+            //  console window of class ConsoleWindowClass. Windows
+            //  Terminal's window has a class of its own, and the
+            //  default-terminal handoff can leave GetConsoleWindow()
+            //  pointing at that visible window, so visibility alone
+            //  told the two apart wrongly. Anything unrecognised is
+            //  treated as the stream kind: a missing emoji column is
+            //  better than two broken cells.
+            HWND cw = GetConsoleWindow();
+            char cls[64] = "";
+
+            if(cw and IsWindowVisible(cw))
+                GetClassNameA(cw, cls, (int)sizeof(cls));
+
+            known = strieql(cls, "ConsoleWindowClass") ? 0 : 1;
+        }
+    }
+
+    return known != 0;
+}
+
+
 static void gvid_wwrite(int row, int col, vattr atr, const WCHAR* w, int n)
 {
     CONSOLE_SCREEN_BUFFER_INFO sb;
     CONSOLE_CURSOR_INFO ci;
     COORD at;
     DWORD wrote = 0;
+    DWORD mode = 0;
     bool hidden = false;
+    bool unwrapped = false;
 
     if(n <= 0)
         return;
 
     GetConsoleScreenBufferInfo(gvid_hout, &sb);
+
+    //  Writing this way is a stream, and a stream that reaches the last
+    //  cell of the last line makes the console scroll - which the cell
+    //  API never did. The clock sits in the corner of the status line,
+    //  so every tick pushed the whole screen up by a line. Turn the
+    //  wrap off for the write and put it back: leaving it off would
+    //  follow us out of the program and into the shell.
+    if(GetConsoleMode(gvid_hout, &mode) and (mode & ENABLE_WRAP_AT_EOL_OUTPUT))
+    {
+        SetConsoleMode(gvid_hout, mode & ~(DWORD)ENABLE_WRAP_AT_EOL_OUTPUT);
+        unwrapped = true;
+    }
 
     //  Keep the caret away from the text while it is being written.
     //  FAR Manager does the same, and for the same reason: a caret
@@ -983,6 +1054,9 @@ static void gvid_wwrite(int row, int col, vattr atr, const WCHAR* w, int n)
         ci.bVisible = TRUE;
         SetConsoleCursorInfo(gvid_hout, &ci);
     }
+
+    if(unwrapped)
+        SetConsoleMode(gvid_hout, mode);
 }
 
 #endif
@@ -1202,13 +1276,38 @@ void vputc(int row, int col, vattr atr, vchar chr)
 
 #elif defined(__WIN32__)
 
-    //  One character, but the same rule as a whole string: through the
-    //  stream API, or anything above U+FFFF is cut down to 16 bits.
-    //  The editor draws the character under the cursor this way.
+    //  The same rule as for a whole string: a cell holds it unless it
+    //  is above U+FFFF. The editor draws the character under the
+    //  cursor through here, which is why an emoji has to reach the
+    //  stream API - but nothing else should.
     {
-        WCHAR w[2];
-        int n = gvid_utf16(gvid_tcpr(chr), w);
-        gvid_wwrite(row, col, atr, w, n);
+        vchar cp = gvid_tcpr(chr);
+
+        if(cp > 0xFFFF)
+        {
+            WCHAR w[2];
+            int n = gvid_utf16(cp, w);
+
+            if(gvid_wt_console())
+            {
+                gvid_wwrite(row, col, atr, w, n);
+            }
+            else
+            {
+                //  Both halves in one write. Written one cell at a
+                //  time, conhost sees a lone surrogate after the first
+                //  and lays the row out around it, so the characters
+                //  jumped as the cursor crossed an emoji.
+                vatch two[2];
+                two[0] = vcatch((vchar)w[0], atr);
+                two[1] = vcatch((vchar)w[1], atr);
+                vputws(row, col, two, 2);
+            }
+        }
+        else
+        {
+            vputw(row, col, vcatch(cp, atr));
+        }
     }
 
 #elif defined(__OS2__)
@@ -1364,7 +1463,13 @@ void vputs(int row, int col, vattr atr, const char* str)
     //  left out rather than half-drawn.
     const int room = gvid->numcols - col;
 
-    while(*str and n < (int)ARRAYSIZE(wbuf)-2)
+    int  cells  = 0;
+    bool astral = false;
+
+    //  bufwrd holds numcols+1 cells, so even a surrogate pair landing
+    //  on the last column fits: cells can reach numcols-1 here and the
+    //  pair takes it to numcols+1, the capacity exactly.
+    while(*str and n < (int)ARRAYSIZE(wbuf)-2 and cells < gvid->numcols)
     {
         int used = 1;
         vchar cp = gvid_tcpr((vchar)g_utf8_decode(str, &used));
@@ -1375,10 +1480,38 @@ void vputs(int row, int col, vattr atr, const char* str)
 
         str += used ? used : 1;
         cols += (w > 0) ? w : 1;
+
+        WCHAR pair[2];
+        int   np = gvid_utf16(cp, pair);
+
+        if(np > 1)
+        {
+            astral = true;
+
+            //  The pair, one half per cell, same attribute on both.
+            //  vcatch() alone would cut the character to sixteen bits.
+            gvid->bufwrd[cells++] = vcatch((vchar)pair[0], atr);
+            gvid->bufwrd[cells++] = vcatch((vchar)pair[1], atr);
+        }
+        else
+        {
+            gvid->bufwrd[cells++] = vcatch(cp, atr);
+        }
+
         n += gvid_utf16(cp, wbuf + n);
     }
 
-    gvid_wwrite(row, col, atr, wbuf, n);
+    //  Prefer the cells. They are what this console was built for: the
+    //  write neither moves the caret nor scrolls the screen nor has to
+    //  borrow the wrap flag, and everything that worked before keeps
+    //  working. The stream API is only reached for a character that
+    //  cannot be held in a cell at all - one above U+FFFF - because a
+    //  surrogate pair spread over two cells draws as two unknown
+    //  characters however it is flagged, measured on the console.
+    if(astral and gvid_wt_console())
+        gvid_wwrite(row, col, atr, wbuf, n);
+    else if(cells)
+        vputws(row, col, gvid->bufwrd, (uint)cells);
 
 #elif defined(__UNIX__)
 

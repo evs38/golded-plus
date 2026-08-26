@@ -160,3 +160,56 @@ Spell checking, 2026-08-26.
   restoring the table number around schecker.Load(), is a symptom of
   the same thing: see the entry above about the conversion being half a
   parameter and half a global.
+
+______________________________________________________________________
+
+A VT backend for the Windows console, the way FAR Manager drives it.
+Attempted 2026-08-27 and backed out; what was learned is here so the
+next attempt starts where this one ended.
+
+Windows is currently driven through the cell API, with two console-
+specific detours measured in and neither avoidable: conhost draws a
+surrogate pair laid across two cells and shuffles a row if a stream
+write lands on it, while Windows Terminal cannot draw the pair from
+cells at all (microsoft/terminal#10810) and needs the stream. The
+program tells the two apart by WT_SESSION. It works, but it is two
+code paths and an environment variable where FAR has one answer:
+when the console grants ENABLE_VIRTUAL_TERMINAL_PROCESSING, drive it
+with escape sequences; the cell path stays for Windows before 10.
+
+A naive emitter - CUP, SGR, text, restore - is not enough, and
+regressed visibly in conhost within minutes. The reasons, from FAR's
+console.cpp (WriteOutputVT, ~line 1870):
+
+* Escape sequences address the viewport; the cell and scroll APIs
+  address the buffer. With scrollback the two differ, so CUP-addressed
+  writes desynchronise from ScrollConsoleScreenBuffer. FAR pins the
+  viewport before every write by moving the real cursor to the buffer
+  bottom and back, and refuses CUP outright: "the viewport origin is
+  too unstable to rely on it".
+* The cursor is hidden for the write; each row ends with restore,
+  move down, save again, and an explicit colour reset, because conhost
+  stopped preserving colours across the restore (terminal#14612).
+* Full rows are ended with \n as a hint that the content is
+  structured, which also fixes a resize fault (terminal#15153).
+* Cells are sanitised on the way out - lone surrogates and control
+  codes must not reach the stream.
+* GoldED+ scrolls sub-rectangles (ScrollConsoleScreenBuffer); VT
+  cannot express that, so under VT those become repaints.
+* vsave/vrestore and vsetattr also read and write cells and would
+  need VT-coherent forms.
+
+* Windows Terminal leaves stale pixels at the right edge of rows
+  holding combining marks - the leftover scrollbar after the reader
+  closes. In the cell model every codepoint is a cell, so a row of
+  Thai or Devanagari holds more cells than it has columns; Windows
+  Terminal shapes those cells into clusters when it draws, the row
+  comes out visually shorter than the buffer row, and what the shaped
+  row no longer covers is not repainted. conhost draws cell-for-cell
+  and does not show it. Nothing at the cell level fixes this - it is
+  the same cells-versus-clusters gap, and the VT backend above closes
+  it by letting the terminal do the layout of a byte stream instead.
+
+Do it in one deliberate pass, following FAR line by line, and test
+every step in BOTH consoles: in the attempt, each of the two found a
+different fault within minutes of each other.
