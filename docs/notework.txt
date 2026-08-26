@@ -97,6 +97,13 @@ ______________________________________________________________________
   a stray byte that is not valid UTF-8. It is chosen by the charset of
   the session now.
 
+- The spell checker converted words through whatever charset
+  conversion happened to be in force - usually the one left over from
+  reading the message - instead of the one to its dictionary, so in a
+  UTF-8 session a dictionary in an 8-bit charset never matched
+  anything. Each dictionary's conversion is now kept whole with the
+  dictionary and used for it.
+
 + Charset conversion has been rewritten and now lives in one place,
   goldlib/gall/grecode.cpp. It uses, in this order, whichever is
   available: iconv; the operating system's own converter - the Win32

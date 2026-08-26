@@ -100,7 +100,7 @@ char* MakeOrigin(GMsg* msg, const char* _origin);
 char* MakeTearline(GMsg* msg, char* buf);
 void DoKludges(int mode, GMsg* msg, int kludges = 0);
 void DoTearorig(int mode, GMsg* msg);
-void ApplyExportCharset(GMsg* msg);
+int ApplyExportCharset(GMsg* msg);
 void GetRandom(int mode, GMsg* msg);
 char* GetRandomLine(char* __buf, size_t __bufsize, const char* __file);
 char* HandleRandomLine(char* buf, size_t bufsize);
@@ -190,6 +190,19 @@ void  MsgLineReIndex(GMsg* msg, int viewhidden=-1, int viewkludge=-1, int viewqu
 void  Latin2Local(char *str);
 void  Latin2Local(std::string &str);
 std::string XlatStr(const char* src, int level, Chs* chrtbl, int qpencoded=false, bool i51=false);
+std::string XlatStr(const char* src, int level, Chs* chrtbl, GRecoder* recoder, int qpencoded=false, bool i51=false);
+
+//  The conversion in force, both halves - see geline.cpp.
+struct XlatSnap
+{
+    int       table;
+    GRecoder* recoder;
+
+    XlatSnap() : table(-1), recoder(NULL) {}
+};
+
+XlatSnap XlatSnapshot();
+void     XlatRestore(const XlatSnap& x);
 char* mime_header_decode(char* decoded, const char* encoded, char* charset = NULL);
 char* strxmimecpy(char* dest, const char* source, int level, int size, bool detect = false);
 char* strxmimecpy_local(char* dest, const char* source, int size);

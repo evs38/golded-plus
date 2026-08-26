@@ -1187,7 +1187,7 @@ void ConfirmMsg()
     {
         reader_msg->attr.cfm0();
         reader_msg->attr.upd1();
-        reader_msg->charsetlevel = LoadCharset(CFG->xlatlocalset, reader_msg->charset);
+        reader_msg->charsetlevel = ApplyExportCharset(reader_msg);
         DoKludges(MODE_CHANGE, reader_msg, GKLUD_FLAGS);
         reader_msg->LinesToText();
         AA->SaveMsg(GMSG_UPDATE, reader_msg);

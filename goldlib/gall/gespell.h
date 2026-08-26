@@ -59,6 +59,8 @@ const uint SCHECKET_TYPE_MYSPELL = 2;
 typedef std::vector<std::string > CSpellSuggestV;
 struct Chs;
 
+class GRecoder;
+
 class CSpellLang
 {
 
@@ -74,6 +76,13 @@ protected:
 
     Chs  *mToDicTable;
     Chs  *mToLocTable;
+    //  The other half of each conversion. The tables cover only what
+    //  the compiled-in .chs files can say; with a recoder in force -
+    //  every UTF-8 session - the table is empty and the recoder is the
+    //  conversion. Snapshotting only the table left RecodeText()
+    //  converting through whatever recoder happened to be global.
+    GRecoder *mToDicRecoder;
+    GRecoder *mToLocRecoder;
 
     std::string userDicPath;
 
@@ -83,6 +92,7 @@ public:
         mSpellType = SCHECKET_TYPE_UNKNOWN;
         mIsMdrLoaded = mIsUdrLoaded = false;
         mToDicTable = mToLocTable = NULL;
+        mToDicRecoder = mToLocRecoder = NULL;
     }
     virtual ~CSpellLang() {};
 

@@ -336,12 +336,12 @@ static void SetExportCharset(GMsg* msg)
 //  and for WriteFMsgs() that was the *import* conversion its own
 //  TextToLines() had just installed.
 
-void ApplyExportCharset(GMsg* msg)
+int ApplyExportCharset(GMsg* msg)
 {
     if((*msg->charset == NUL) or strieql(strlword(msg->charset), CFG->xlatlocalset))
-        LoadCharset(-1);
-    else
-        LoadCharset(CFG->xlatlocalset, msg->charset);
+        return LoadCharset(-1);
+
+    return LoadCharset(CFG->xlatlocalset, msg->charset);
 }
 
 

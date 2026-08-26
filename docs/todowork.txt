@@ -82,16 +82,20 @@ have been dealt with.
 
 Design, in rough order of what it would buy:
 
-* The conversion is half a parameter and half a global: XlatStr() takes
-  the table but reads the recoder from CharRecoder, and the
-  save/restore idiom callers use round-trips only the table index.
-  LoadCharset() should hand back one value holding level, table and
-  recoder, and XlatStr()/strxmimecpy() should take it. The `_recoder'
-  shadow in MakeLineIndex and the `CharRecoder =' poke at
-  geline.cpp:3093 exist only because it does not, and so does the
-  save-and-restore of the table number around schecker.Load() in
-  geedit.cpp - which is why the spell checker cannot convert to a
-  dictionary in an 8-bit charset from a UTF-8 session.
+* The conversion is still half a parameter and half a global, but the
+  half-measures around it are gone: XlatStr() has a form that takes
+  the recoder, XlatSnapshot()/XlatRestore() round-trip both halves of
+  the state as one value, the spell checker snapshots the recoder next
+  to each of its tables instead of converting through whatever
+  happened to be global - which is what kept it from reaching a
+  dictionary in an 8-bit charset from a UTF-8 session - and the
+  header-field poke in MakeLineIndex is scoped and undone. What
+  remains of the idea: LoadCharset() still deposits its result in
+  CharTable/CharRecoder and returns a bare level, and the twenty-odd
+  XlatStr() callers still read the ambient state they just loaded.
+  Handing the loaded conversion around as a value everywhere is
+  mechanical from here, and only worth it together with a reason to
+  touch all those places.
 
 * "Which charset does this message declare" is written twice and at
   different strengths: the message-base drivers recognise CHRS: and
@@ -99,11 +103,6 @@ Design, in rough order of what it would buy:
   CODEPAGE, I51, Content-Type, X-Charset, and normalises the value.
   One function, called from both, would stop the list and the reader
   drifting apart again.
-
-* geread2.cpp:65 and getpls.cpp:1192 set the conversion for a write by
-  hand where ApplyExportCharset() would do, but they also assign
-  charsetlevel, so they are not quite the same call. Worth folding
-  together once the point above is settled.
 
 Wasted work:
 

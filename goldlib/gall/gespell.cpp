@@ -52,9 +52,10 @@
 #include <string>
 
 int LoadCharset(const char* imp, const char* exp);
-std::string XlatStr(const char* src, int level, Chs* chrtbl, int qpencoded=false, bool i51=false);
+std::string XlatStr(const char* src, int level, Chs* chrtbl, GRecoder* recoder, int qpencoded=false, bool i51=false);
 
 extern Chs* CharTable;
+extern GRecoder* CharRecoder;
 
 
 //  ------------------------------------------------------------------
@@ -350,6 +351,7 @@ void CMSSpellLang::UnLoad()
     if (mToDicTable) delete mToDicTable;
     if (mToLocTable) delete mToLocTable;
     mToDicTable = mToLocTable = NULL;
+    mToDicRecoder = mToLocRecoder = NULL;
 
     FreeLibrary(mLibrary);
     mLibrary = NULL;
@@ -374,11 +376,13 @@ void CMSSpellLang::BuildRTable(const char *codeset)
     mToDicTable = new Chs;
     memset(mToDicTable, 0, sizeof(Chs));
     if (CharTable ) *mToDicTable = *CharTable;
+    mToDicRecoder = CharRecoder;
 
     LoadCharset(codeset2, codeset);
     mToLocTable = new Chs;
     memset(mToLocTable, 0, sizeof(Chs));
     if (CharTable ) *mToLocTable = *CharTable;
+    mToLocRecoder = CharRecoder;
 }
 
 
@@ -595,6 +599,7 @@ void CMYSpellLang::UnLoad()
     if (mToDicTable) delete mToDicTable;
     if (mToLocTable) delete mToLocTable;
     mToDicTable = mToLocTable = NULL;
+    mToDicRecoder = mToLocRecoder = NULL;
 }
 
 
@@ -614,12 +619,14 @@ void CMYSpellLang::BuildRTable(const char *codeset)
     {
         mToDicTable = new Chs(*CharTable);
     }
+    mToDicRecoder = CharRecoder;
 
     LoadCharset(mMSpell->get_dic_encoding(), codeset);
     if (CharTable )
     {
         mToLocTable = new Chs(*CharTable);
     }
+    mToLocRecoder = CharRecoder;
 }
 
 
@@ -737,9 +744,9 @@ std::string CSpellLang::RecodeText(const char *srcText, bool flag)
         return std::string();
     }
     if (flag)
-        return XlatStr(srcText, mToDicTable ? mToDicTable->level : 0, mToDicTable);
+        return XlatStr(srcText, mToDicTable ? mToDicTable->level : 0, mToDicTable, mToDicRecoder);
     else
-        return XlatStr(srcText, mToLocTable ? mToLocTable->level : 0, mToLocTable);
+        return XlatStr(srcText, mToLocTable ? mToLocTable->level : 0, mToLocTable, mToLocRecoder);
 }
 
 //  ------------------------------------------------------------------

@@ -3532,7 +3532,10 @@ int IEclass::Start(int __mode, uint* __position, GMsg* __msg)
 #if defined(GCFG_SPELL_INCLUDED)
     if (CFG->scheckerenabled)
     {
-        int save_chartableno = GetCurrentTable(); // Workaround: internal for LoadCharset() charset table number changed in the schecker.Load()
+        //  Loading dictionaries sets up their conversions and leaves
+        //  the last one in force; put back what the editor was using,
+        //  recoder and all.
+        XlatSnap save_xlat = XlatSnapshot();
         schecker.Init(CFG->xlatlocalset, CFG->scheckerdicpath);
         gstrarray dicts;
         tokenize(dicts, AA->adat->scheckerdeflang);
@@ -3543,7 +3546,7 @@ int IEclass::Start(int __mode, uint* __position, GMsg* __msg)
             userDic = NULL; // Only first language will have user dictionary.
         }
 
-        LoadCharset(save_chartableno);
+        XlatRestore(save_xlat);
     }
 #endif
 

@@ -508,12 +508,31 @@ char* strxmimecpy_local(char* dest, const char* source, int size)
 
 //  ------------------------------------------------------------------
 
+//  Both halves of the conversion as one value, so that saving and
+//  restoring it round-trips the recoder as well as the table. The
+//  idiom of keeping GetCurrentTable() alone lost the recoder half.
+
+XlatSnap XlatSnapshot()
+{
+    XlatSnap x;
+    x.table   = GetCurrentTable();
+    x.recoder = CharRecoder;
+    return x;
+}
+
+
+void XlatRestore(const XlatSnap& x)
+{
+    LoadCharset(x.table);
+    CharRecoder = x.recoder;
+}
+
+
 char* strxmimecpy(char* dest, const char* source, int level, int size, bool detect)
 {
 
     ISub buf, buf2;
     char charset[100];
-    int table = -1;
 
     strxcpy(buf, source, sizeof(buf));
     mime_header_decode(buf2, buf, charset);
@@ -526,12 +545,11 @@ char* strxmimecpy(char* dest, const char* source, int level, int size, bool dete
     //  LoadCharset(-1) clears CharRecoder - so restoring the table
     //  alone switched recoding off for everything converted after the
     //  first field that carried a MIME encoded-word.
-    GRecoder* saved_recoder = NULL;
+    XlatSnap saved;
 
     if(detect)
     {
-        table = GetCurrentTable();
-        saved_recoder = CharRecoder;
+        saved = XlatSnapshot();
         level = LoadCharset(charset, CFG->xlatlocalset);
         if(not level)
         {
@@ -542,10 +560,7 @@ char* strxmimecpy(char* dest, const char* source, int level, int size, bool dete
     const std::string converted = XlatStr(buf2, level, CharTable);
 
     if(detect)
-    {
-        LoadCharset(table);
-        CharRecoder = saved_recoder;
-    }
+        XlatRestore(saved);
 
     //  Converted into the local charset, so cut on a character
     //  boundary.
@@ -2052,13 +2067,17 @@ static uint RecodeChar(char*& ptr, char*& bp, int level, GRecoder* recoder)
 
 //  ------------------------------------------------------------------
 
-std::string XlatStr(const char* src, int level, Chs* chrtbl, int qpencoded, bool i51)
+//  The conversion in force is half a parameter and half a global:
+//  callers hand in the table, and the recoder used to be read from
+//  CharRecoder no matter what. This form takes both, so a caller that
+//  knows which conversion it means - the spell checker, the header
+//  fields of a parse - can say so instead of poking the global.
+
+std::string XlatStr(const char* src, int level, Chs* chrtbl, GRecoder* recoder, int qpencoded, bool i51)
 {
 
     if( src==NULL )
         return std::string();
-
-    GRecoder* recoder = CharRecoder;
 
     if(not chrtbl and recoder == NULL)
         return src;
@@ -2241,6 +2260,12 @@ chardo:
     #undef XLAT_FLUSH
 
     return result;
+}
+
+
+std::string XlatStr(const char* src, int level, Chs* chrtbl, int qpencoded, bool i51)
+{
+    return XlatStr(src, level, chrtbl, CharRecoder, qpencoded, i51);
 }
 
 
@@ -3132,17 +3157,22 @@ chardo:
             if(header_recode)
             {
                 //  strxmimecpy() converts through the conversion that is
-                //  in force, so put this parse's own there. It is NULL
-                //  when no charset was loaded for this text - which is
-                //  the case on the way back out to the message base,
-                //  where the headers are already in the local charset
-                //  and converting them again would double-encode them.
+                //  in force, so put this parse's own there for the span
+                //  of these fields and put the previous one back after.
+                //  It is NULL when no charset was loaded for this text -
+                //  which is the case on the way back out to the message
+                //  base, where the headers are already in the local
+                //  charset and converting them again would double-encode
+                //  them.
+                XlatSnap hdr_saved = XlatSnapshot();
                 CharRecoder = _recoder;
 
                 strxmimecpy(msg->by, msg->by, level, sizeof(INam), true);
                 strxmimecpy(msg->to, msg->to, level, sizeof(INam), true);
                 if(not (msg->attr.frq() or msg->attr.att() or msg->attr.urq()))
                     strxmimecpy(msg->re, msg->re, level, sizeof(ISub), true);
+
+                XlatRestore(hdr_saved);
             }
 
             // Scan msg body top for RFC headerlines
