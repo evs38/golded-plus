@@ -987,13 +987,29 @@ static bool gvid_wt_console()
             //  told the two apart wrongly. Anything unrecognised is
             //  treated as the stream kind: a missing emoji column is
             //  better than two broken cells.
-            HWND cw = GetConsoleWindow();
-            char cls[64] = "";
+            //  Resolved at run time: the VC98 headers predate
+            //  GetConsoleWindow(). Where the function itself does not
+            //  exist - a Windows that old - the console is a classic
+            //  one by definition, so cells.
+            typedef HWND (WINAPI* GetConsoleWindow_fn)(void);
+            HMODULE k32 = GetModuleHandleA("kernel32.dll");
+            GetConsoleWindow_fn getwin = k32 ?
+                (GetConsoleWindow_fn)GetProcAddress(k32, "GetConsoleWindow") : NULL;
 
-            if(cw and IsWindowVisible(cw))
-                GetClassNameA(cw, cls, (int)sizeof(cls));
+            if(getwin == NULL)
+            {
+                known = 0;
+            }
+            else
+            {
+                HWND cw = getwin();
+                char cls[64] = "";
 
-            known = strieql(cls, "ConsoleWindowClass") ? 0 : 1;
+                if(cw and IsWindowVisible(cw))
+                    GetClassNameA(cw, cls, (int)sizeof(cls));
+
+                known = strieql(cls, "ConsoleWindowClass") ? 0 : 1;
+            }
         }
     }
 
