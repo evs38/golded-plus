@@ -1289,3 +1289,162 @@ const char* g_detect_console_charset()
 
 
 //  ------------------------------------------------------------------
+
+
+//  ------------------------------------------------------------------
+//  See grecode.h: the one recogniser for the kludges a message
+//  declares its charset with.
+
+GChsKludgeKind g_charset_kludge_tag(const char* line, const char** value)
+{
+    if(line == NULL)
+        return GCHS_NONE;
+
+    if(*line == '\001')
+        line++;
+
+    //  Some tossers write the RFC headers as ^ARFC-X-Charset.
+    if(strnieql(line, "RFC", 3))
+    {
+        line += 3;
+        if(not g_isalpha(*line))
+            line++;
+    }
+
+    const char* p = line;
+    while(*p and (*p != ' ') and (*p != ':'))
+        p++;
+
+    size_t taglen = (size_t)(p - line);
+
+    //  Skip the separator and the blanks after it.
+    if(*p == ':')
+        p++;
+    while((*p == ' ') or (*p == '\t'))
+        p++;
+
+    GChsKludgeKind kind = GCHS_NONE;
+
+    if((taglen == 3) and strnieql(line, "I51", 3))
+        kind = GCHS_I51;
+    else if((taglen == 4) and strnieql(line, "CHRS", 4))
+        kind = GCHS_PLAIN;
+    else if((taglen == 7) and strnieql(line, "CHARSET", 7))
+        kind = GCHS_PLAIN;
+    else if((taglen == 8) and strnieql(line, "CODEPAGE", 8))
+        kind = GCHS_CODEPAGE;
+    else if((taglen == 9) and strnieql(line, "X-Charset", 9))
+        kind = GCHS_XCHARSET;
+
+    if(value)
+        *value = p;
+
+    return kind;
+}
+
+
+void g_charset_kludge_value(GChsKludgeKind kind, const char* value, char* out, size_t size)
+{
+    if(out == NULL or size == 0)
+        return;
+    *out = NUL;
+    if(kind == GCHS_NONE)
+        return;
+
+    if(kind == GCHS_I51)
+    {
+        strxcpy(out, "LATIN-1", size);
+        return;
+    }
+
+    //  The value runs to the end of its line, never into the next
+    //  kludge: the drivers hand in a pointer into a whole block.
+    char val[100];
+    size_t n = 0;
+    while(value and value[n] and (value[n] != '\r') and (value[n] != '\n')
+          and (value[n] != '\001') and (n < sizeof(val)-1))
+    {
+        val[n] = value[n];
+        n++;
+    }
+    while(n and (val[n-1] == ' '))
+        n--;
+    val[n] = NUL;
+
+    switch(kind)
+    {
+    case GCHS_CODEPAGE:
+        //  A bare codepage number; the charset name puts CP in front.
+        strxmerge(out, size, "CP", val, NULL);
+        strchg(out, '_', ' ');
+        break;
+
+    case GCHS_XCHARSET:
+        //  The RFC spelling of the 8859 family folds to latin-N, which
+        //  is what the conversions are named after.
+        if(striinc("8859", val))
+            ISO2Latin(out, val);
+        else
+            strxcpy(out, val, size);
+        break;
+
+    default:
+    {
+        //  A name may carry the QP suffix of FSC-0054 level 3; the
+        //  charset itself is the name without it.
+        const char* word = strlword(val);
+        size_t wlen = strlen(word);
+        bool qp = (wlen > 2) and strnieql("QP", word + wlen - 2, 2);
+
+        strxcpy(out, val, size);
+        if(qp and (wlen - 2) < size)
+        {
+            //  Cut the suffix out of the first word, keeping what
+            //  follows it - the CHRS level.
+            memmove(out + wlen - 2, out + wlen, strlen(out + wlen) + 1);
+        }
+        //  Some mail readers store '_' where the name has a space.
+        strchg(out, '_', ' ');
+        break;
+    }
+    }
+}
+
+
+bool g_charset_kludge(const char* line, char* out, size_t size)
+{
+    const char* value = NULL;
+    GChsKludgeKind kind = g_charset_kludge_tag(line, &value);
+
+    if(kind == GCHS_NONE)
+        return false;
+
+    g_charset_kludge_value(kind, value, out, size);
+    return *out != NUL;
+}
+
+
+//  ------------------------------------------------------------------
+//  ISO-8859-n and latin-n, in both directions. Here because the
+//  recogniser above needs the first and the two belong together.
+
+char* ISO2Latin(char* latin_encoding, const char* iso_encoding)
+{
+    static const char* latinno[] = { NULL, "1", "2", "3", "4", NULL, NULL, NULL, NULL, "5", "6", NULL, NULL, "7", "8", "9" };
+    int chsno = atoi(strstr(iso_encoding, "8859")+5);
+    chsno = chsno > (int)(sizeof(latinno)/sizeof(const char*)) ? 0 : chsno;
+    if(latinno[chsno] == NULL)
+        return strxmerge(latin_encoding, 12, iso_encoding, NULL);
+
+    return strxmerge(latin_encoding, 8, "latin-", latinno[chsno], NULL);
+}
+
+
+char* Latin2ISO(char* iso_encoding, const char* latin_encoding)
+{
+    static const char* isono[] = { "15", "1", "2", "3", "4", "9", "10", "13", "14", "15" };
+    int chsno = atoi(latin_encoding+5);
+    if(chsno < 0) chsno = -chsno; // support for both latin-1 and latin1
+    chsno = chsno > (int)(sizeof(isono)/sizeof(const char*)) ? 0 : chsno;
+    return strxmerge(iso_encoding, 12, "iso-8859-", isono[chsno], NULL);
+}

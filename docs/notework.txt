@@ -237,7 +237,10 @@ ______________________________________________________________________
 
   The drivers pass the message's own charset up with the header, and
   the message list and the thread list decode their header fields
-  with it exactly as the reader does.
+  with it exactly as the reader does. The declaration is recognised by
+  the same code in both, so every spelling the reader accepts - CHRS,
+  CHARSET, CODEPAGE, I51, X-Charset, with or without an RFC prefix -
+  works in the list too, and the two cannot drift apart.
 
   Hudson and the rest are unchanged, and deliberately: there the text
   is in a second file that loading a header never touches, so this

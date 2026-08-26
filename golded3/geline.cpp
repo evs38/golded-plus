@@ -2600,7 +2600,7 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
                             {
                                 msg->i51 = true;
                                 // Convert FSC-0051.003 to FSC-0054.003
-                                strxcpy(chsbuf, "LATIN-1", sizeof(chsbuf));
+                                g_charset_kludge_value(GCHS_I51, "", chsbuf, sizeof(chsbuf));
                                 chslev = LoadCharset(chsbuf, CFG->xlatlocalset);
                                 if(not chslev)
                                 {
@@ -2614,14 +2614,9 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
                             }
                             else if((kludgetype == FSC_CHARSET) or (kludgetype == FSC_CODEPAGE))
                             {
-                                *chsbuf = NUL;
                                 qpencoded = IsQuotedPrintable(ptr);
-                                if(kludgetype == FSC_CODEPAGE)
-                                    strxmerge(chsbuf, sizeof(chsbuf), "CP", ptr, NULL);
-                                else
-                                    strxcpy(chsbuf, qpencoded ? ExtractPlainCharset(ptr) : ptr, sizeof(chsbuf));
-                                // Workaround for buggy mailreaders which stores '_' in charset name
-                                strchg(chsbuf,'_',' ');
+                                g_charset_kludge_value((kludgetype == FSC_CODEPAGE) ? GCHS_CODEPAGE : GCHS_PLAIN,
+                                                       ptr, chsbuf, sizeof(chsbuf));
                                 chslev = LoadCharset(chsbuf, CFG->xlatlocalset);
                                 if(not chslev)
                                 {
@@ -2709,10 +2704,7 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
                             {
                                 if(not gotmime)
                                 {
-                                    if(striinc("8859", ptr))
-                                        ISO2Latin(chsbuf, ptr);
-                                    else
-                                        strxcpy(chsbuf, ptr, sizeof(chsbuf));
+                                    g_charset_kludge_value(GCHS_XCHARSET, ptr, chsbuf, sizeof(chsbuf));
                                     chslev = LoadCharset(chsbuf, CFG->xlatlocalset);
                                     if(not chslev)
                                     {
@@ -3469,32 +3461,8 @@ char *ExtractPlainCharset(const char *encoding)
 }
 
 
-//  ------------------------------------------------------------------
-
-char *Latin2ISO(char *iso_encoding, const char *latin_encoding)
-{
-
-    static const char *isono[] = { "15", "1", "2", "3", "4", "9", "10", "13", "14", "15" };
-    int chsno = atoi(latin_encoding+5);
-    if(chsno < 0) chsno = -chsno; // support for both latin-1 and latin1
-    chsno = chsno > sizeof(isono)/sizeof(const char *) ? 0 : chsno;
-    return strxmerge(iso_encoding, 12, "iso-8859-", isono[chsno], NULL);
-}
 
 
-//  ------------------------------------------------------------------
-
-char *ISO2Latin(char *latin_encoding, const char *iso_encoding)
-{
-
-    static const char *latinno[] = { NULL, "1", "2", "3", "4", NULL, NULL, NULL, NULL, "5", "6", NULL, NULL, "7", "8", "9" };
-    int chsno = atoi(strstr(iso_encoding, "8859")+5);
-    chsno = chsno > sizeof(latinno)/sizeof(const char *) ? 0 : chsno;
-    if(latinno[chsno] == NULL)
-        return strxmerge(latin_encoding, 12, iso_encoding, NULL);
-    else
-        return strxmerge(latin_encoding, 8, "latin-", latinno[chsno], NULL);
-}
 
 //  ------------------------------------------------------------------
 

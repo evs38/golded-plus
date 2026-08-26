@@ -97,13 +97,6 @@ Design, in rough order of what it would buy:
   mechanical from here, and only worth it together with a reason to
   touch all those places.
 
-* "Which charset does this message declare" is written twice and at
-  different strengths: the message-base drivers recognise CHRS: and
-  CHARSET:, while the text scanner in geline.cpp also handles
-  CODEPAGE, I51, Content-Type, X-Charset, and normalises the value.
-  One function, called from both, would stop the list and the reader
-  drifting apart again.
-
 Wasted work:
 
 * RecodeChar() runs a whole GRecoder::convert() per character of

@@ -169,8 +169,8 @@ void Initialize(int argc, char* argv[]);
 //  ------------------------------------------------------------------
 //  GELINE prototypes
 
-char *Latin2ISO(char *iso_encoding, const char *latin_encoding);
-char *ISO2Latin(char *latin_encoding, const char *iso_encoding);
+//  ISO2Latin/Latin2ISO moved to goldlib/gall/grecode.h with the shared
+//  charset-kludge recogniser.
 char *MakeQuotedPrintable(const char *encoding);
 char *ExtractPlainCharset(const char *encoding);
 bool  IsQuotedPrintable(const char *encoding);

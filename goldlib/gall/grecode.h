@@ -212,6 +212,37 @@ GRecoder& g_from_local(const char* to);
 //  note on the definition.
 void g_build_charset_table(const char* charset, uint32_t table[256]);
 
+
+//  ------------------------------------------------------------------
+//  The kludges a message declares its charset with. One recogniser,
+//  used both by the message-base drivers - which need the charset
+//  without reading the text, for the header fields in a list - and by
+//  the text scanner in the reader. The two must agree: a kludge one
+//  recognises and the other does not decodes the same message two
+//  ways.
+
+enum GChsKludgeKind
+{
+    GCHS_NONE = 0,
+    GCHS_PLAIN,         //  CHRS: or CHARSET: - the FTS-5003 forms
+    GCHS_XCHARSET,      //  X-Charset: - 8859 names fold to latin-N
+    GCHS_CODEPAGE,      //  CODEPAGE: - a bare number, CP goes in front
+    GCHS_I51            //  I51 - FSC-0051, which means LATIN-1
+};
+
+//  What kind of declaration this line is, and where its value starts.
+GChsKludgeKind g_charset_kludge_tag(const char* line, const char** value);
+
+//  The value in the canonical form the reader adopts.
+void g_charset_kludge_value(GChsKludgeKind kind, const char* value, char* out, size_t size);
+
+//  Both at once: false when the line declares no charset.
+bool g_charset_kludge(const char* line, char* out, size_t size);
+
+//  ISO-8859-n and latin-n, in both directions.
+char* ISO2Latin(char* latin_encoding, const char* iso_encoding);
+char* Latin2ISO(char* iso_encoding, const char* latin_encoding);
+
 uint32_t g_local_to_unicode(unsigned char byte);
 
 //  The exact reverse: the byte that stands for this codepoint, or -1 if

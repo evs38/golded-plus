@@ -35,6 +35,7 @@
 //  ------------------------------------------------------------------
 
 #include <gftnall.h>
+#include <grecode.h>
 #include <gutf8.h>
 #include <gtimall.h>
 #include <gvidall.h>
@@ -547,17 +548,13 @@ public:
 
     void set_hdrchrs_from_kludge(const char* __p)
     {
-        if(*__p == '\001')
-            __p++;
-        //  Case-insensitively, and on the same two spellings the text
-        //  scanner in geline.cpp accepts. The two have to agree: if one
-        //  recognises a kludge the other does not, the list and the
-        //  reader decode the same message differently, which is the
-        //  fault hdrchrs exists to remove.
-        if(strnieql(__p, "CHRS:", 5))
-            set_hdrchrs(__p + 5);
-        else if(strnieql(__p, "CHARSET:", 8))
-            set_hdrchrs(__p + 8);
+        //  Through the same recogniser the text scanner uses, so the
+        //  two cannot drift apart: a kludge the reader accepts - CHRS,
+        //  CHARSET, CODEPAGE, I51, X-Charset - decodes the header
+        //  fields in a list the same way.
+        char _buf[sizeof(hdrchrs)];
+        if(g_charset_kludge(__p, _buf, sizeof(_buf)))
+            set_hdrchrs(_buf);
     }
 
     void reset()
