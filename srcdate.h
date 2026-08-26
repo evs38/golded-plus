@@ -1,3 +1,3 @@
 #ifndef __SRCDATE__
-#define __SRCDATE__ "20260825"
+#define __SRCDATE__ "20260827"
 #endif
