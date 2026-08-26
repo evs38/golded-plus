@@ -99,10 +99,16 @@ Design, in rough order of what it would buy:
 
 Wasted work:
 
-* RecodeChar() runs a whole GRecoder::convert() per character of
-  message text, including an iconv shift-state reset each time. It
-  wants converting a run at a time, which means the caller has to stop
-  needing a column count per character.
+* RecodeChar() still consumes one character per call, which is what
+  the wrap loop's column counting needs. The cost that made it worth
+  listing is gone: for a single-byte source charset - every message
+  read from an 8-bit echo - the recoder now works all 256 conversions
+  out once and looks them up, instead of a convert() with an iconv
+  shift-state reset per character. What remains is the rare multibyte
+  source (UTF-8 text imported into an 8-bit session), which still
+  converts character by character; batching that means teaching the
+  wrap loop to take a converted run and find its own break points, and
+  the loop's special cases make that a careful job for little gain.
 
 ______________________________________________________________________
 

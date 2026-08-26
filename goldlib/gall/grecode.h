@@ -155,6 +155,17 @@ private:
     std::string __to;
     state_t     __state;
 
+    //  What each source byte converts to, filled in the first time
+    //  convert_char() is asked. A single-byte source charset makes the
+    //  conversion of one character a pure function of one byte, and
+    //  every message read from an 8-bit echo goes through
+    //  convert_char() once per character - a full convert() there,
+    //  with its shift-state reset, was the cost this removes. Only
+    //  built for a single-byte source; UTF-8 input takes the ordinary
+    //  path.
+    mutable bool        __chartab_ready;
+    mutable std::string __chartab[256];
+
     //  When iconv is unavailable we go through Unicode using a pair of
     //  256-entry tables, one for each direction.
     const uint16_t* __to_unicode;   // source byte  -> codepoint

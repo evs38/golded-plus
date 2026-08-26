@@ -424,6 +424,7 @@ static int cptable_encode(const uint16_t* tab, uint32_t cp)
 
 GRecoder::GRecoder()
     : __from(), __to(), __state(state_closed),
+      __chartab_ready(false),
       __to_unicode(NULL), __from_unicode(NULL), __cd(NULL),
       __cp_from(0), __cp_to(0), __uconv_from(NULL), __uconv_to(NULL)
 {
@@ -432,6 +433,7 @@ GRecoder::GRecoder()
 
 GRecoder::GRecoder(const char* from, const char* to)
     : __from(), __to(), __state(state_closed),
+      __chartab_ready(false),
       __to_unicode(NULL), __from_unicode(NULL), __cd(NULL),
       __cp_from(0), __cp_to(0), __uconv_from(NULL), __uconv_to(NULL)
 {
@@ -469,6 +471,13 @@ void GRecoder::close()
     __to_unicode = __from_unicode = NULL;
     __cp_from = __cp_to = 0;
     __state = state_closed;
+
+    if(__chartab_ready)
+    {
+        for(int n = 0; n < 256; n++)
+            strerase(__chartab[n]);
+        __chartab_ready = false;
+    }
 }
 
 
@@ -845,7 +854,29 @@ size_t GRecoder::convert_char(const char* src, size_t len, std::string& out) con
     }
 
     if(__state == state_closed or __state == state_identity)
+    {
         out.append(src, used);
+    }
+    else if(not from_is_multibyte())
+    {
+        //  One byte of a single-byte charset always converts to the
+        //  same thing; work all 256 out once and look them up after.
+        //  Every character of every message read from an 8-bit echo
+        //  passes through here, and a convert() per character - with
+        //  an iconv shift-state reset in each - was most of the cost
+        //  of reading such a message.
+        if(not __chartab_ready)
+        {
+            for(int n = 0; n < 256; n++)
+            {
+                char b = (char)n;
+                __chartab[n] = convert(&b, 1);
+            }
+            __chartab_ready = true;
+        }
+
+        out += __chartab[(unsigned char)*src];
+    }
     else
         out += convert(src, used);
 
