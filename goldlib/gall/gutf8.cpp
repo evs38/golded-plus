@@ -683,14 +683,20 @@ size_t g_utf8_offset_at_char(const char* p, size_t n)
 
 //  ------------------------------------------------------------------
 
-size_t g_utf8_bytes_for_cols(const char* p, size_t maxcols)
+size_t g_utf8_bytes_for_cols(const char* p, size_t maxcols, size_t* cols)
 {
+    if(cols)
+        *cols = 0;
+
     if(p == NULL)
         return 0;
     if(not g_utf8_mode())
     {
         size_t len = strlen(p);
-        return maxcols < len ? maxcols : len;
+        len = maxcols < len ? maxcols : len;
+        if(cols)
+            *cols = len;
+        return len;
     }
 
     const char* s   = p;
@@ -707,6 +713,13 @@ size_t g_utf8_bytes_for_cols(const char* p, size_t maxcols)
         cur += w;
         s = nxt;
     }
+
+    //  Hand the width back as well: every caller that cuts a string
+    //  also wants to know how wide the piece is, and walking it twice
+    //  for that is a whole second pass over the line.
+    if(cols)
+        *cols = cur;
+
     return (size_t)(s - p);
 }
 
@@ -725,8 +738,8 @@ std::string g_utf8_fit(const char* p, size_t cols)
     if(p == NULL)
         return std::string(cols, ' ');
 
-    size_t bytes = g_utf8_bytes_for_cols(p, cols);
-    size_t width = g_utf8_width(p, bytes);
+    size_t width = 0;
+    size_t bytes = g_utf8_bytes_for_cols(p, cols, &width);
 
     std::string result(p, bytes);
     if(width < cols)

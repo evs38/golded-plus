@@ -67,6 +67,14 @@ ______________________________________________________________________
   editor was drawn by a separate route and cut the same way; it is
   fixed too.
 
+- Three of the places that write a message out did not say which
+  charset conversion to use, and got whichever one happened to be in
+  force from whatever ran before: carbon copies, the export of a
+  message to a file, and the SOUP import. The export to a file was the
+  worst of them, since the call that prepares the text installs the
+  *import* conversion and the message was then written with that still
+  in place.
+
 + Charset conversion has been rewritten and now lives in one place,
   goldlib/gall/grecode.cpp. It uses, in this order, whichever is
   available: iconv; the operating system's own converter - the Win32

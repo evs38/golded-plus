@@ -177,9 +177,22 @@ bool gwildmatch::match(const char* text, const char* pattern, bool ignorecase)
     //  both sides here instead and let the matcher compare bytes.
     if(ignorecase)
     {
+        //  The text changes on every call, the pattern almost never
+        //  does: a search folds the same pattern again for every line
+        //  of every message. Keep the last one. gbmh and gfuzzy fold
+        //  theirs once when they are set up; this is the same saving
+        //  without changing the interface.
+        static std::string lastpat;
+        static std::string lastfolded;
+
+        if(lastpat != pattern)
+        {
+            lastpat = pattern;
+            lastfolded = g_utf8_fold(pattern);
+        }
+
         std::string ftext = g_utf8_fold(text);
-        std::string fpat  = g_utf8_fold(pattern);
-        return match_internal(ftext.c_str(), fpat.c_str(), false) == true;
+        return match_internal(ftext.c_str(), lastfolded.c_str(), false) == true;
     }
 
     return match_internal(text, pattern, ignorecase) == true;

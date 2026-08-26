@@ -443,7 +443,11 @@ int ExportQwkMsg(GMsg* msg, gfile& fp, int confno, int& pktmsgno)
 
     if(msg->charsetencoding & GCHENC_MNE)
     {
-        if(not striinc("MNEMONIC", CharTable->exp))
+        //  There may be no table at all: a recoder leaves CharTable
+        //  empty, which is the normal state on any build with iconv,
+        //  the Win32 codepage API or ULS. Nothing is loaded that could
+        //  already be MNEMONIC, so load it.
+        if(not CharTable or not striinc("MNEMONIC", CharTable->exp))
             LoadCharset(CFG->xlatlocalset, "MNEMONIC");
     }
     // ASA: Do we need it at all?

@@ -98,10 +98,49 @@ void IEclass::debugtest(char* __test, int __a, int __b, char* __file, int __line
 //  ------------------------------------------------------------------
 
 #if defined(GCFG_SPELL_INCLUDED)
-inline bool isscchar(int c)
+
+//  Is this character part of a word, for the purpose of picking words
+//  out of a line to spell-check?
+//
+//  It takes a codepoint, not a byte. Testing bytes split a UTF-8
+//  character down the middle and the halves were then written over
+//  with a terminator, which is what turned a line of Cyrillic into
+//  rubbish as soon as the checker was switched on.
+//
+//  Outside ASCII the test is by exception: nearly everything that
+//  turns up inside a word there is a letter, or a mark belonging to
+//  one, so the punctuation blocks are named and the rest counts as
+//  part of the word.
+
+inline bool isscchar(uint32_t cp)
 {
-    return isxalnum(c) || (c == '-') || (c == '\'') || (c == '.') ;
+    if(cp < 0x80)
+        return isxalnum((int)cp) or (cp == '-') or (cp == '\'') or (cp == '.');
+
+    if((cp >= 0x00A0 and cp <= 0x00BF) or (cp == 0x00D7) or (cp == 0x00F7))
+        return false;
+    if(cp >= 0x2000 and cp <= 0x206F)       // general punctuation
+        return false;
+    if(cp >= 0x2E00 and cp <= 0x2E7F)       // supplemental punctuation
+        return false;
+    if(cp >= 0x3000 and cp <= 0x303F)       // CJK punctuation
+        return false;
+
+    return true;
 }
+
+
+//  The character at a byte offset, and how many bytes it occupies.
+
+inline uint32_t scchar_at(const char* __buf, uint __pos, uint __end, int* __len)
+{
+    *__len = 1;
+    uint32_t cp = (uint32_t)g_utf8_decode(__buf + __pos, __buf + __end, __len);
+    if(*__len <= 0)
+        *__len = 1;
+    return cp;
+}
+
 #endif
 
 
@@ -394,23 +433,40 @@ void IEclass::dispstringsc(char *__buf, uint __beg, uint __end, uint __row, uint
     uint bbeg = __beg;
     uint bend = __beg;
     uint bpos = __beg;
+    int  clen = 1;
 
-    if ((bbeg > 0) && isscchar(__buf[bbeg]) && isscchar(__buf[bbeg-1]))
+    //  Every step below is by character, not by byte. Stepping by byte
+    //  put a word boundary inside a UTF-8 character, and the halves
+    //  were then overwritten with a terminator.
+    if (bbeg > 0)
     {
-        for (; (bpos < __end) && isscchar(__buf[bpos]); bpos++);
-        bend = bpos;
+        const char* prev = g_utf8_prev(__buf, __buf + bbeg);
+        int plen = 1;
+        uint32_t pcp = (uint32_t)g_utf8_decode(prev, __buf + bbeg, &plen);
+
+        if ((bpos < __end) && isscchar(scchar_at(__buf, bpos, __end, &clen)) && isscchar(pcp))
+        {
+            while ((bpos < __end) && isscchar(scchar_at(__buf, bpos, __end, &clen)))
+                bpos += clen;
+            bend = bpos;
+        }
     }
 
     while (bpos < __end)
     {
-        for (; (bpos < __end) && !isscchar(__buf[bpos]); bpos++);
+        while ((bpos < __end) && !isscchar(scchar_at(__buf, bpos, __end, &clen)))
+            bpos += clen;
         bend = bpos;
 
         uint scpos = 0;
-        for (; (bpos < __end) && isscchar(__buf[bpos]); bpos++, scpos++)
-            scbuf[scpos] = __buf[bpos];
+        while ((bpos < __end) && isscchar(scchar_at(__buf, bpos, __end, &clen)))
+        {
+            for (int n = 0; (n < clen) && (scpos < sizeof(scbuf)-1); n++)
+                scbuf[scpos++] = __buf[bpos+n];
+            bpos += clen;
+        }
 
-        if ((scpos == 0) || ((bpos == __end) && isscchar(endchar)))
+        if ((scpos == 0) || ((bpos == __end) && isscchar((uint32_t)(unsigned char)endchar)))
         {
             bend = bpos;
             break;

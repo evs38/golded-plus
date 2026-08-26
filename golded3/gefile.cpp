@@ -580,6 +580,10 @@ void WriteFMsgs(int msgsdone, GMsg* msg, Attr o_attr, int modex, int mode, char*
     strtrim(strcpy(msg->re, buf));
     HeaderView->Use(AA, msg);
     HeaderView->Paint();
+
+    //  TextToLines() above left the import conversion in place; the
+    //  text about to be produced goes into the message base.
+    ApplyExportCharset(msg);
     msg->LinesToText();
     AA->SaveMsg(modex, msg);
 }

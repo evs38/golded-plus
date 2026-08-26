@@ -330,7 +330,13 @@ static void SetExportCharset(GMsg* msg)
 //  conversion is derived again here from what the message says it is
 //  stored in, rather than trusting whatever ran last.
 
-static void ApplyExportCharset(GMsg* msg)
+//  Put the conversion a message is to be written with in place. Called
+//  before every LinesToText() that produces text for the message base:
+//  without it the conversion left over from whatever ran last is used,
+//  and for WriteFMsgs() that was the *import* conversion its own
+//  TextToLines() had just installed.
+
+void ApplyExportCharset(GMsg* msg)
 {
     if((*msg->charset == NUL) or strieql(strlword(msg->charset), CFG->xlatlocalset))
         LoadCharset(-1);
@@ -541,6 +547,7 @@ static void MakeMsg3(int& mode, GMsg* msg)
             if(have_origin(cmsg))
                 DoTearorig(mode, cmsg);
 
+            ApplyExportCharset(cmsg);
             cmsg->LinesToText();
             msg->txt   = cmsg->txt;
             msg->lin   = cmsg->lin;

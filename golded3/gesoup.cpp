@@ -408,6 +408,7 @@ void ProcessSoupMsg(char* lbuf, GMsg* msg, int& msgs, char* areaname, int tossto
             AA->istossed = true;
             update_statuslinef("%s: %u", "", AA->echoid(), msgs);
 
+            ApplyExportCharset(msg);
             msg->LinesToText();
             AA->SaveMsg(GMSG_NEW, msg);
         }

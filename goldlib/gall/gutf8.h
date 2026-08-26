@@ -252,7 +252,7 @@ size_t g_utf8_offset_at_char(const char* p, size_t n);
 //  Largest prefix of 's' that fits in 'maxcols' screen cells. A
 //  double-width character straddling the limit is left out entirely.
 
-size_t g_utf8_bytes_for_cols(const char* p, size_t maxcols);
+size_t g_utf8_bytes_for_cols(const char* p, size_t maxcols, size_t* cols = NULL);
 std::string g_utf8_truncate(const std::string& s, size_t maxcols);
 
 

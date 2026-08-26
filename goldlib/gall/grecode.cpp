@@ -1009,9 +1009,50 @@ void g_build_charset_table(const char* __charset, uint32_t __table[256])
 }
 
 
+//  The reverse of local_unicode, sorted so that it can be searched
+//  rather than scanned. g_utf8_fold() asks for it once per non-ASCII
+//  byte of every line it compares, and a hundred and twenty-eight
+//  comparisons each time is a lot of nothing.
+
+struct localrev
+{
+    uint32_t      cp;
+    unsigned char byte;
+};
+
+static localrev local_reverse[128];
+static int      local_reverse_count = 0;
+
+static int localrev_cmp(const void* __a, const void* __b)
+{
+    const localrev* a = (const localrev*)__a;
+    const localrev* b = (const localrev*)__b;
+
+    if(a->cp != b->cp)
+        return (a->cp < b->cp) ? -1 : 1;
+
+    //  Two bytes can name the same character; the lower one wins, as
+    //  it did when this was a scan from the bottom up.
+    return (int)a->byte - (int)b->byte;
+}
+
+
 static void build_local_unicode()
 {
     g_build_charset_table(g_local_charset(), local_unicode);
+
+    local_reverse_count = 0;
+    for(int n = 0x80; n < 256; n++)
+    {
+        if(local_unicode[n])
+        {
+            local_reverse[local_reverse_count].cp   = local_unicode[n];
+            local_reverse[local_reverse_count].byte = (unsigned char)n;
+            local_reverse_count++;
+        }
+    }
+    qsort(local_reverse, (size_t)local_reverse_count, sizeof(localrev), localrev_cmp);
+
     local_unicode_ready = true;
 }
 
@@ -1064,11 +1105,25 @@ int g_unicode_to_local(uint32_t cp)
     if(not local_unicode_ready)
         build_local_unicode();
 
-    for(int n = 0x80; n < 256; n++)
+    int lo = 0, hi = local_reverse_count - 1;
+    while(lo <= hi)
     {
-        if(local_unicode[n] == cp)
-            return n;
+        int mid = lo + (hi - lo) / 2;
+
+        if(local_reverse[mid].cp == cp)
+        {
+            //  Step back to the first byte naming this character.
+            while(mid > 0 and local_reverse[mid-1].cp == cp)
+                mid--;
+            return local_reverse[mid].byte;
+        }
+
+        if(local_reverse[mid].cp < cp)
+            lo = mid + 1;
+        else
+            hi = mid - 1;
     }
+
     return -1;
 }
 

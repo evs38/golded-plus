@@ -77,56 +77,40 @@ ______________________________________________________________________
 ______________________________________________________________________
 
 Found while reviewing the UTF-8 work for repeated code, 2026-08-25.
-Each was verified by reading the code, and the two marked (older) were
-confirmed against a pre-change binary, so they are not fallout from
-that work.
-
-Faults:
-
-* (older) A header field is written to the message base unconverted
-  when the area's export charset is only reachable through the
-  built-in tables: the message ends up with, say, "CHRS: MAC-CYRILLIC"
-  and a Subject still in UTF-8 behind it. Charsets iconv knows -
-  CP866, CP1251, KOI8-R - are converted correctly, so this shows only
-  where gcptabs.inc is what does the work.
-* (older) In an 8-bit MAC-CYRILLIC session the first character of a
-  header field draws as "~O" instead of "П"; the rest of the field is
-  right.
-* geqwks.cpp:446 dereferences CharTable->exp without a NULL check.
-  That was reachable only when no .chs table matched; now that a
-  recoder leaves CharTable NULL on every build with iconv, Win32 or
-  ULS, it is the normal state.
-* golded3/gepost.cpp: ApplyExportCharset() installs the export
-  conversion at each call site rather than in LinesToText(), and the
-  set is incomplete - the carbon-copy path at gepost.cpp:544 has no
-  equivalent, and getpls.cpp:1190 and geread2.cpp:63 open-code the
-  same rule a third and fourth time. gefile.cpp:573 WriteFMsgs() calls
-  TextToLines() and then LinesToText(), so the header fields are
-  written with the *import* conversion the first call left behind.
+What is listed here is what is left; the faults found at the same time
+have been dealt with.
 
 Design, in rough order of what it would buy:
 
-* The current conversion is half a parameter and half a global:
-  XlatStr() takes the table but reads the recoder from CharRecoder,
-  and the save/restore idiom callers use round-trips only the table
-  index. LoadCharset() should hand back one value holding level, table
-  and recoder, and XlatStr()/strxmimecpy() should take it. The
-  `_recoder' shadow in MakeLineIndex and the `CharRecoder =' poke at
-  geline.cpp:3093 exist only because it does not.
+* The conversion is half a parameter and half a global: XlatStr() takes
+  the table but reads the recoder from CharRecoder, and the
+  save/restore idiom callers use round-trips only the table index.
+  LoadCharset() should hand back one value holding level, table and
+  recoder, and XlatStr()/strxmimecpy() should take it. The `_recoder'
+  shadow in MakeLineIndex and the `CharRecoder =' poke at
+  geline.cpp:3093 exist only because it does not, and so does the
+  save-and-restore of the table number around schecker.Load() in
+  geedit.cpp - which is why the spell checker cannot convert to a
+  dictionary in an 8-bit charset from a UTF-8 session.
+
 * "Which charset does this message declare" is written twice and at
   different strengths: the message-base drivers recognise CHRS: and
   CHARSET:, while the text scanner in geline.cpp also handles
   CODEPAGE, I51, Content-Type, X-Charset, and normalises the value.
   One function, called from both, would stop the list and the reader
   drifting apart again.
-* Wasted work worth removing: g_utf8_fold() does a 128-entry linear
-  scan per non-ASCII byte in 8-bit mode, on every line of every
-  message searched, where a 256-byte table built once would do;
-  gwildmat re-folds the *pattern* on every line, while gbmh and gfuzzy
-  fold it once at init; RecodeChar() runs a whole GRecoder::convert()
-  per character of message text, including an iconv shift-state reset
-  each time; and g_utf8_fit() and wprintns() each decode the same text
-  twice per message-list row.
+
+* geread2.cpp:65 and getpls.cpp:1192 set the conversion for a write by
+  hand where ApplyExportCharset() would do, but they also assign
+  charsetlevel, so they are not quite the same call. Worth folding
+  together once the point above is settled.
+
+Wasted work:
+
+* RecodeChar() runs a whole GRecoder::convert() per character of
+  message text, including an iconv shift-state reset each time. It
+  wants converting a run at a time, which means the caller has to stop
+  needing a column count per character.
 
 ______________________________________________________________________
 
@@ -152,3 +136,27 @@ reported again.
   codepoint and makes a joined family six columns, where the terminal
   draws one glyph in two. We follow the terminal, because that is what
   the reader sees. There is no answer that satisfies both.
+
+______________________________________________________________________
+
+Spell checking, 2026-08-26.
+
+* CMYSpellLang::Load() reports success whenever the Hunspell object was
+  constructed, which `new' always manages, so a dictionary that failed
+  to parse - a wrong path, a truncated file - leaves the checker
+  believing it is loaded. Every word then comes back correct, and the
+  feature quietly does nothing. It should ask the dictionary something
+  it must know before saying it is loaded.
+
+* The conversion between the local charset and the dictionary's is done
+  with the 8-bit tables only: CMYSpellLang::BuildRTable() calls
+  LoadCharset() and keeps CharTable, while the recoder LoadCharset()
+  also sets is left in the global and lost. It happens to work where
+  both sides are UTF-8, because nothing has to be converted, and where
+  both are the same 8-bit charset. A UTF-8 session with a dictionary in
+  KOI8-R or CP1251 - which is what the older Russian dictionaries are -
+  cannot be converted by a table at all, and the words will reach
+  hunspell unconverted. The workaround at geedit.cpp, saving and
+  restoring the table number around schecker.Load(), is a symptom of
+  the same thing: see the entry above about the conversion being half a
+  parameter and half a global.
