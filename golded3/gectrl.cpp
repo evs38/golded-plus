@@ -931,7 +931,7 @@ void DoTearorig(int mode, GMsg* msg)
     // Add the tagline, tearline and origin as defined
     if (AA->Taglinesupport() and *msg->tagline)
     {
-        gsprintf(PRINTF_DECLARE_BUFFER(buf), "%c%c%c %s", AA->Taglinechar(), AA->Taglinechar(), AA->Taglinechar(), msg->tagline);
+        gsprintf(PRINTF_DECLARE_BUFFER(buf), "%s%s%s %s", AA->Taglinechar(), AA->Taglinechar(), AA->Taglinechar(), msg->tagline);
         strtrim(buf);
         line = AddLine(line, buf);
         line->type |= GLINE_TAGL;

@@ -116,6 +116,10 @@ extern int inforow;
 
 extern char goldmark;
 
+//  Its printable form, which depends on the charset of the session -
+//  see geglob.cpp.
+std::string goldmark_str();
+
 extern int startecho;
 extern Echo stecho;
 

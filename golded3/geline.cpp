@@ -59,11 +59,10 @@ static ptrdiff_t g_distance(Iter first, Iter last)
 
 //  ------------------------------------------------------------------
 
-#ifdef __UNIX__
-    #define GOLDMARK '^' // xwindow fonts has no square sign :(
-#else
-    #define GOLDMARK '\xFD'
-#endif
+//  Any value but a space says the message was written by another
+//  GoldED+. What is drawn for it is decided by the charset of the
+//  session rather than here - see goldmark_str() in geglob.cpp.
+#define GOLDMARK '\xFD'
 
 
 //  ------------------------------------------------------------------

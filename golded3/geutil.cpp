@@ -97,7 +97,7 @@ void update_statuslines()
         int len = WIDE-help_len-clk_len-2;
         std::string _info = g_utf8_fit(information, (len > 0) ? len : 0);
 
-        gsprintf(PRINTF_DECLARE_BUFFER(buf), "%c%s%s%s ", goldmark, help, _info.c_str(), clkinfo);
+        gsprintf(PRINTF_DECLARE_BUFFER(buf), "%s%s%s%s ", goldmark_str().c_str(), help, _info.c_str(), clkinfo);
 
         int buf_bytes = (int)strlen(buf);
 

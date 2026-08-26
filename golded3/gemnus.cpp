@@ -593,7 +593,7 @@ int GMenuEditfile::Run(GMsg* __msg)
                 {
                     if (_line->type & GLINE_TAGL)
                     {
-                        gsprintf(PRINTF_DECLARE_BUFFER(_buf), "%c%c%c %s ", AA->Taglinechar(), AA->Taglinechar(), AA->Taglinechar(), __msg->tagline);
+                        gsprintf(PRINTF_DECLARE_BUFFER(_buf), "%s%s%s %s ", AA->Taglinechar(), AA->Taglinechar(), AA->Taglinechar(), __msg->tagline);
                         strtrim(_buf);
                         _line->txt = _buf;
                         break;

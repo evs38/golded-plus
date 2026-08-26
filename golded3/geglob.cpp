@@ -62,6 +62,38 @@ int inforow = 18;
 
 char goldmark = ' ';
 
+
+//  ------------------------------------------------------------------
+//  What to draw for the mark that says another GoldED+ wrote the
+//  message. It is the squared sign, and which bytes that is depends on
+//  the session rather than on the platform:
+//
+//    UTF-8       the character itself;
+//    single-byte the CP437 byte for it, 0xFD, where the charset is one
+//                of that family - DOS, OS/2, Windows;
+//    elsewhere   an ASCII stand-in, because in a single-byte unix
+//                session the charset is anyone's guess and 0xFD is a
+//                Cyrillic letter in KOI8-R.
+//
+//  The platform test this replaces said the same thing in a roundabout
+//  way, and said it at compile time, so a UTF-8 session on unix got the
+//  stand-in it no longer needs.
+
+std::string goldmark_str()
+{
+    if(goldmark == ' ')
+        return std::string(1, ' ');
+
+    if(g_utf8_mode())
+        return g_utf8_encode(0x00B2);
+
+#ifdef __UNIX__
+    return std::string(1, '^');
+#else
+    return std::string(1, '\xFD');
+#endif
+}
+
 int startecho = -1;
 Echo stecho = "";
 

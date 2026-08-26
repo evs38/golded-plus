@@ -75,6 +75,19 @@ ______________________________________________________________________
   *import* conversion and the message was then written with that still
   in place.
 
+! TAGLINECHAR takes a whole character rather than a single byte. The
+  prefix it forms is written into the message, so a multibyte character
+  used to be cut down to its first byte and went out over the wire
+  broken. A letter carrying an accent is taken whole as well.
+
+- The mark that says another GoldED+ wrote a message - the squared sign
+  in the status line - was chosen when the program was compiled, by
+  platform. A UTF-8 session on unix therefore got the ASCII stand-in
+  meant for single-byte sessions, where the byte for that sign means a
+  different letter in most charsets, and a UTF-8 session elsewhere drew
+  a stray byte that is not valid UTF-8. It is chosen by the charset of
+  the session now.
+
 + Charset conversion has been rewritten and now lives in one place,
   goldlib/gall/grecode.cpp. It uses, in this order, whichever is
   available: iconv; the operating system's own converter - the Win32

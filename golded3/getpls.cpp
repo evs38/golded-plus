@@ -1018,7 +1018,7 @@ loop_next:
                 {
                     strbtrim(msg->tagline);
                     if(AA->Taglinesupport() and *msg->tagline)
-                        sprintf(buf, "%c%c%c %s", AA->Taglinechar(), AA->Taglinechar(), AA->Taglinechar(), msg->tagline);
+                        sprintf(buf, "%s%s%s %s", AA->Taglinechar(), AA->Taglinechar(), AA->Taglinechar(), msg->tagline);
                     else
                         *buf = NUL;
                     ctrlinfo &= ~CI_TAGL;

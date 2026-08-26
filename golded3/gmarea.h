@@ -350,7 +350,7 @@ struct AreaData
         twitmode = 0;
         writeheader = 0;
 
-        taglinechar = 0;
+        taglinechar[0] = NUL;
 
         memset(origin, 0, sizeof(origin));
         memset(quotechars, 0, sizeof(quotechars));
@@ -434,7 +434,7 @@ struct AreaData
     char     scheckerdeflang[10240];
 #endif
     char     tagline[76];
-    char     taglinechar;
+    char     taglinechar[8];   //  one character, not one byte
     bool     taglinesupport;
     Tear     tearline;
     Path     tpl;
@@ -969,7 +969,7 @@ public:
     {
         return adat->tagline;
     }
-    char   Taglinechar() const
+    const char* Taglinechar() const
     {
         return adat->taglinechar;
     }

@@ -144,10 +144,21 @@ void CfgTaglinechar()
 {
 
     StripQuotes(val);
+
+    //  One character, which is not one byte: the tagline prefix is
+    //  written into the message, so half of a multibyte character
+    //  would go out over the wire.
+    char one[8];
+    size_t len = (size_t)(g_utf8_cluster_next(val) - val);
+    if(len >= sizeof(one))
+        len = sizeof(one) - 1;
+    memcpy(one, val, len);
+    one[len] = NUL;
+
     if(cfgingroup)
-        CFG->grp.AddItm(GRP_TAGLINECHAR, *val);
+        CFG->grp.AddItm(GRP_TAGLINECHAR, one, strlen(one)+1);
     else
-        CFG->taglinechar = *val;
+        strcpy(CFG->taglinechar, one);
 }
 
 //  ------------------------------------------------------------------

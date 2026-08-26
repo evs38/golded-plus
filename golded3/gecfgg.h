@@ -456,7 +456,7 @@ public:
     char        stylecodestops[41];
     gstrarray   tagline;
     int         taglineno;
-    char        taglinechar;
+    char        taglinechar[8];   //  one character, not one byte
     bool        taglinesupport;
     char        tasktitle[60];
     Tear        tearline;

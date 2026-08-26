@@ -181,7 +181,7 @@ void Area::InitData()
     if(*CFG->searchfor)
         strcpy(adat->searchfor, CFG->searchfor);
     strcpy(adat->tagline, CFG->tagline.empty() ? "" : CFG->tagline[CFG->taglineno].c_str());
-    adat->taglinechar = CFG->taglinechar;
+    strcpy(adat->taglinechar, CFG->taglinechar);
     adat->taglinesupport = CFG->taglinesupport;
     strcpy(adat->tearline, CFG->tearline);
     strcpy(adat->tpl, (CFG->tplno and (CFG->tplno < CFG->tpl.size())) ? CFG->tpl[CFG->tplno].file : "");
@@ -377,7 +377,7 @@ void Area::RandomizeData(int mode)
         if(CFG->grp.GetItm(GRP_TAGLINE, buf, sizeof(buf)))
             strxcpy(adat->tagline, buf, sizeof(adat->tagline));
 
-        CFG->grp.GetItm(GRP_TAGLINECHAR, adat->taglinechar);
+        CFG->grp.GetItm(GRP_TAGLINECHAR, adat->taglinechar, sizeof(adat->taglinechar));
         CFG->grp.GetItm(GRP_TAGLINESUPPORT, adat->taglinesupport);
 
         if(CFG->grp.GetItm(GRP_TEARLINE, buf, sizeof(buf)))

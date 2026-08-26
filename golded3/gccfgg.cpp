@@ -872,7 +872,7 @@ CfgGed::CfgGed()
     statuslinehelp = 0;
     striphtml = false;
     taglineno = 0;
-    taglinechar = '.';
+    strcpy(taglinechar, ".");
     taglinesupport = true;
     titlestatus = true;
     tplno = 0;
