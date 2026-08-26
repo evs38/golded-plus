@@ -75,7 +75,16 @@ char* MakeOrigin(GMsg* msg, const char* orig)
     if(*origin == '@')
         GetRandomLine(origin, sizeof(origin), origin+1);
 
-    gsprintf(PRINTF_DECLARE_BUFFER(msg->origin), "%.*s (%s)", (int)(79 - 11 - 2 - strlen(buf) - 1), origin, buf);
+    //  The origin line is " * Origin: <text> (<address>)" and has to
+    //  fit in 79 columns. The precision of "%.*s" counts bytes, so the
+    //  columns left for the text have to be turned into a byte count
+    //  first - otherwise a Cyrillic origin was cut at half its proper
+    //  length, and cut through the middle of a character, which put a
+    //  broken byte into the message that went out.
+    int cols  = 79 - 11 - 2 - (int)strlen(buf) - 1;
+    int bytes = (cols > 0) ? (int)g_utf8_bytes_for_cols(origin, (size_t)cols) : 0;
+
+    gsprintf(PRINTF_DECLARE_BUFFER(msg->origin), "%.*s (%s)", bytes, origin, buf);
     return msg->origin;
 }
 

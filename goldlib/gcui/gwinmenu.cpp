@@ -33,6 +33,7 @@
 //  ------------------------------------------------------------------
 
 #include <gctype.h>
+#include <gutf8.h>
 #include <cstdio>
 #include <cstdlib>
 #include <gmemdbg.h>
@@ -100,7 +101,9 @@ static int calc_bar_width(_menu_t *wmenu,_item_t *witem)
 {
     int width;
 
-    width=strlen(witem->str);
+    //  Columns, not bytes: in UTF-8 a character is several bytes, and
+    //  a bar measured in bytes would be twice as wide as its text.
+    width=(int)g_utf8_width(witem->str);
     if(wmenu->barwidth) width=wmenu->barwidth;
     return(width);
 }
@@ -112,7 +115,7 @@ static int calc_bar_width(_menu_t *wmenu,_item_t *witem)
 
 static int calc_center_item(_item_t *item)
 {
-    return( ((int)item->wcol) + (strlen(item->str)/2) );
+    return( ((int)item->wcol) + ((int)g_utf8_width(item->str)/2) );
 }
 
 
@@ -215,10 +218,11 @@ static void disp_item(_item_t *witem,int bar)
 #else
     __extension__ char buf[sizeof(vatch)*gvid->numcols];
 #endif
-    char ch;
+    vchar ch;
     vattr chattr;
     _wrec_t* whp;
     const char* p;
+    const char* pend;
     vatch* ptr=(vatch*)buf;
     int i, textend,width,wcol,found=NO;
 
@@ -227,8 +231,9 @@ static void disp_item(_item_t *witem,int bar)
 
     // initialize width of output and end of text
     p = witem->str;
+    pend = p + strlen(p);
     width = calc_bar_width(gwin.cmenu,witem);
-    textend = gwin.cmenu->textpos+strlen(p)-1;
+    textend = gwin.cmenu->textpos+(int)g_utf8_width(p)-1;
     wgotoxy(witem->wrow,wcol=witem->wcol);
     if (width > (gvid->numcols-2)) width = gvid->numcols - 2;
 
@@ -257,7 +262,19 @@ static void disp_item(_item_t *witem,int bar)
             // see if currently in bar region.  if so, then use
             // a space for the character. otherwise use the
             // character from the current position in the string
-            ch = ((i<gwin.cmenu->textpos) or (i>textend)) ? ' ' : (*p++);
+            //  One cell per column, and a character is not a byte:
+            //  taking *p++ drew each byte of a UTF-8 character as a
+            //  character of its own.
+            if((i<gwin.cmenu->textpos) or (i>textend) or (p>=pend))
+            {
+                ch = ' ';
+            }
+            else
+            {
+                int used = 1;
+                ch = (vchar)g_utf8_decode(p, pend, &used);
+                p += used ? used : 1;
+            }
 
             // select attribute of character to be displayed based upon if
             // selection bar was specified, if the menu item is non-selectable,
@@ -266,7 +283,7 @@ static void disp_item(_item_t *witem,int bar)
                 chattr = gwin.cmenu->barattr;
             else if(witem->fmask&M_NOSEL)
                 chattr = gwin.cmenu->noselattr;
-            else if((ch==witem->schar) and not found)
+            else if((ch==(vchar)(unsigned char)witem->schar) and not found)
             {
                 found = YES;
                 chattr = gwin.cmenu->scharattr;
@@ -871,8 +888,9 @@ int wmenuitem(int wrow, int wcol, const char* str, char schar, int tagid, int fm
     int border = (gwin.cmenu->btype == 5) ? 0 : 1;
 
     int width = 1 + (gwin.cmenu->ecol-border) - (gwin.cmenu->scol+border);
-    size_t _titlen = gwin.cmenu->title ? strlen(gwin.cmenu->title) : 0;
-    size_t _strlen = strlen(str);
+    //  Columns, not bytes - the box is measured on screen.
+    size_t _titlen = gwin.cmenu->title ? g_utf8_width(gwin.cmenu->title) : 0;
+    size_t _strlen = g_utf8_width(str);
     size_t length = maximum_of_two(_strlen, _titlen);
     if((int)length > width)
         gwin.cmenu->ecol += length - width;

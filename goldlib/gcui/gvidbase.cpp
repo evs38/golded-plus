@@ -121,9 +121,9 @@ static inline int gvid_refresh()
 //  ------------------------------------------------------------------
 
 static bool __vcurhidden = false;
-#if defined(__UNIX__) || defined(__USE_NCURSES__)
+//  Box-drawing conversion is wanted on every screen, curses or not.
     vchar gvid_boxcvtc(vchar);
-#endif
+
 
 #if defined(__USE_WIDE_NCURSES__)
 //  Turn what a screen cell holds into the wide character curses wants.
@@ -1271,7 +1271,27 @@ void vputs_box(int row, int col, vattr atr, const char* str)
     gvid_addstr(str, gvid_attrcalc(atr), 0, true);
     gvid_refresh();
 #else
+
+    //  These strings are drawn with the box-drawing bytes of CP437 -
+    //  the startup screen is written that way. That is not UTF-8, so in
+    //  a UTF-8 session each byte would be taken for the codepoint it
+    //  happens to name and the frame would come out as accented Latin
+    //  letters. Convert each byte to the character the current box
+    //  style asks for and hand the result on as UTF-8. In a single-byte
+    //  session the bytes are already right and nothing is touched.
+    if(g_utf8_mode())
+    {
+        std::string out;
+
+        for(const char* s = str; *s; s++)
+            out += g_utf8_encode(gvid_boxcvtc((vchar)(unsigned char)*s));
+
+        vputs(row, col, atr, out.c_str());
+        return;
+    }
+
     vputs(row, col, atr, str);
+
 #endif
 }
 
@@ -1336,12 +1356,25 @@ void vputs(int row, int col, vattr atr, const char* str)
     int   n = 0;
     int   cols = 0;
 
-    while(*str and cols < gvid->numcols and n < (int)ARRAYSIZE(wbuf)-2)
+    //  Stop at the right edge, counting columns from where we start
+    //  writing rather than characters from zero. The cell API clipped
+    //  whatever ran past the edge; WriteConsoleW wraps to the next line
+    //  instead and would push the rest of the screen up, so the text
+    //  has to be cut here. A character that would straddle the edge is
+    //  left out rather than half-drawn.
+    const int room = gvid->numcols - col;
+
+    while(*str and n < (int)ARRAYSIZE(wbuf)-2)
     {
         int used = 1;
         vchar cp = gvid_tcpr((vchar)g_utf8_decode(str, &used));
+        int  w   = g_cp_width(cp);
+
+        if(cols + (w > 0 ? w : 1) > room)
+            break;
+
         str += used ? used : 1;
-        cols++;
+        cols += (w > 0) ? w : 1;
         n += gvid_utf16(cp, wbuf + n);
     }
 
@@ -3029,7 +3062,8 @@ chtype _box_table(int type, int c)
 
 //  ------------------------------------------------------------------
 
-#if defined(__UNIX__) || defined(__USE_NCURSES__)
+//  Available on every platform: vputs_box() needs it wherever the
+//  screen is not driven through curses.
 
 //  ------------------------------------------------------------------
 //  Box character substitution.
@@ -3101,7 +3135,7 @@ void gvid_boxcvt(char* s)
     }
 }
 
-#endif
+
 
 
 //  ------------------------------------------------------------------

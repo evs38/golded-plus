@@ -23,9 +23,11 @@ ______________________________________________________________________
 
   Text is measured in screen columns rather than bytes wherever the
   two differ - field widths, truncation, the message list, the reader
-  header, the thread tree - and where a field has to be cut to fit,
-  whether on screen or into the fixed-width header fields of a message
-  base, it is cut between characters and never through one.
+  header, the thread tree, window titles and menus, the help text, the
+  right margin a message is wrapped at, and the origin line - and where
+  a field has to be cut to fit, whether on screen or into the
+  fixed-width header fields of a message base, it is cut between
+  characters and never through one.
 
   Build it with GOLD_UTF8=1 (on by default where the platform can
   carry it) - cmake -DGOLD_UTF8=ON, or make GOLD_UTF8=1.

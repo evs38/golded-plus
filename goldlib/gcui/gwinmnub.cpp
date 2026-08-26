@@ -26,6 +26,7 @@
 //  ------------------------------------------------------------------
 
 #include <cstdlib>
+#include <gutf8.h>
 #include <cstring>
 #include <gmnubase.h>
 
@@ -275,7 +276,7 @@ void GMnu::Item(int tag, const char* text, int fmask, VfvCP select, gkey hotkey)
     }
 
     status = wmenuitem(stack[depth].itemrow, stack[depth].itemcolumn, text+1, shortcut, tag, fmask, select, hotkey, helpnumber);
-    stack[depth].winwidth = strlen(text+1);
+    stack[depth].winwidth = (int)g_utf8_width(text+1);   // columns
     if(stack[depth].type & M_HORZ)
         stack[depth].itemcolumn += stack[depth].winwidth;
     else

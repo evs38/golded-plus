@@ -2014,17 +2014,40 @@ static uint RecodeChar(char*& ptr, char*& bp, int level, GRecoder* recoder)
     {
         const char* tptr = (const char*)ChsTP[(byte)*ptr++];
         char chln = *tptr++;
+        char* start = bp + 1;
         uint written = 0;
         while(chln--)
         {
             *(++bp) = *tptr++;
             written++;
         }
-        return written;
+
+        //  What the table produced may be several bytes of one
+        //  character; the margin counts columns.
+        return (uint)g_utf8_width(start, written);
     }
 
-    *(++bp) = *ptr++;
-    return 1;
+    //  Nothing to convert - the text is already in the local charset.
+    //  That still does not make a byte a column: without this, a line
+    //  of Cyrillic in a UTF-8 session counted double and wrapped at
+    //  half the width. This is the path taken whenever the message
+    //  charset and the local one agree, so no recoder is made.
+    {
+        size_t avail = 0;
+        while(avail < (size_t)GUTF8_MAXLEN and ptr[avail] != NUL)
+            avail++;
+
+        int used = 1;
+        vchar cp = (vchar)g_utf8_decode(ptr, ptr + avail, &used);
+        if(used <= 0)
+            used = 1;
+
+        for(int n = 0; n < used; n++)
+            *(++bp) = *ptr++;
+
+        int w = g_cp_width(cp);
+        return (uint)((w > 0) ? w : 1);
+    }
 }
 
 
@@ -3035,7 +3058,12 @@ chardo:
                         break;
                 }
 
-                if(len == (uint)margin)
+                //  Not "==": the loop stops as soon as the margin is
+                //  reached, and a double-width character can step over
+                //  it rather than landing on it. Testing for equality
+                //  skipped the wrap handling entirely for a line of
+                //  CJK, which then stayed one long hard line.
+                if(len >= (uint)margin)
                 {
                     if(*ptr == CR)
                     {

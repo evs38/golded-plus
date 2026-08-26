@@ -847,7 +847,15 @@ int wputs(const char* str)
             q=process_esc(q);
             break;
         default:
-            vputc(crow, ccol++, gwin.active->attr, *q);
+        {
+            //  One character, which in UTF-8 is more than one byte;
+            //  the loop's own q++ accounts for the first of them.
+            int used = 1;
+            vchar ch = (vchar)g_utf8_decode(q, q + strlen(q), &used);
+            vputc(crow, ccol++, gwin.active->attr, ch);
+            if(used > 1)
+                q += used - 1;
+        }
         }
 
         // see if wrap-around is needed
@@ -1340,6 +1348,11 @@ static _wrec_t *__curr, *__found;
 static int    __crow, __ccol;
 static vattr  __gattr;
 static const char* __p;
+//  The character __p currently stands on, decoded once per step: in
+//  UTF-8 it is several bytes, and drawing *__p drew each byte as a
+//  character of its own.
+static vchar       __ch;
+static int         __chlen;
 
 
 //  ------------------------------------------------------------------
@@ -1737,7 +1750,7 @@ static void update_buffers(vatch* pcurr, int shadow)
 
     // put current string character and attribute into found window's buffer
 
-    *pcurr = vcatch(*__p, __gattr);
+    *pcurr = vcatch(__ch, __gattr);
 
     // if window's shadow is what's blocking, check to see
     // if it is the highest shadow.  If it is, display the
@@ -1748,7 +1761,7 @@ static void update_buffers(vatch* pcurr, int shadow)
     {
         if(__curr->next==NULL)
         {
-            vputc(__crow, __ccol, __gattr & BLINK ? (__curr->wsattr | BLINK) : __curr->wsattr, *__p);
+            vputc(__crow, __ccol, __gattr & BLINK ? (__curr->wsattr | BLINK) : __curr->wsattr, __ch);
         }
         else
         {
@@ -1853,11 +1866,16 @@ int wwprints(int whandle, int wrow, int wcol, vattr attr, const char* str)
     // do while not end-of-string and not end-of-window
     while(__ccol <= ecol and *__p)
     {
+        __chlen = 1;
+        __ch = (vchar)g_utf8_decode(__p, __p + strlen(__p), &__chlen);
+        if(__chlen <= 0)
+            __chlen = 1;
+
 
         // see if output window is hidden.  if so, then there
         // is no need to check for blocking windows/shadows
         if(hidden)
-            *(calc_window(found)) = vcatch(*__p, attr);
+            *(calc_window(found)) = vcatch(__ch, attr);
         else
         {
 
@@ -1900,12 +1918,12 @@ int wwprints(int whandle, int wrow, int wcol, vattr attr, const char* str)
             // if current position is not blocked,
             // then display char to screen
             if(__curr==NULL)
-                vputc(__crow, __ccol, attr, *__p);
+                vputc(__crow, __ccol, attr, __ch);
         }
 
         // update pointer into string and current column
         __ccol++;
-        __p++;
+        __p += __chlen;
     }
 
     // restore old cursor position
@@ -2069,7 +2087,7 @@ int wmessage(const char* str, int border, int leftofs, vattr attr)
     int left  = gwin.active->scol+1;
     int right = gwin.active->ecol-1;
     int width = right-left+1;
-    int len   = strlen(str);
+    int len   = (int)g_utf8_width(str);   // columns, not bytes
 
     // Center string
     if(leftofs < 0)
@@ -2153,7 +2171,7 @@ int wtitle(const char* str, int tpos, vattr tattr)
         int left  = gwin.active->scol+1;
         int right = gwin.active->ecol-1;
         int width = right-left+1;
-        int len   = strlen(str);
+        int len   = (int)g_utf8_width(str);   // columns, not bytes
 
         // don't display title if window is borderless
         if(gwin.active->border)
@@ -2179,12 +2197,20 @@ int wtitle(const char* str, int tpos, vattr tattr)
             }
             }
 
-            // allocate space for window title string, and copy it there
-            char* p = (char*)throw_xmalloc(((width>len) ? width : len)+1);
+            //  Allocate by bytes and cut by columns. The two are the
+            //  same number only in a single-byte charset: sizing the
+            //  buffer by the width on screen and then strcpy()ing the
+            //  string into it overran the heap for any title with a
+            //  character outside ASCII, and cutting at a byte left
+            //  half a character behind.
+            size_t bytes = strlen(str);
+            size_t keep  = g_utf8_bytes_for_cols(str, (size_t)width);
+
+            char* p = (char*)throw_xmalloc(bytes+1);
             if(p==NULL)
                 return gwin.werrno=W_ALLOCERR;
-            strcpy(p, str);
-            *(p+width) = NUL;
+            memcpy(p, str, keep);
+            p[keep] = NUL;
 
             // display title string
             vputs((tpos&TBOTTOM)?gwin.active->erow:gwin.active->srow, start, tattr, p);

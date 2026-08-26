@@ -29,6 +29,7 @@
 //  ------------------------------------------------------------------
 
 #include <gctype.h>
+#include <gutf8.h>
 #include <cstdlib>
 #include <cstring>
 #include <gkbdcode.h>
@@ -445,14 +446,15 @@ int wpickstr(int srow, int scol, int erow, int ecol, int btype, vattr bordattr, 
     // go through input array and determine the longest
     // string, and count the number of elements in the array
 
-    size_t maxlen = strlen(m_title);
+    //  Columns, not bytes: the window is sized to what is drawn.
+    size_t maxlen = g_utf8_width(m_title);
 
     gstrarray::const_iterator it = strarr.begin();
     gstrarray::const_iterator end = strarr.end();
     for (; it != end; it++)
     {
         size_t len;
-        if ((len = it->length()) > maxlen)
+        if ((len = g_utf8_width(*it)) > maxlen)
         {
             maxlen = len;
         }
