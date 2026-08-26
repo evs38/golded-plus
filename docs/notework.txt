@@ -30,6 +30,41 @@ ______________________________________________________________________
   Build it with GOLD_UTF8=1 (on by default where the platform can
   carry it) - cmake -DGOLD_UTF8=ON, or make GOLD_UTF8=1.
 
++ Text is measured by grapheme cluster rather than by codepoint, so
+  what a reader calls one character counts as one: an emoji with a skin
+  tone, a family joined by zero-width joiners, a flag built from two
+  regional indicators, a symbol followed by an emoji presentation
+  selector, a letter with its accents. The cursor steps over such a
+  character in a single move, Backspace removes it whole, and a field
+  that has to be cut is never cut through the middle of one.
+
++ How many columns a character occupies is now decided by tables
+  generated from the Unicode Character Database instead of written by
+  hand. The old tables stopped at Unicode 11, so anything added since -
+  which is most of the emoji in current use - counted as one column
+  where two are drawn, leaving the rest of the line a column out of
+  place and sometimes rubbing the character out altogether. The
+  generator is chsgen/uwidgen; `make uwidth' in chsgen rebuilds the
+  tables from the UCD files kept beside it, and chsgen/README.txt says
+  what to fetch to move to a newer revision of Unicode.
+
+! Where the screen is driven through curses, the width of a character
+  is taken from the host whenever the host knows that character, and
+  from the built-in tables otherwise. Curses advances the cursor by its
+  own reckoning, and disagreeing with it would put every line holding
+  such a character a column out. On a system whose own tables are older
+  than ours, a very new character is therefore drawn narrow rather than
+  drawn in the wrong place.
+
+- On Windows a character outside the Basic Multilingual Plane, which is
+  every emoji, was never displayed: a console cell holds a single
+  UTF-16 unit and the character was cut down to sixteen bits on its way
+  into one, so it came out as an unrelated glyph or as nothing at all.
+  Text now goes to the console through its stream interface, which
+  takes the whole character. The character under the cursor in the
+  editor was drawn by a separate route and cut the same way; it is
+  fixed too.
+
 + Charset conversion has been rewritten and now lives in one place,
   goldlib/gall/grecode.cpp. It uses, in this order, whichever is
   available: iconv; the operating system's own converter - the Win32

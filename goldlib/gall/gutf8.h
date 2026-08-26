@@ -184,6 +184,33 @@ size_t g_utf8_strlen(const char* p, size_t nbytes);
 int g_cp_width(uint32_t cp);
 
 
+//  Forget what the host's wcwidth() was found to be capable of. Call
+//  after changing the locale; g_set_utf8_mode() already does.
+
+void g_reset_host_width(void);
+
+
+//  ------------------------------------------------------------------
+//  Step over one grapheme cluster - one character as a reader sees it,
+//  which may be several codepoints: a letter and its accents, an emoji
+//  and its skin tone, a flag, a joined family. Always advances by at
+//  least one byte, and never past 'end'.
+
+const char* g_utf8_cluster_next(const char* p, const char* end);
+const char* g_utf8_cluster_next(const char* p);
+const char* g_utf8_cluster_prev(const char* start, const char* p);
+
+inline char* g_utf8_cluster_next(char* p)
+{
+    return const_cast<char*>(g_utf8_cluster_next((const char*)p));
+}
+
+
+//  How many columns one cluster occupies.
+
+size_t g_utf8_cluster_width(const char* p, const char* end);
+
+
 //  ------------------------------------------------------------------
 //  Total width in screen cells.
 

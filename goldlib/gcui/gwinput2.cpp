@@ -984,7 +984,7 @@ int gwinput::field::next_off(int off) const
 {
     if(off >= buf_end_pos)
         return buf_end_pos;
-    return (int)(g_utf8_next(buf + off) - buf);
+    return (int)(g_utf8_cluster_next(buf + off, buf + buf_end_pos) - buf);
 }
 
 
@@ -992,7 +992,7 @@ int gwinput::field::prev_off(int off) const
 {
     if(off <= 0)
         return 0;
-    return (int)(g_utf8_prev(buf, buf + off) - buf);
+    return (int)(g_utf8_cluster_prev(buf, buf + off) - buf);
 }
 
 

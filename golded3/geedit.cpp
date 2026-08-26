@@ -300,7 +300,7 @@ uint IEclass::nextoff(const Line* __line, uint __off) const
         return t.length();
 
     const char* p = t.c_str() + __off;
-    return (uint)(g_utf8_next(p) - t.c_str());
+    return (uint)(g_utf8_cluster_next(p, t.c_str() + t.length()) - t.c_str());
 }
 
 
@@ -314,7 +314,7 @@ uint IEclass::prevoff(const Line* __line, uint __off) const
         __off = t.length();
 
     const char* base = t.c_str();
-    return (uint)(g_utf8_prev(base, base + __off) - base);
+    return (uint)(g_utf8_cluster_prev(base, base + __off) - base);
 }
 
 

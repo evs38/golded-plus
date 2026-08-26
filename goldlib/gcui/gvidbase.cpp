@@ -180,16 +180,16 @@ extern WCHAR oem2unicode[]; // defined in gutlwin.cpp
 //  says what it means. That table also renders the characters below 32
 //  as the glyphs CP437 assigns them, which is what GoldED means by them.
 
-WCHAR gvid_tcpr(vchar chr)
+vchar gvid_tcpr(vchar chr)
 {
     if(g_utf8_mode() and chr > 0xFF)
-        return (WCHAR)chr;
+        return chr;
 
     if(g_utf8_mode() and chr >= 0x80)
     {
         //  A lone byte in that range cannot occur in well-formed UTF-8
         //  text, so it is a codepoint that happens to be small.
-        return (WCHAR)chr;
+        return chr;
     }
 
     return oem2unicode[chr & 0xff];
@@ -917,6 +917,78 @@ static void gvid_addstr(const char* str, int attr, uint width, bool boxcvt)
 
 
 //  ------------------------------------------------------------------
+//  Text on Win32 goes out through the stream API rather than the cell
+//  API. A CHAR_INFO holds one UTF-16 unit, so nothing above U+FFFF fits
+//  in one, and a surrogate pair spread over two cells draws as two
+//  unknown characters however it is flagged - measured on the console,
+//  with and without COMMON_LVB_LEADING_BYTE. WriteConsoleW takes UTF-16
+//  and builds the character itself. It also leaves the width
+//  arithmetic to the console, which the cell path got wrong for every
+//  wide character and not only for the astral ones.
+
+#ifdef __WIN32__
+
+//  One codepoint as UTF-16, forming a surrogate pair where it must.
+static int gvid_utf16(vchar cp, WCHAR* w)
+{
+    if(cp > 0xFFFF and cp <= 0x10FFFF)
+    {
+        cp -= 0x10000;
+        w[0] = (WCHAR)(0xD800 + (cp >> 10));
+        w[1] = (WCHAR)(0xDC00 + (cp & 0x3FF));
+        return 2;
+    }
+
+    w[0] = (WCHAR)cp;
+    return 1;
+}
+
+
+static void gvid_wwrite(int row, int col, vattr atr, const WCHAR* w, int n)
+{
+    CONSOLE_SCREEN_BUFFER_INFO sb;
+    CONSOLE_CURSOR_INFO ci;
+    COORD at;
+    DWORD wrote = 0;
+    bool hidden = false;
+
+    if(n <= 0)
+        return;
+
+    GetConsoleScreenBufferInfo(gvid_hout, &sb);
+
+    //  Keep the caret away from the text while it is being written.
+    //  FAR Manager does the same, and for the same reason: a caret
+    //  standing on a surrogate pair spoils the character.
+    if(GetConsoleCursorInfo(gvid_hout, &ci) and ci.bVisible)
+    {
+        ci.bVisible = FALSE;
+        SetConsoleCursorInfo(gvid_hout, &ci);
+        hidden = true;
+    }
+
+    at.X = (SHORT)col;
+    at.Y = (SHORT)row;
+    SetConsoleTextAttribute(gvid_hout, (WORD)atr);
+    SetConsoleCursorPosition(gvid_hout, at);
+    WriteConsoleW(gvid_hout, w, (DWORD)n, &wrote, NULL);
+
+    //  Writing this way moves the caret and changes the current
+    //  attribute, neither of which the cell API did; put both back.
+    SetConsoleTextAttribute(gvid_hout, sb.wAttributes);
+    SetConsoleCursorPosition(gvid_hout, sb.dwCursorPosition);
+
+    if(hidden)
+    {
+        ci.bVisible = TRUE;
+        SetConsoleCursorInfo(gvid_hout, &ci);
+    }
+}
+
+#endif
+
+
+//  ------------------------------------------------------------------
 //  Print character and attribute at specfied location
 
 #if (defined(__MSDOS__) || defined(__UNIX__)) && !defined(__USE_NCURSES__)
@@ -1001,13 +1073,38 @@ void vputws(int row, int col, vatch* buf, uint len)
 
 #if defined(__USE_NCURSES__)
 
-    move(row, col);
-    for(int counter = 0; counter < len; counter++)
 #if defined(__USE_WIDE_NCURSES__)
-        add_wch(&buf[counter]);
+
+    //  The buffer holds one cell per column of GoldED's model, but a
+    //  wide character covers two columns on screen. Writing the run in
+    //  sequence lets it creep to the right by one column per wide
+    //  character and spill out of the field it was given, over whatever
+    //  is drawn next to it. Place every cell at the column it belongs
+    //  to instead, and stop at the end of the field.
+    int c = 0;
+    for(uint counter = 0; counter < len and c < (int)len; counter++)
+    {
+        wchar_t wch[CCHARW_MAX];
+        attr_t  attrs;
+        short   pair;
+        int     wide = 1;
+
+        mvadd_wch(row, col + c, &buf[counter]);
+
+        if(getcchar(&buf[counter], wch, &attrs, &pair, NULL) == OK and wch[0])
+            wide = g_cp_width((uint32_t)wch[0]);
+
+        c += (wide > 0) ? wide : 1;
+    }
+
 #else
+
+    move(row, col);
+    for(uint counter = 0; counter < len; counter++)
         addch(buf[counter]);
+
 #endif
+
     gvid_refresh();
 
 #elif defined(__MSDOS__)
@@ -1103,7 +1200,18 @@ void vputc(int row, int col, vattr atr, vchar chr)
         cpu.genint(0x10);
     }
 
-#elif defined(__OS2__) || defined(__WIN32__)
+#elif defined(__WIN32__)
+
+    //  One character, but the same rule as a whole string: through the
+    //  stream API, or anything above U+FFFF is cut down to 16 bits.
+    //  The editor draws the character under the cursor this way.
+    {
+        WCHAR w[2];
+        int n = gvid_utf16(gvid_tcpr(chr), w);
+        gvid_wwrite(row, col, atr, w, n);
+    }
+
+#elif defined(__OS2__)
 
     vputw(row, col, vcatch(chr, atr));
 
@@ -1214,17 +1322,30 @@ void vputs(int row, int col, vattr atr, const char* str)
 
 #elif defined(__WIN32__)
 
-    int i;
+    //  Not through the cell API. A CHAR_INFO holds one UTF-16 unit, so
+    //  nothing above U+FFFF fits in one, and a surrogate pair spread
+    //  over two cells draws as two unknown characters however it is
+    //  flagged - measured on the console, with and without
+    //  COMMON_LVB_LEADING_BYTE. WriteConsoleW takes UTF-16 and builds
+    //  the character itself, and that is the only way an emoji appears
+    //  at all. It also leaves the width arithmetic to the console,
+    //  which the cell loop got wrong for every wide character and not
+    //  only for the astral ones.
 
-    for(i = 0; *str && (i < gvid->numcols); i++)
+    WCHAR wbuf[1024];
+    int   n = 0;
+    int   cols = 0;
+
+    while(*str and cols < gvid->numcols and n < (int)ARRAYSIZE(wbuf)-2)
     {
         int used = 1;
-        vchar chr = (vchar)g_utf8_decode(str, &used);
+        vchar cp = gvid_tcpr((vchar)g_utf8_decode(str, &used));
         str += used ? used : 1;
-        gvid->bufwrd[i] = vcatch(chr, atr);
+        cols++;
+        n += gvid_utf16(cp, wbuf + n);
     }
-    if(i)
-        vputws(row, col, gvid->bufwrd, i);
+
+    gvid_wwrite(row, col, atr, wbuf, n);
 
 #elif defined(__UNIX__)
 
@@ -2291,6 +2412,24 @@ void vsetattr(int row, int col, vattr atr)
 
     int attr = gvid_attrcalc(atr);
     mvchgat(row, col, 1, (attr_t)(attr & ~A_COLOR), (short)PAIR_NUMBER(attr), NULL);
+
+#elif defined(__WIN32__)
+
+    //  Not by reading the cell and writing it back: ReadConsoleOutputW
+    //  does not return surrogate pairs (microsoft/terminal#10810, and
+    //  FAR Manager says the same), so a round trip would replace an
+    //  astral character with half of itself. This API changes the
+    //  colour and leaves the character alone, which is what the name
+    //  promises.
+    {
+        COORD at;
+        WORD  a = (WORD)atr;
+        DWORD done = 0;
+
+        at.X = (SHORT)col;
+        at.Y = (SHORT)row;
+        WriteConsoleOutputAttribute(gvid_hout, &a, 1, at, &done);
+    }
 
 #else
 

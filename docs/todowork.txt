@@ -127,3 +127,28 @@ Design, in rough order of what it would buy:
   per character of message text, including an iconv shift-state reset
   each time; and g_utf8_fit() and wprintns() each decode the same text
   twice per message-list row.
+
+______________________________________________________________________
+
+Emoji and everything else outside the BMP, 2026-08-26.
+
+Everything found here has been dealt with except the last item, which
+is not ours to fix. Kept because it explains a fault that will be
+reported again.
+
+* A character whose width the terminal and the host's wcwidth() do not
+  agree on will smear on screen: it draws over its neighbour, or a
+  second copy of it appears as the cursor is walked along the line.
+  Curses places the character by wcwidth() and the terminal draws it by
+  its own tables, and when those differ the two disagree about where
+  everything after it belongs. Nothing in GoldED+ reaches that gap - we
+  can only be consistent with curses, which we are. Seen with U+1FABE
+  on NetBSD 11 under iTerm2: wcwidth() says two columns, the terminal
+  draws one. Characters both sides know - and that is all of them bar
+  the very newest - behave.
+
+* The same disagreement in the other direction, for the same reason:
+  curses adds up a sequence joined by zero-width joiners codepoint by
+  codepoint and makes a joined family six columns, where the terminal
+  draws one glyph in two. We follow the terminal, because that is what
+  the reader sees. There is no answer that satisfies both.

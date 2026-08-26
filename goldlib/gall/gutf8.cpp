@@ -24,6 +24,11 @@
 //  ------------------------------------------------------------------
 
 #include <cstring>
+#if defined(__USE_WIDE_NCURSES__)
+//  For wcwidth(): where curses draws, curses decides how wide a
+//  character is - see g_cp_width().
+#include <wchar.h>
+#endif
 #include <gctype.h>
 #include <grecode.h>
 #include <gutf8.h>
@@ -37,6 +42,10 @@ bool __gutf8_mode = false;
 void g_set_utf8_mode(bool onoff)
 {
     __gutf8_mode = onoff;
+
+    //  The charset is settled around the same time as the locale, and
+    //  what the host's wcwidth() can do depends on the locale.
+    g_reset_host_width();
 }
 
 #endif
@@ -321,110 +330,11 @@ struct cprange
     uint32_t first, last;
 };
 
-static const cprange zero_width[] =
-{
-    { 0x0300, 0x036F }, { 0x0483, 0x0489 }, { 0x0591, 0x05BD },
-    { 0x05BF, 0x05BF }, { 0x05C1, 0x05C2 }, { 0x05C4, 0x05C5 },
-    { 0x05C7, 0x05C7 }, { 0x0610, 0x061A }, { 0x064B, 0x065F },
-    { 0x0670, 0x0670 }, { 0x06D6, 0x06DC }, { 0x06DF, 0x06E4 },
-    { 0x06E7, 0x06E8 }, { 0x06EA, 0x06ED }, { 0x0711, 0x0711 },
-    { 0x0730, 0x074A }, { 0x07A6, 0x07B0 }, { 0x07EB, 0x07F3 },
-    { 0x0816, 0x0819 }, { 0x081B, 0x0823 }, { 0x0825, 0x0827 },
-    { 0x0829, 0x082D }, { 0x0859, 0x085B }, { 0x08E3, 0x0903 },
-    { 0x093A, 0x093C }, { 0x093E, 0x094F }, { 0x0951, 0x0957 },
-    { 0x0962, 0x0963 }, { 0x0981, 0x0983 }, { 0x09BC, 0x09BC },
-    { 0x09BE, 0x09C4 }, { 0x09C7, 0x09C8 }, { 0x09CB, 0x09CD },
-    { 0x09D7, 0x09D7 }, { 0x09E2, 0x09E3 }, { 0x0A01, 0x0A03 },
-    { 0x0A3C, 0x0A3C }, { 0x0A3E, 0x0A42 }, { 0x0A47, 0x0A48 },
-    { 0x0A4B, 0x0A4D }, { 0x0A51, 0x0A51 }, { 0x0A70, 0x0A71 },
-    { 0x0A75, 0x0A75 }, { 0x0A81, 0x0A83 }, { 0x0ABC, 0x0ABC },
-    { 0x0ABE, 0x0AC5 }, { 0x0AC7, 0x0AC9 }, { 0x0ACB, 0x0ACD },
-    { 0x0AE2, 0x0AE3 }, { 0x0B01, 0x0B03 }, { 0x0B3C, 0x0B3C },
-    { 0x0B3E, 0x0B44 }, { 0x0B47, 0x0B48 }, { 0x0B4B, 0x0B4D },
-    { 0x0B56, 0x0B57 }, { 0x0B62, 0x0B63 }, { 0x0B82, 0x0B82 },
-    { 0x0BBE, 0x0BC2 }, { 0x0BC6, 0x0BC8 }, { 0x0BCA, 0x0BCD },
-    { 0x0BD7, 0x0BD7 }, { 0x0C00, 0x0C03 }, { 0x0C3E, 0x0C44 },
-    { 0x0C46, 0x0C48 }, { 0x0C4A, 0x0C4D }, { 0x0C55, 0x0C56 },
-    { 0x0C62, 0x0C63 }, { 0x0C81, 0x0C83 }, { 0x0CBC, 0x0CBC },
-    { 0x0CBE, 0x0CC4 }, { 0x0CC6, 0x0CC8 }, { 0x0CCA, 0x0CCD },
-    { 0x0CD5, 0x0CD6 }, { 0x0CE2, 0x0CE3 }, { 0x0D01, 0x0D03 },
-    { 0x0D3E, 0x0D44 }, { 0x0D46, 0x0D48 }, { 0x0D4A, 0x0D4D },
-    { 0x0D57, 0x0D57 }, { 0x0D62, 0x0D63 }, { 0x0D82, 0x0D83 },
-    { 0x0DCA, 0x0DCA }, { 0x0DCF, 0x0DD4 }, { 0x0DD6, 0x0DD6 },
-    { 0x0DD8, 0x0DDF }, { 0x0DF2, 0x0DF3 }, { 0x0E31, 0x0E31 },
-    { 0x0E34, 0x0E3A }, { 0x0E47, 0x0E4E }, { 0x0EB1, 0x0EB1 },
-    { 0x0EB4, 0x0EB9 }, { 0x0EBB, 0x0EBC }, { 0x0EC8, 0x0ECD },
-    { 0x0F18, 0x0F19 }, { 0x0F35, 0x0F35 }, { 0x0F37, 0x0F37 },
-    { 0x0F39, 0x0F39 }, { 0x0F3E, 0x0F3F }, { 0x0F71, 0x0F84 },
-    { 0x0F86, 0x0F87 }, { 0x0F8D, 0x0F97 }, { 0x0F99, 0x0FBC },
-    { 0x0FC6, 0x0FC6 }, { 0x102B, 0x103E }, { 0x1056, 0x1059 },
-    { 0x105E, 0x1060 }, { 0x1062, 0x1064 }, { 0x1067, 0x106D },
-    { 0x1071, 0x1074 }, { 0x1082, 0x108D }, { 0x108F, 0x108F },
-    { 0x109A, 0x109D }, { 0x1160, 0x11FF }, { 0x135D, 0x135F },
-    { 0x1712, 0x1714 }, { 0x1732, 0x1734 }, { 0x1752, 0x1753 },
-    { 0x1772, 0x1773 }, { 0x17B4, 0x17D3 }, { 0x17DD, 0x17DD },
-    { 0x180B, 0x180E }, { 0x18A9, 0x18A9 }, { 0x1920, 0x192B },
-    { 0x1930, 0x193B }, { 0x1A17, 0x1A1B }, { 0x1A55, 0x1A5E },
-    { 0x1A60, 0x1A7C }, { 0x1A7F, 0x1A7F }, { 0x1AB0, 0x1ABE },
-    { 0x1B00, 0x1B04 }, { 0x1B34, 0x1B44 }, { 0x1B6B, 0x1B73 },
-    { 0x1B80, 0x1B82 }, { 0x1BA1, 0x1BAD }, { 0x1BE6, 0x1BF3 },
-    { 0x1C24, 0x1C37 }, { 0x1CD0, 0x1CD2 }, { 0x1CD4, 0x1CE8 },
-    { 0x1CED, 0x1CED }, { 0x1CF2, 0x1CF4 }, { 0x1CF8, 0x1CF9 },
-    { 0x1DC0, 0x1DFF }, { 0x200B, 0x200F }, { 0x202A, 0x202E },
-    { 0x2060, 0x2064 }, { 0x2066, 0x206F }, { 0x20D0, 0x20F0 },
-    { 0x2CEF, 0x2CF1 }, { 0x2D7F, 0x2D7F }, { 0x2DE0, 0x2DFF },
-    { 0x302A, 0x302F }, { 0x3099, 0x309A }, { 0xA66F, 0xA672 },
-    { 0xA674, 0xA67D }, { 0xA69E, 0xA69F }, { 0xA6F0, 0xA6F1 },
-    { 0xA802, 0xA802 }, { 0xA806, 0xA806 }, { 0xA80B, 0xA80B },
-    { 0xA823, 0xA827 }, { 0xA880, 0xA881 }, { 0xA8B4, 0xA8C4 },
-    { 0xA8E0, 0xA8F1 }, { 0xA926, 0xA92D }, { 0xA947, 0xA953 },
-    { 0xA980, 0xA983 }, { 0xA9B3, 0xA9C0 }, { 0xA9E5, 0xA9E5 },
-    { 0xAA29, 0xAA36 }, { 0xAA43, 0xAA43 }, { 0xAA4C, 0xAA4D },
-    { 0xAA7B, 0xAA7D }, { 0xAAB0, 0xAAB0 }, { 0xAAB2, 0xAAB4 },
-    { 0xAAB7, 0xAAB8 }, { 0xAABE, 0xAABF }, { 0xAAC1, 0xAAC1 },
-    { 0xAAEB, 0xAAEF }, { 0xAAF5, 0xAAF6 }, { 0xABE3, 0xABEA },
-    { 0xABEC, 0xABED }, { 0xFB1E, 0xFB1E }, { 0xFE00, 0xFE0F },
-    { 0xFE20, 0xFE2F }, { 0xFEFF, 0xFEFF }, { 0xFFF9, 0xFFFB },
-    { 0x101FD, 0x101FD }, { 0x102E0, 0x102E0 }, { 0x10376, 0x1037A },
-    { 0x10A01, 0x10A0F }, { 0x10A38, 0x10A3F }, { 0x10AE5, 0x10AE6 },
-    { 0x11000, 0x11002 }, { 0x11038, 0x11046 }, { 0x1107F, 0x11082 },
-    { 0x110B0, 0x110BA }, { 0x11100, 0x11102 }, { 0x11127, 0x11134 },
-    { 0x11173, 0x11173 }, { 0x11180, 0x11182 }, { 0x111B3, 0x111C0 },
-    { 0x1122C, 0x11237 }, { 0x112DF, 0x112EA }, { 0x11301, 0x11303 },
-    { 0x1133C, 0x1133C }, { 0x1133E, 0x1134D }, { 0x11357, 0x11357 },
-    { 0x11362, 0x11374 }, { 0x114B0, 0x114C3 }, { 0x115AF, 0x115C0 },
-    { 0x11630, 0x11640 }, { 0x116AB, 0x116B7 }, { 0x1171D, 0x1172B },
-    { 0x16AF0, 0x16AF4 }, { 0x16B30, 0x16B36 }, { 0x16F51, 0x16F92 },
-    { 0x1BC9D, 0x1BC9E }, { 0x1BCA0, 0x1BCA3 }, { 0x1D165, 0x1D169 },
-    { 0x1D16D, 0x1D182 }, { 0x1D185, 0x1D18B }, { 0x1D1AA, 0x1D1AD },
-    { 0x1D242, 0x1D244 }, { 0x1DA00, 0x1DA36 }, { 0x1DA3B, 0x1DA6C },
-    { 0x1DA75, 0x1DA75 }, { 0x1DA84, 0x1DA84 }, { 0x1DA9B, 0x1DAAF },
-    { 0x1E8D0, 0x1E8D6 }, { 0xE0001, 0xE0001 }, { 0xE0020, 0xE007F },
-    { 0xE0100, 0xE01EF },
-};
+//  The tables themselves are generated from the Unicode Character
+//  Database - see chsgen/uwidgen.cc, and chsgen/README.txt for how to
+//  move them to a newer revision of Unicode.
 
-static const cprange double_width[] =
-{
-    { 0x1100, 0x115F }, { 0x2329, 0x232A }, { 0x2E80, 0x303E },
-    { 0x3041, 0x33FF }, { 0x3400, 0x4DBF }, { 0x4E00, 0x9FFF },
-    { 0xA000, 0xA4CF }, { 0xA960, 0xA97F }, { 0xAC00, 0xD7A3 },
-    { 0xF900, 0xFAFF }, { 0xFE10, 0xFE19 }, { 0xFE30, 0xFE6F },
-    { 0xFF00, 0xFF60 }, { 0xFFE0, 0xFFE6 },
-    { 0x16FE0, 0x16FE4 }, { 0x17000, 0x187F7 }, { 0x18800, 0x18CD5 },
-    { 0x1B000, 0x1B2FB }, { 0x1F004, 0x1F004 }, { 0x1F0CF, 0x1F0CF },
-    { 0x1F18E, 0x1F18E }, { 0x1F191, 0x1F19A }, { 0x1F200, 0x1F320 },
-    { 0x1F32D, 0x1F335 }, { 0x1F337, 0x1F37C }, { 0x1F37E, 0x1F393 },
-    { 0x1F3A0, 0x1F3CA }, { 0x1F3CF, 0x1F3D3 }, { 0x1F3E0, 0x1F3F0 },
-    { 0x1F3F4, 0x1F3F4 }, { 0x1F3F8, 0x1F43E }, { 0x1F440, 0x1F440 },
-    { 0x1F442, 0x1F4FC }, { 0x1F4FF, 0x1F53D }, { 0x1F54B, 0x1F54E },
-    { 0x1F550, 0x1F567 }, { 0x1F57A, 0x1F57A }, { 0x1F595, 0x1F596 },
-    { 0x1F5A4, 0x1F5A4 }, { 0x1F5FB, 0x1F64F }, { 0x1F680, 0x1F6C5 },
-    { 0x1F6CC, 0x1F6CC }, { 0x1F6D0, 0x1F6D2 }, { 0x1F6EB, 0x1F6EC },
-    { 0x1F6F4, 0x1F6F9 }, { 0x1F910, 0x1F93E }, { 0x1F940, 0x1F970 },
-    { 0x1F973, 0x1F976 }, { 0x1F97A, 0x1F9A2 }, { 0x1F9B0, 0x1F9B9 },
-    { 0x1F9C0, 0x1F9C2 }, { 0x1F9D0, 0x1F9FF }, { 0x20000, 0x2FFFD },
-    { 0x30000, 0x3FFFD },
-};
+#include "guwidth.inc"
 
 
 static bool in_ranges(uint32_t cp, const cprange* tab, size_t count)
@@ -444,6 +354,39 @@ static bool in_ranges(uint32_t cp, const cprange* tab, size_t count)
 }
 
 
+#if defined(__USE_WIDE_NCURSES__)
+
+//  Is the host's wcwidth() worth asking?
+//
+//  Only in a locale it understands. In the C locale it answers -1 to
+//  everything above ASCII, and trusting that would flatten every wide
+//  character to one column - worse than the tables it was meant to
+//  correct. Two characters settle it: an ideograph every wcwidth since
+//  the nineties calls two columns, and a combining accent every one of
+//  them calls none.
+
+static int host_width_state = -1;       // -1 not asked yet
+
+static bool host_width_usable()
+{
+    if(host_width_state < 0)
+        host_width_state = (wcwidth((wchar_t)0x4E00) == 2 and
+                            wcwidth((wchar_t)0x0301) == 0) ? 1 : 0;
+
+    return host_width_state != 0;
+}
+
+#endif
+
+
+void g_reset_host_width(void)
+{
+#if defined(__USE_WIDE_NCURSES__)
+    host_width_state = -1;
+#endif
+}
+
+
 int g_cp_width(uint32_t cp)
 {
     //  Every byte occupies one cell when we are not decoding UTF-8, and
@@ -454,9 +397,208 @@ int g_cp_width(uint32_t cp)
 
     if(in_ranges(cp, zero_width, ARRAYSIZE(zero_width)))
         return 0;
+
     if(in_ranges(cp, double_width, ARRAYSIZE(double_width)))
+    {
+#if defined(__USE_WIDE_NCURSES__)
+        //  Our tables follow the current Unicode, which is sometimes
+        //  ahead of the host. Where curses does the drawing it advances
+        //  the cursor by its own wcwidth(), and for a character it has
+        //  never heard of that is one column - measured on macOS with
+        //  U+1FABE. Reporting two there would leave the rest of the
+        //  line a column out. Being right where the renderer is wrong
+        //  is worse than agreeing with it.
+        if(host_width_usable() and wcwidth((wchar_t)cp) < 0)
+            return 1;
+#endif
         return 2;
+    }
+
     return 1;
+}
+
+
+//  ------------------------------------------------------------------
+//  Grapheme cluster breaking, after UAX #29.
+//
+//  A cluster is what a reader calls one character and what a terminal
+//  draws in one place: a letter with its accents, an emoji with its
+//  skin tone, a flag made of two regional indicators, a family joined
+//  by zero-width joiners. Measuring by codepoint counts each piece
+//  separately, which is how a thumb with a skin tone came to be four
+//  columns wide when the terminal draws it in two.
+
+static gcbclass gcb_class(uint32_t cp)
+{
+    //  Hangul syllables are not in the table. The data file spells out
+    //  all 11172 of them one at a time, and one division says the same
+    //  thing: a syllable that divides evenly has no trailing consonant.
+    if(cp >= 0xAC00 and cp <= 0xD7A3)
+        return ((cp - 0xAC00) % 28) == 0 ? GCB_LV : GCB_LVT;
+
+    size_t lo = 0, hi = ARRAYSIZE(gcb_classes);
+    while(lo < hi)
+    {
+        size_t mid = lo + (hi - lo) / 2;
+        if(cp < gcb_classes[mid].first)
+            hi = mid;
+        else if(cp > gcb_classes[mid].last)
+            lo = mid + 1;
+        else
+            return gcb_classes[mid].cls;
+    }
+
+    return GCB_Other;
+}
+
+
+//  ------------------------------------------------------------------
+//  Step over one cluster. Never walks past 'end', and always advances
+//  by at least one byte so a caller cannot be caught in a loop.
+
+const char* g_utf8_cluster_next(const char* p, const char* end)
+{
+    if(p == NULL or p >= end or *p == NUL)
+        return p;
+
+    int used = 1;
+    gcbclass prev = gcb_class(g_utf8_decode(p, end, &used));
+    const char* s = p + (used ? used : 1);
+
+    //  GB3 to GB5. A line ending is a cluster of its own, and CR LF is
+    //  one cluster rather than two.
+    if(prev == GCB_CR)
+    {
+        if(s < end and *s)
+        {
+            int u = 1;
+            if(gcb_class(g_utf8_decode(s, end, &u)) == GCB_LF)
+                s += u ? u : 1;
+        }
+        return s;
+    }
+    if(prev == GCB_LF or prev == GCB_Control)
+        return s;
+
+    //  Two rules need to remember more than the previous character:
+    //  GB11 joins pictographs across a zero-width joiner, and GB12/GB13
+    //  join regional indicators in pairs and not in threes.
+    bool pict = (prev == GCB_ExtPict);
+    int  ri   = (prev == GCB_Regional_Indicator) ? 1 : 0;
+
+    while(s < end and *s)
+    {
+        int u = 1;
+        gcbclass cur = gcb_class(g_utf8_decode(s, end, &u));
+
+        bool join;
+
+        if(cur == GCB_Control or cur == GCB_CR or cur == GCB_LF)
+            join = false;                                       // GB5
+        else if(cur == GCB_Extend or cur == GCB_ZWJ)
+            join = true;                                        // GB9
+        else if(cur == GCB_SpacingMark)
+            join = true;                                        // GB9a
+        else if(prev == GCB_Prepend)
+            join = true;                                        // GB9b
+        else if(prev == GCB_ZWJ and pict and cur == GCB_ExtPict)
+            join = true;                                        // GB11
+        else if(prev == GCB_L and (cur == GCB_L or cur == GCB_V or
+                                   cur == GCB_LV or cur == GCB_LVT))
+            join = true;                                        // GB6
+        else if((prev == GCB_LV or prev == GCB_V) and
+                (cur == GCB_V or cur == GCB_T))
+            join = true;                                        // GB7
+        else if((prev == GCB_LVT or prev == GCB_T) and cur == GCB_T)
+            join = true;                                        // GB8
+        else if(prev == GCB_Regional_Indicator and
+                cur == GCB_Regional_Indicator and (ri % 2))
+            join = true;                                        // GB12, GB13
+        else
+            join = false;                                       // GB999
+
+        if(not join)
+            break;
+
+        //  GB11 only holds while everything since the pictograph has
+        //  been a mark or the joiner itself.
+        if(cur == GCB_ExtPict)
+            pict = true;
+        else if(cur != GCB_Extend and cur != GCB_ZWJ)
+            pict = false;
+
+        ri = (cur == GCB_Regional_Indicator) ? ri + 1 : 0;
+
+        prev = cur;
+        s += u ? u : 1;
+    }
+
+    return s;
+}
+
+
+const char* g_utf8_cluster_next(const char* p)
+{
+    if(p == NULL)
+        return p;
+    return g_utf8_cluster_next(p, p + strlen(p));
+}
+
+
+//  ------------------------------------------------------------------
+//  Step back over one cluster.
+//
+//  Clusters are defined forwards only, so this finds the last boundary
+//  before 'p' by walking from the start of the line. That is a whole
+//  line per keystroke, which is nothing next to redrawing it, and it
+//  avoids having to reason about the rules in reverse.
+
+const char* g_utf8_cluster_prev(const char* start, const char* p)
+{
+    if(start == NULL or p == NULL or p <= start)
+        return start;
+
+    const char* s    = start;
+    const char* last = start;
+
+    while(s < p and *s)
+    {
+        const char* nxt = g_utf8_cluster_next(s, p);
+        if(nxt <= s)
+            break;
+        last = s;
+        s = nxt;
+    }
+
+    return last;
+}
+
+
+//  ------------------------------------------------------------------
+//  How wide one cluster is: the width of the character it is built
+//  around, since everything attached to it is drawn on top of or
+//  inside that. The one thing that changes the answer is an emoji
+//  presentation selector, which turns a text symbol into a picture,
+//  and a picture always takes two columns.
+
+size_t g_utf8_cluster_width(const char* p, const char* end)
+{
+    if(p == NULL or p >= end)
+        return 0;
+
+    int used = 1;
+    size_t w = (size_t)g_cp_width(g_utf8_decode(p, end, &used));
+
+    const char* s = p + (used ? used : 1);
+    while(s < end and *s)
+    {
+        int u = 1;
+        if(g_utf8_decode(s, end, &u) == 0xFE0F)
+            return 2;
+        s += u ? u : 1;
+    }
+
+    return w;
 }
 
 
@@ -473,9 +615,11 @@ size_t g_utf8_width(const char* p, size_t nbytes)
     size_t w = 0;
     while(p < end and *p)
     {
-        int used = 1;
-        w += g_cp_width(g_utf8_decode(p, end, &used));
-        p += used ? used : 1;
+        const char* nxt = g_utf8_cluster_next(p, end);
+        if(nxt <= p)
+            break;
+        w += g_utf8_cluster_width(p, nxt);
+        p = nxt;
     }
     return w;
 }
@@ -549,16 +693,19 @@ size_t g_utf8_bytes_for_cols(const char* p, size_t maxcols)
         return maxcols < len ? maxcols : len;
     }
 
-    const char* s = p;
+    const char* s   = p;
+    const char* end = p + strlen(p);
     size_t cur = 0;
-    while(*s)
+    while(s < end and *s)
     {
-        int used = 1;
-        int w = g_cp_width(g_utf8_decode(s, &used));
-        if(cur + (size_t)w > maxcols)
+        const char* nxt = g_utf8_cluster_next(s, end);
+        if(nxt <= s)
+            break;
+        size_t w = g_utf8_cluster_width(s, nxt);
+        if(cur + w > maxcols)
             break;
         cur += w;
-        s += used ? used : 1;
+        s = nxt;
     }
     return (size_t)(s - p);
 }

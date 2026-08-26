@@ -591,7 +591,10 @@ inline vatch vcatch (vchar chr, vattr atr)
 //  WriteConsoleOutputW. What arrives here is a codepoint in UTF-8 mode
 //  and a byte in the local charset otherwise; gvid_tcpr() settles the
 //  difference in one place.
-WCHAR gvid_tcpr(vchar chr);
+//  Hands back a codepoint, which may be outside the BMP. A CHAR_INFO
+//  cell can only hold a UTF-16 unit, so the two inline functions below
+//  truncate; text is not drawn through them - see vputs().
+vchar gvid_tcpr(vchar chr);
 
 inline vchar vgchar (vatch chat)
 {
@@ -604,13 +607,13 @@ inline vattr vgattr (vatch chat)
 inline vatch vcatch (vchar chr, vattr atr)
 {
     vatch chat;
-    chat.Char.UnicodeChar = gvid_tcpr(chr);
+    chat.Char.UnicodeChar = (WCHAR)gvid_tcpr(chr);
     chat.Attributes = WORD(atr);
     return chat;
 }
 inline vatch vschar (vatch chat, vchar chr)
 {
-    chat.Char.UnicodeChar = gvid_tcpr(chr);
+    chat.Char.UnicodeChar = (WCHAR)gvid_tcpr(chr);
     return chat;
 }
 inline vatch vsattr (vatch chat, vattr atr)
