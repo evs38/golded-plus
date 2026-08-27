@@ -13,6 +13,15 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- The text of a template arrived in the message as whatever its bytes
+  happened to mean: squares on screen, question marks once saved. A
+  template is one of GoldED+'s own files and is written in the charset
+  XLATCONFIGSET names, but only golded.cfg and the language file were
+  being converted from it - so the dates and names a template line
+  pulled from the language file came out right while the words around
+  them did not. Templates, the text files they pull in, and the files a
+  random tagline or tearline is drawn from are all converted now.
+
 - A tagline came out cut in the middle of a word, and stayed cut in
   every message written afterwards. It was being cut as the
   configuration was read: the buffer it was copied into held 76 bytes,

@@ -504,6 +504,7 @@ void  ZonegateIt(ftn_addr& gate, ftn_addr& orig, ftn_addr& dest);
 char* strtmp(const char* str);
 vattr quotecolor(const char* line);
 bool  doinvalidate(std::string& text, const std::string& find, const std::string& replace, bool is_tearline = false);
+void XlatCfgLine(char* line, size_t size);
 bool find(const std::vector<const char *> &vec, const char *str);
 bool find(const std::vector<std::string> &vec, const std::string &str);
 //  Every caller passes a literal, and without this one that literal

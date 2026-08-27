@@ -951,6 +951,36 @@ bool find(const std::vector<std::string> &vec, const std::string &str)
 
 //  The same over a plain string, so a literal at the call site
 //  needs no temporary - see the note in geprot.h.
+//  ------------------------------------------------------------------
+//  A line read from one of GoldED+'s own files - a template, a list of
+//  taglines - in the charset XLATCONFIGSET names, converted to the one
+//  the session runs in. golded.cfg and the language file already went
+//  through this on their own paths; the files those two point at did
+//  not, so a KOI8-R template put squares on the screen and question
+//  marks into the message, while the dates and names beside them, which
+//  come from the language file, were right.
+
+void XlatCfgLine(char* line, size_t size)
+{
+    if((line == NULL) or (*line == NUL))
+        return;
+
+    if((*CFG->xlatconfigset == NUL) or strieql(CFG->xlatconfigset, CFG->xlatlocalset))
+        return;
+
+    GRecoder& rec = g_recoder(CFG->xlatconfigset, CFG->xlatlocalset);
+    if(not rec.is_open() or rec.is_identity())
+        return;
+
+    //  Where the converted form would not fit, leave the line as it
+    //  was rather than cut it: what it says is worth more than the
+    //  part of it that would survive.
+    std::string out = rec.convert(line, strlen(line));
+    if(out.length() < size)
+        memcpy(line, out.c_str(), out.length() + 1);
+}
+
+
 bool find(const std::vector<std::string> &vec, const char *str)
 {
     std::vector<std::string>::const_iterator it = vec.begin();

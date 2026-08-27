@@ -375,6 +375,7 @@ int TemplateToText(int mode, GMsg* msg, GMsg* oldmsg, const char* tpl, int origa
 
     while (fp.Fgets(buf, sizeofbuf))
     {
+        XlatCfgLine(buf, sizeofbuf);
         ptr = strskip_wht(buf);
         if(*ptr != ';')
         {
@@ -672,6 +673,7 @@ int TemplateToText(int mode, GMsg* msg, GMsg* oldmsg, const char* tpl, int origa
                                     tfp.FseekSet(fpos);
                                     while (tfp.Fgets(buf, 255))
                                     {
+                                        XlatCfgLine(buf, sizeofbuf);
                                         strtrim(buf);
                                         if(*buf)
                                         {
@@ -714,6 +716,7 @@ int TemplateToText(int mode, GMsg* msg, GMsg* oldmsg, const char* tpl, int origa
                         {
                             while (tfp.Fgets(buf, 255))
                             {
+                                XlatCfgLine(buf, sizeofbuf);
                                 TokenXlat(mode, buf, sizeofbuf, true, msg, oldmsg, origarea);
                                 strtrim(buf);
                                 strcat(buf, "\r");

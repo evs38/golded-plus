@@ -95,6 +95,7 @@ char* GetRandomLine(char* __buf, size_t __bufsize, const char* file)
                 char buf[512];
                 fp.FseekSet(_offset);
                 fp.Fgets(buf, sizeof(buf));
+                XlatCfgLine(buf, sizeof(buf));
                 StripQuotes(strbtrim(buf));
                 strxcpy(__buf, buf, __bufsize);
             }
