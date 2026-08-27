@@ -240,12 +240,18 @@ void GMsgHeaderView::Paint()
         {
             struct tm tm;
             ggmtime(&tm, &msg->written);
-            strftimei(buf, datewidth+1, LNG->DateTimeFmt, &tm);
+            //  datewidth is a column count; handing it to strftimei as
+            //  the buffer size cut the text at that many bytes instead.
+            //  A Russian date with the weekday is nineteen bytes before
+            //  the time begins, so with the default width of nineteen
+            //  the time never survived. Format into the whole buffer,
+            //  then cut and pad to the columns the field has.
+            strftimei(buf, sizeof(buf), LNG->DateTimeFmt, &tm);
         }
         else
             *buf = NUL;
 
-        strsetsz(buf, datewidth);
+        strxcpy(buf, g_utf8_fit(buf, datewidth).c_str(), sizeof(buf));
         window.prints(2, CFG->disphdrdateset.pos, from_color, buf);
     }
 
@@ -295,12 +301,13 @@ void GMsgHeaderView::Paint()
         {
             struct tm tm;
             ggmtime(&tm, &msg->arrived);
-            strftimei(buf, datewidth+1, LNG->DateTimeFmt, &tm);
+            //  As above: bytes for the format, columns for the field.
+            strftimei(buf, sizeof(buf), LNG->DateTimeFmt, &tm);
         }
         else
             *buf = NUL;
 
-        strsetsz(buf, datewidth);
+        strxcpy(buf, g_utf8_fit(buf, datewidth).c_str(), sizeof(buf));
         window.prints(3, CFG->disphdrdateset.pos, to_color, buf);
     }
 

@@ -13,6 +13,17 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- The header showed a message's date but not its time when the date
+  format produced Cyrillic - a Russian weekday and month put nineteen
+  bytes on the line before the time began, and the field's width in
+  columns, nineteen by default, was being used as a byte limit while
+  the text was formatted. The written and arrived dates in the header
+  and the dates in the reply list all measured themselves that way;
+  they are formatted in full now and cut to the field's columns,
+  between characters. A format longer than the field still loses its
+  tail - that is what DISPHDRDATESET is for - but it loses it at the
+  field's edge, not at a byte count that lands somewhere inside.
+
 - "make strip" tried to link the binaries instead of stripping them,
   and failed. The stripper's name is derived from the compiler's so
   that a cross build gets the right one, but the test was merely for a

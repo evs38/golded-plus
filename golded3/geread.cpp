@@ -1546,7 +1546,9 @@ struct ReplySel
     char msgno[12];
     Name name;
     Name addr;
-    char written[25];
+    //  Bytes for the characters the date may hold - a Russian date
+    //  with the weekday does not fit 25 bytes at all.
+    char written[25*4];
 };
 
 
@@ -1601,7 +1603,11 @@ void GotoReplies()
 
             struct tm tm;
             ggmtime(&tm, &rmsg->written);
-            strftimei(rlist[replies].written, CFG->disphdrdateset.len, LNG->DateTimeFmt, &tm);
+            //  The configured length is a column count; as a byte bound
+            //  it cut the time off a Russian date. Format whole, then
+            //  cut to the columns, between characters.
+            strftimei(rlist[replies].written, sizeof(rlist[replies].written), LNG->DateTimeFmt, &tm);
+            rlist[replies].written[g_utf8_bytes_for_cols(rlist[replies].written, (size_t)CFG->disphdrdateset.len)] = NUL;
 
             maxwritten = MaxV(maxwritten, (uint)strlen(rlist[replies].written));
             rlist[replies].reln = reln;
