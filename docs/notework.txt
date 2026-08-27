@@ -13,6 +13,18 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- A fullwidth character - Chinese, Japanese, Korean - was drawn into
+  one console cell on Windows where the console gives it two. The
+  glyph was squeezed into half its width, everything after it on the
+  line sat a column too far left for each such character, and the
+  previous screen showed through where the line fell short. Written
+  now the way the console models such text since its DBCS days, and
+  the way FAR Manager writes it: the same character in both cells, the
+  first marked leading and the second trailing. Characters above the
+  BMP keep the arrangement each console can draw - a surrogate pair
+  across two cells for the classic console, a stream write for
+  Windows Terminal.
+
 - GoldED+ could corrupt its own memory while redrawing the status
   line, and crash later somewhere else entirely - opening a *.MSG area
   on one machine, inside the header editor on another. The redraw

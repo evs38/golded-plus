@@ -944,6 +944,44 @@ static int gvid_utf16(vchar cp, WCHAR* w)
 }
 
 
+#ifndef COMMON_LVB_LEADING_BYTE
+#define COMMON_LVB_LEADING_BYTE  0x0100
+#define COMMON_LVB_TRAILING_BYTE 0x0200
+#endif
+
+//  Append one codepoint to a run of cells the way the console itself
+//  models text: a fullwidth character occupies two cells, the same
+//  character in both, the first flagged leading and the second
+//  trailing - how conhost has carried DBCS text from the beginning,
+//  and what FAR Manager writes. One cell per fullwidth character, as
+//  before, drew the glyph over its neighbour and put every following
+//  character one column early, and the previous screen showed through
+//  past the shortened line. A character above U+FFFF is stored as its
+//  surrogate halves, one per cell: the classic console draws that
+//  pair; where only the stream draws it, vputs() takes that path.
+static int gvid_cellcp(vatch* cells, int at, vchar cp, vattr atr)
+{
+    WCHAR w[2];
+
+    if(gvid_utf16(cp, w) > 1)
+    {
+        cells[at++] = vcatch((vchar)w[0], atr);
+        cells[at++] = vcatch((vchar)w[1], atr);
+    }
+    else if(g_cp_width((uint32_t)cp) == 2)
+    {
+        cells[at++] = vcatch(cp, atr | COMMON_LVB_LEADING_BYTE);
+        cells[at++] = vcatch(cp, atr | COMMON_LVB_TRAILING_BYTE);
+    }
+    else
+    {
+        cells[at++] = vcatch(cp, atr);
+    }
+
+    return at;
+}
+
+
 //  The two consoles want an astral character written differently, and
 //  neither way suits both - measured in each:
 //
@@ -1320,6 +1358,16 @@ void vputc(int row, int col, vattr atr, vchar chr)
                 vputws(row, col, two, 2);
             }
         }
+        else if(g_cp_width((uint32_t)cp) == 2)
+        {
+            //  A fullwidth character is a pair of cells here too, or
+            //  redrawing the character under the cursor would collapse
+            //  it to one cell and shift the rest of the row.
+            vatch two[2];
+            two[0] = vcatch(cp, atr | COMMON_LVB_LEADING_BYTE);
+            two[1] = vcatch(cp, atr | COMMON_LVB_TRAILING_BYTE);
+            vputws(row, col, two, 2);
+        }
         else
         {
             vputw(row, col, vcatch(cp, atr));
@@ -1361,11 +1409,17 @@ void vputvs(int row, int col, vattr atr, const vchar* str)
 
     //  Already a run of codepoints, so it goes straight into cells -
     //  passing it to vputs() would mean reinterpreting it as bytes.
-    int i;
-    for(i = 0; str[i] && (i < gvid->numcols); i++)
-        gvid->bufwrd[i] = vcatch(str[i], atr);
-    if(i)
-        vputws(row, col, gvid->bufwrd, i);
+    int i, cells = 0;
+    for(i = 0; str[i] and (cells < gvid->numcols); i++)
+    {
+        WCHAR w16[2];
+        int need = (gvid_utf16(str[i], w16) > 1 or g_cp_width((uint32_t)str[i]) == 2) ? 2 : 1;
+        if(cells + need > gvid->numcols)
+            break;
+        cells = gvid_cellcp(gvid->bufwrd, cells, str[i], atr);
+    }
+    if(cells)
+        vputws(row, col, gvid->bufwrd, cells);
 
 #else
 
@@ -1501,18 +1555,8 @@ void vputs(int row, int col, vattr atr, const char* str)
         int   np = gvid_utf16(cp, pair);
 
         if(np > 1)
-        {
             astral = true;
-
-            //  The pair, one half per cell, same attribute on both.
-            //  vcatch() alone would cut the character to sixteen bits.
-            gvid->bufwrd[cells++] = vcatch((vchar)pair[0], atr);
-            gvid->bufwrd[cells++] = vcatch((vchar)pair[1], atr);
-        }
-        else
-        {
-            gvid->bufwrd[cells++] = vcatch(cp, atr);
-        }
+        cells = gvid_cellcp(gvid->bufwrd, cells, cp, atr);
 
         n += gvid_utf16(cp, wbuf + n);
     }
@@ -1623,21 +1667,30 @@ void vputns(int row, int col, vattr atr, const char* str, uint width)
 
 #elif defined(__WIN32__)
 
-    int i;
+    int cells = 0;
 
     if (width > gvid->numcols)
         width = gvid->numcols;
 
-    for(i = 0; (i < width) and *str; i++)
+    while((cells < (int)width) and *str)
     {
         int used = 1;
         vchar chr = (vchar)g_utf8_decode(str, &used);
         str += used ? used : 1;
-        gvid->bufwrd[i] = vcatch(chr, atr);
+
+        //  A fullwidth character takes two of the field's cells; one
+        //  that would only half fit is left out, and the filler pads
+        //  the rest of the field.
+        WCHAR w16[2];
+        int need = (gvid_utf16(chr, w16) > 1 or g_cp_width((uint32_t)chr) == 2) ? 2 : 1;
+        if(cells + need > (int)width)
+            break;
+
+        cells = gvid_cellcp(gvid->bufwrd, cells, chr, atr);
     }
     vatch filler = vcatch(fillchar, atr);
-    for(; i < width; i++)
-        gvid->bufwrd[i] = filler;
+    for(; cells < (int)width; cells++)
+        gvid->bufwrd[cells] = filler;
     vputws(row, col, gvid->bufwrd, width);
 
 #elif defined(__UNIX__)
@@ -2606,10 +2659,22 @@ void vsetattr(int row, int col, vattr atr)
     {
         COORD at;
         WORD  a = (WORD)atr;
+        WORD  had = 0;
         DWORD done = 0;
 
         at.X = (SHORT)col;
         at.Y = (SHORT)row;
+
+        //  The attribute word also carries the cell's half of a
+        //  fullwidth pair - the leading/trailing flags. Blunt
+        //  replacement stripped them, and the row lost its layout
+        //  wherever the highlight passed over a wide character.
+        //  Reading attributes back is safe; it is reading characters
+        //  that loses surrogate pairs.
+        if(ReadConsoleOutputAttribute(gvid_hout, &had, 1, at, &done))
+            a = (WORD)((a & ~(COMMON_LVB_LEADING_BYTE|COMMON_LVB_TRAILING_BYTE))
+                     | (had & (COMMON_LVB_LEADING_BYTE|COMMON_LVB_TRAILING_BYTE)));
+
         WriteConsoleOutputAttribute(gvid_hout, &a, 1, at, &done);
     }
 
