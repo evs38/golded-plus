@@ -583,11 +583,11 @@ int GMenuEditfile::Run(GMsg* __msg)
         case TAG_TAGLINE:
             if(ChangeTagline())
             {
-                char _buf[256];
-                strcpy(_buf, AA->Tagline());
+                char _buf[76*4+8];
+                strxcpy(_buf, AA->Tagline(), sizeof(_buf));
                 if(*_buf == '@')
                     GetRandomLine(_buf, sizeof(_buf), _buf+1);
-                strcpy(__msg->tagline, _buf);
+                strxcpy(__msg->tagline, _buf, sizeof(__msg->tagline));
                 Line* _line = __msg->lin;
                 while (_line)
                 {
@@ -1076,11 +1076,13 @@ int GMenuEditHeader::Run(int mode, GMsg* msg)
                     {
                         if(*AA->Tagline() == '@')
                         {
-                            char t[76];
+                            //  Bytes for the characters a tagline may
+                            //  hold - see the note in gmarea.h.
+                            char t[76*4];
                             GetRandomLine(t, sizeof(t), AA->Tagline()+1);
                             AA->SetTagline(t);
                         }
-                        strcpy(msg->tagline, AA->Tagline());
+                        strxcpy(msg->tagline, AA->Tagline(), sizeof(msg->tagline));
                     }
                     _again = true;
                     break;

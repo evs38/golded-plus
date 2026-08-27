@@ -348,7 +348,10 @@ typedef TCHAR Name[36];
 //  ------------------------------------------------------------------
 //  Tearline typedefs
 
-typedef char Tear[77];
+//  Room for as many characters as before, now that a character can
+//  take up to four bytes. What belongs on one line is still decided in
+//  columns, where it matters - these are only the buffers.
+typedef char Tear[77*4];
 
 
 //  ------------------------------------------------------------------

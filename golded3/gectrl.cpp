@@ -63,7 +63,11 @@ char* MakeOrigin(GMsg* msg, const char* orig)
 {
 
     char buf[256];
-    char origin[100];
+
+    //  The text before the column budget below is applied to it: in
+    //  bytes, so that a hundred characters of it survive whatever they
+    //  are written in.
+    char origin[100*4];
 
     strxcpy(origin, orig, sizeof(origin));
 

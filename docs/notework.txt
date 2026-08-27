@@ -13,6 +13,17 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- A tagline came out cut in the middle of a word, and stayed cut in
+  every message written afterwards. It was being cut as the
+  configuration was read: the buffer it was copied into held 76 bytes,
+  which is 76 characters of English and 37 of Russian. The buffers a
+  tagline, a tearline and an origin pass through on their way into a
+  message were sized the same way, in bytes for what was meant as a
+  count of characters, and are now sized for the characters they were
+  always supposed to hold. The list a tagline is picked from was cut
+  by the same confusion, at the byte rather than the column, and cut
+  through the middle of a character where a broken one then appeared.
+
 - A fullwidth character - Chinese, Japanese, Korean - was drawn into
   one console cell on Windows where the console gives it two. The
   glyph was squeezed into half its width, everything after it on the

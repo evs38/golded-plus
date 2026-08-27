@@ -724,7 +724,7 @@ int ChangeTagline()
 
     if (not CFG->tagline.empty())
     {
-        char buf[256];
+        char buf[256*4];
         gstrarray Listi;
 
         gstrarray::iterator it = CFG->tagline.begin();
@@ -733,9 +733,14 @@ int ChangeTagline()
         for (; it != end; it++)
         {
             if((*it)[0] == '@')
-                strxmerge(buf, MAXCOL-2-2, " [", CleanFilename(it->c_str() + 1), "] ", NULL);
+                strxmerge(buf, sizeof(buf), " [", CleanFilename(it->c_str() + 1), "] ", NULL);
             else
-                strxmerge(buf, MAXCOL-2-2, " ", it->c_str(), " ", NULL);
+                strxmerge(buf, sizeof(buf), " ", it->c_str(), " ", NULL);
+
+            //  What fits on the line is a number of columns; strxmerge
+            //  counts bytes, and bounding it by MAXCOL cut a Russian
+            //  tagline to half the width the menu had for it.
+            buf[g_utf8_bytes_for_cols(buf, (size_t)(MAXCOL-2-2))] = NUL;
 
             Listi.push_back(buf);
         }
@@ -751,7 +756,8 @@ int ChangeTagline()
             const char *tagl = CFG->tagline[n].c_str();
             if(tagl[0] == '@')
             {
-                strxmerge(buf, MAXCOL-2-2, LNG->Taglines, " [", CleanFilename(tagl+1), "] ", NULL);
+                strxmerge(buf, sizeof(buf), LNG->Taglines, " [", CleanFilename(tagl+1), "] ", NULL);
+                buf[g_utf8_bytes_for_cols(buf, (size_t)(MAXCOL-2-2))] = NUL;
                 if(SelectFromFile(tagl+1, buf, LNG->Taglines, LNG->NoTagline))
                 {
                     AA->SetTagline(buf);

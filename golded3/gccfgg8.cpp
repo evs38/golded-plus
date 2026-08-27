@@ -130,7 +130,11 @@ void CfgStylecodestops()
 void CfgTagline()
 {
 
-    char buf[76];
+    //  Bytes for the characters a tagline may hold. At 76 bytes a
+    //  Russian tagline was cut to 37 characters as the configuration
+    //  was read, so every message written carried the stump - see the
+    //  note in gmarea.h.
+    char buf[76*4];
     strxcpy(buf, val, sizeof(buf));
     if(cfgingroup)
         CFG->grp.AddItm(GRP_TAGLINE, buf, strlen(buf)+1);

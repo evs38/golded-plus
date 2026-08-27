@@ -75,9 +75,14 @@ public:
 
     int         tzutc;            // TZUTC kludge
 
-    char        tagline[80];      // Tagline for msg
-    char        tearline[80];     // Tearline for msg
-    char        origin[160];      // Origin for msg
+    //  Sized in bytes for the characters they used to hold: a
+    //  tagline of 40 Russian characters overran 80 bytes and came
+    //  back cut in the middle of a word. How much of a line may be
+    //  used is still a question of columns, decided where the line is
+    //  made - see MakeOrigin().
+    char        tagline[80*4];    // Tagline for msg
+    char        tearline[80*4];   // Tearline for msg
+    char        origin[160*4];    // Origin for msg
 
     Line*       lin;              // Index of the lines
     Line**      line;             // Index of the viewable lines
@@ -421,7 +426,7 @@ struct AreaData
     Name     nickname;
     Name     netname;
     INam     organization;
-    char     origin[160];
+    char     origin[160*4];
     Path     quotebuffile;
     char     quotechars[11];
     int      quotectrl;
@@ -433,7 +438,7 @@ struct AreaData
 #if defined(GCFG_SPELL_INCLUDED)
     char     scheckerdeflang[10240];
 #endif
-    char     tagline[76];
+    char     tagline[76*4];
     char     taglinechar[8];   //  one character, not one byte
     bool     taglinesupport;
     Tear     tearline;
