@@ -48,6 +48,7 @@ RA2User::RA2User()
 
     recptr = (char*)record;
     name = record->name;
+    namesize = sizeof(record->name);
 }
 
 
@@ -126,7 +127,7 @@ void RA2User::recinit(const char* __name)
 
     GUser::recinit(__name);
     strc2p(record->name);
-    strcpy(record->handle, __name);
+    strxcpy_utf8(record->handle, __name, sizeof(record->handle));
     strc2p(record->handle);
 }
 
@@ -141,7 +142,7 @@ void RA2User::add(const char* __name)
     if (idxfh && idxfh->isopen())
     {
         char _namebuf[36];
-        strupr(strcpy(_namebuf, __name));
+        strupr(strxcpy(_namebuf, __name, sizeof(_namebuf)));
         idxrec->namecrc32 = idxrec->handlecrc32 = strCrc32(_namebuf, NO, CRC32_MASK_CCITT);
 
         idxfh->LseekSet((long)recno*(long)sizeof(RA2UsersIdx));

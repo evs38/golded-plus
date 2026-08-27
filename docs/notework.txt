@@ -13,6 +13,21 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- A round of buffer overruns, most of them opened or brought within
+  reach by text growing to four bytes a character. An unbounded copy of
+  the tearline or origin into a 256-byte buffer while a message is
+  written; the user-base drivers writing a name past the record field;
+  an unbounded template name and an unbounded arealist-marks string;
+  the MIME header encoder outgrowing its allocation on a long UTF-8
+  subject; a date with a Russian month overrunning an 11-byte buffer in
+  the thread list; appending the space to a full QUOTESTRING writing
+  one byte past the stack; strxcat() itself placing its terminator one
+  byte past the capacity it was given; a group item read back without a
+  terminator when it had been cut; a short LATINTOLOCAL value read past
+  its end; and a long BLANKMSG driving a modulus to zero, which is a
+  division fault. All bounded now, and cut between characters where the
+  text is the user's.
+
 - The header showed a message's date but not its time when the date
   format produced Cyrillic - a Russian weekday and month put nineteen
   bytes on the line before the time began, and the field's width in

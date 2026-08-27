@@ -50,6 +50,7 @@ EzycomUser::EzycomUser()
 
     recptr = (char*)record;
     name = record->name;
+    namesize = sizeof(record->name);
 }
 
 

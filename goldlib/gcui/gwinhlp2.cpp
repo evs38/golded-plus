@@ -73,7 +73,9 @@ void whelpcompile(const char* helpfile, long& offset)
                 comment = false;
                 helpindex[counter].help = atow(buf+3);
                 char* ptr = strchr(buf, ',');
-                strbtrim(strcpy(helpindex[counter].category, ptr ? ptr+1 : ""));
+                //  Bounded: the category is whatever follows the comma
+                //  in the user's help file, and the field is 30 bytes.
+                strbtrim(strxcpy_utf8(helpindex[counter].category, ptr ? ptr+1 : "", sizeof(helpindex[counter].category)));
                 helpindex[counter].offset = relative_offset + strlen(buf);
                 counter++;
             }

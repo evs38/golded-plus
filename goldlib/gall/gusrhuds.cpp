@@ -40,6 +40,7 @@ HudsonUser::HudsonUser()
     throw_new(record);
     recptr = (char*)record;
     name = record->name;
+    namesize = sizeof(record->name);
 }
 
 

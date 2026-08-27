@@ -1014,7 +1014,7 @@ loop_next:
                 }
                 if((ctrlinfo & CI_TEAR) and not (ctrlinfo & CI_TAGL))
                 {
-                    MakeTearline(msg, buf);
+                    MakeTearline(msg, buf, sizeofbuf);
                     ctrlinfo &= ~CI_TEAR;
                 }
                 if(ctrlinfo & CI_TAGL)

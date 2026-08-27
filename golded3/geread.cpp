@@ -1591,7 +1591,9 @@ void GotoReplies()
             uint32_t msgno = CFG->switches.get(disprealmsgno) ? msgn : reln;
             sprintf(rlist[replies].msgno+1, "%u", msgno);
             maxmsgno = MaxV(maxmsgno, (uint)strlen(rlist[replies].msgno+1));
-            strcpy(rlist[replies].name, rmsg->by);
+            //  by is 128 bytes, the list field 36: cut, between
+            //  characters, instead of overrunning the array.
+            strxcpy_utf8(rlist[replies].name, rmsg->by, sizeof(rlist[replies].name));
             maxname = MaxV(maxname, (uint)strlen(rlist[replies].name));
             if(not AA->isinternet())
             {

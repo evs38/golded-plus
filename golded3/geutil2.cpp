@@ -317,11 +317,15 @@ void ScreenBlankIdle()
         windowheight--;
     }
 
-    int b1 = strlen(blankmsg1);
-    int b2 = strlen(blankmsg2);
+    //  Columns, not bytes: the window is sized and placed in columns,
+    //  and a Russian BLANKMSG measured in bytes pushed the modulus
+    //  below zero - a division fault - once it was long enough.
+    int b1 = (int)g_utf8_width(blankmsg1);
+    int b2 = (int)g_utf8_width(blankmsg2);
     int blankmsglen = MaxV(b1,b2);
     int ry = rand() % (MAXROW-windowheight);
-    int rx = rand() % ((MAXCOL-blankmsglen)-2);
+    int rspan = (MAXCOL-blankmsglen)-2;
+    int rx = (rspan > 0) ? rand() % rspan : 0;
 
     if(blanked and (whb == -1))
     {

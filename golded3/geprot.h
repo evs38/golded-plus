@@ -97,7 +97,7 @@ void GetAreaconf();
 //  GECTRL prototypes
 
 char* MakeOrigin(GMsg* msg, const char* _origin);
-char* MakeTearline(GMsg* msg, char* buf);
+char* MakeTearline(GMsg* msg, char* buf, size_t size);
 void DoKludges(int mode, GMsg* msg, int kludges = 0);
 void DoTearorig(int mode, GMsg* msg);
 int ApplyExportCharset(GMsg* msg);

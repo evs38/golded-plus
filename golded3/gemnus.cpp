@@ -608,8 +608,8 @@ int GMenuEditfile::Run(GMsg* __msg)
         case TAG_ORIGIN:
             if(ChangeOrigin())
             {
-                char _buf[256];
-                strcpy(_buf, AA->Origin());
+                char _buf[160*4 + 16];
+                strxcpy(_buf, AA->Origin(), sizeof(_buf));
                 if(*_buf == '@')
                     GetRandomLine(_buf, sizeof(_buf), _buf+1);
                 MakeOrigin(__msg, _buf);

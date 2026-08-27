@@ -805,17 +805,23 @@ TCHAR *strxcpy_utf8(TCHAR *d, const TCHAR *s, size_t n)
 
 char *strxcat(char *dest, const char *src, size_t max)
 {
-    while (*dest and (max > 0))
+    //  max is the whole capacity of dest, the NUL included, the same
+    //  meaning the n of strxcpy() has. It used to be spent entirely on
+    //  text and the NUL then went one byte past it - a caller passing
+    //  sizeof(dest) overflowed by one whenever the result filled the
+    //  buffer exactly.
+    while (*dest and (max > 1))
     {
         --max;
         dest++;
     }
-    while (*src and (max > 0))
+    while (*src and (max > 1))
     {
         --max;
         *dest++ = *src++;
     }
-    *dest = NUL;
+    if(max > 0)
+        *dest = NUL;
     return dest;
 }
 

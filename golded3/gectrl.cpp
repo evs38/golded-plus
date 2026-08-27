@@ -95,13 +95,16 @@ char* MakeOrigin(GMsg* msg, const char* orig)
 
 //  ------------------------------------------------------------------
 
-char* MakeTearline(GMsg* msg, char* buf)
+char* MakeTearline(GMsg* msg, char* buf, size_t size)
 {
 
     if(*msg->tearline == '@')
         GetRandomLine(msg->tearline, sizeof(msg->tearline), msg->tearline+1);
 
-    strcpy(stpcpy(buf, "--- "), strbtrim(msg->tearline));
+    //  Bounded: the tearline holds four times the bytes it used to,
+    //  and an unbounded copy overran the caller's buffer.
+    strcpy(buf, "--- ");
+    strxcpy_utf8(buf + 4, strbtrim(msg->tearline), (size > 4) ? size - 4 : 1);
 
     return strtrim(buf);
 }
@@ -303,7 +306,11 @@ void DoKludges(int mode, GMsg* msg, int kludges)
 {
 
     char* buf = (char*)throw_malloc(4096);
-    char* buf2 = (char*)throw_malloc(1024);
+    //  Room for a Q-encoded ISub: every byte can become three, plus
+    //  the charset wrappers. 1024 held a CP866 subject; a UTF-8 one
+    //  is twice the bytes and ran the encoder past the allocation.
+    const size_t buf2size = sizeof(ISub) * 3 + 64;
+    char* buf2 = (char*)throw_malloc(buf2size);
     Line* line;
 
     // Insert empty line at the top for practical purposes
@@ -535,7 +542,7 @@ void DoKludges(int mode, GMsg* msg, int kludges)
                 INam _toname;
                 IAdr _toaddr;
                 char* ptr = *msg->ito ? msg->ito : msg->to;
-                strxcpy(buf2, ptr, 1024);
+                strxcpy(buf2, ptr, buf2size);
                 ParseInternetAddr(buf2, _toname, _toaddr);
                 /*--- if(_toname[0] != NUL) {
                   mime_header_encode(buf2, _toname, msg);
@@ -860,7 +867,11 @@ void DoTearorig(int mode, GMsg* msg)
 {
 
     uint  ctrlinfo;
-    char  buf[256];
+    //  Sized for what it carries: the origin is 160 characters at up
+    //  to four bytes each, plus " * Origin: " in front, and the
+    //  tagline and tearline lines are built in here too. 256 bytes
+    //  stopped being enough the day those fields grew.
+    char  buf[sizeof(msg->origin) + 32];
     char* ptr;
     Line* line = msg->lin;
     Line* newline;
@@ -942,7 +953,7 @@ void DoTearorig(int mode, GMsg* msg)
     }
     if(ctrlinfo & CI_TEAR)
     {
-        line = AddLine(line, MakeTearline(msg, buf));
+        line = AddLine(line, MakeTearline(msg, buf, sizeof(buf)));
         line->type |= GLINE_TEAR;
     }
     if (ctrlinfo & CI_ORIG)

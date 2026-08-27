@@ -721,7 +721,9 @@ bool ftn_frontdoor_nodelist_index::find(const char* lookup_name)
 
     char buf[80], tmp[16];
 
-    strncpy(tmp, lookup_name, sizeof(tmp));
+    //  strncpy() leaves no terminator when the name fills the buffer,
+    //  and everything below walks tmp as a string.
+    strxcpy(tmp, lookup_name, sizeof(tmp));
     namebrowse = true;
     char* ptr = strrchr(tmp, ' ');
     if(ptr)

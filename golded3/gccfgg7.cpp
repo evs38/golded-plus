@@ -38,8 +38,11 @@ extern char* val;
 void CfgQuotestring()
 {
 
-    char buf[10];
-    strxcpy(buf, StripQuotes(val), sizeof(buf));
+    //  Two bytes of headroom: appending the space to a full buffer
+    //  used to write one byte past it. The stored copy is bounded by
+    //  its own field.
+    char buf[sizeof(CFG->quotestring) + 2];
+    strxcpy(buf, StripQuotes(val), sizeof(CFG->quotestring));
     if(*buf == NUL)
         strcpy(buf, " > ");
     else
@@ -50,7 +53,7 @@ void CfgQuotestring()
     if(cfgingroup)
         CFG->grp.AddItm(GRP_QUOTESTRING, buf, strlen(buf)+1);
     else
-        strcpy(CFG->quotestring, buf);
+        strxcpy(CFG->quotestring, buf, sizeof(CFG->quotestring));
 }
 
 //  ------------------------------------------------------------------
@@ -58,8 +61,10 @@ void CfgQuotestring()
 void CfgQuotestops()
 {
 
-    char buf[10];
-    strxcpy(buf, StripQuotes(val), sizeof(buf));
+    //  The staging buffer was copied from CfgQuotestring() complete
+    //  with its ten bytes, against a forty-byte field.
+    char buf[sizeof(CFG->quotestops) + 2];
+    strxcpy(buf, StripQuotes(val), sizeof(CFG->quotestops));
     if(*buf == NUL)
         strcpy(buf, " > ");
     else
@@ -70,7 +75,7 @@ void CfgQuotestops()
     if(cfgingroup)
         CFG->grp.AddItm(GRP_QUOTESTOPS, buf, strlen(buf)+1);
     else
-        strcpy(CFG->quotestops, buf);
+        strxcpy(CFG->quotestops, buf, sizeof(CFG->quotestops));
 }
 
 //  ------------------------------------------------------------------

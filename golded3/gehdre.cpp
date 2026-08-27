@@ -605,7 +605,7 @@ int EditHeaderinfo(int mode, GMsgHeaderView &view, bool doedithdr)
                 if(not (CFG->internetgateexp == RFCAddress) and *msg->To() and (strpbrk(msg->iaddr, "<>()\"") == NULL) and not isuucp(msg->To()))
                 {
                     Name name;
-                    strcpy(name, msg->To());
+                    strxcpy_utf8(name, msg->To(), sizeof(name));
                     StripQuotes(name);
                     if (CFG->internetgateexp == ((RFCName << 2) | RFCAddress))
                     {

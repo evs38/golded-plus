@@ -1019,12 +1019,14 @@ void GThreadlist::print_line(uint idx, uint pos, bool isbar)
 
     if(AA->Msglistdate() != MSGLISTDATE_NONE)
     {
-        char dbuf[11];
+        //  Sized for the formatted date in bytes - a Russian month is
+        //  six of them - while the ten-column layout below still holds.
+        char dbuf[11*4];
         time32_t dt = 0;
 
         memset(dbuf, ' ', 10);
         dbuf[10] = NUL;
-        strncpy(dbuf, LNG->n_a, strlen(LNG->n_a));
+        memcpy(dbuf, LNG->n_a, MinV(strlen(LNG->n_a), sizeof(dbuf)-1));
 
         switch(AA->Msglistdate())
         {
@@ -1043,7 +1045,7 @@ void GThreadlist::print_line(uint idx, uint pos, bool isbar)
         {
             struct tm tm;
             ggmtime(&tm, &dt);
-            strftimei(dbuf, 20, "%d %b %y", &tm);
+            strftimei(dbuf, sizeof(dbuf), "%d %b %y", &tm);
         }
 
         strcat(buf, dbuf);

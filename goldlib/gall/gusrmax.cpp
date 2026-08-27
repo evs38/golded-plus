@@ -43,6 +43,7 @@ MaximusUser::MaximusUser()
     memset(record, 0, recsize);
 
     name = record->name;
+    namesize = sizeof(record->name);
     record->struct_len = (byte)(recsize / 20);
 
     firstread = true;
@@ -89,6 +90,7 @@ int MaximusUser::read()
                     throw_new(recptr);
                     record = (MaxUsers*)recptr;
                     name = record->name;
+    namesize = sizeof(record->name);
                 }
             }
         }

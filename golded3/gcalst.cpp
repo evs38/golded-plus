@@ -67,7 +67,7 @@ AreaList::AreaList() : idx()
     *sortspec = NUL;
 
     for(uint i = 0; i < 16; i++)
-        *alistselections[0] = NUL;
+        *alistselections[i] = NUL;
 }
 
 
@@ -86,10 +86,11 @@ AreaList::~AreaList()
 void AreaList::SetDefaultMarks()
 {
 
-    strcpy(alistselections[0], LNG->ArealistSelections1);
+    //  Language strings, so bounded and cut between characters.
+    strxcpy_utf8(alistselections[0], LNG->ArealistSelections1, sizeof(Desc));
 
     for(uint i = 1; i < 16; i++)
-        strcpy(alistselections[i], LNG->ArealistSelections2);
+        strxcpy_utf8(alistselections[i], LNG->ArealistSelections2, sizeof(Desc));
 }
 
 

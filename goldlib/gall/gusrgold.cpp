@@ -40,6 +40,7 @@ GoldbaseUser::GoldbaseUser()
     throw_new(record);
     recptr = (char*)record;
     name = record->name;
+    namesize = sizeof(record->name);
 }
 
 

@@ -343,10 +343,14 @@ void CfgLatintolocal()
     memset(CFG->latintolocal, 0, sizeof(CFG->latintolocal));
     CFG->latin2local = true;
 
+    //  Stop at the end of the value: a short one used to be read past
+    //  its NUL, into whatever the line buffer held. The byte-per-letter
+    //  scheme itself cannot express a multibyte character and needs a
+    //  redesign of its own - docs/todowork.txt has the note.
     char *ptr = val, chr;
-    for (chr = 'A'; chr <= 'Z'; chr++, ptr++)
+    for (chr = 'A'; (chr <= 'Z') and *ptr; chr++, ptr++)
         CFG->latintolocal[int(chr)] = *ptr;
-    for (chr = 'a'; chr <= 'z'; chr++, ptr++)
+    for (chr = 'a'; (chr <= 'z') and *ptr; chr++, ptr++)
         CFG->latintolocal[int(chr)] = *ptr;
 }
 

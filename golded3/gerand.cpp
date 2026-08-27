@@ -181,7 +181,7 @@ void Area::InitData()
 #endif
     if(*CFG->searchfor)
         strcpy(adat->searchfor, CFG->searchfor);
-    strcpy(adat->tagline, CFG->tagline.empty() ? "" : CFG->tagline[CFG->taglineno].c_str());
+    strxcpy_utf8(adat->tagline, CFG->tagline.empty() ? "" : CFG->tagline[CFG->taglineno].c_str(), sizeof(adat->tagline));
     strcpy(adat->taglinechar, CFG->taglinechar);
     adat->taglinesupport = CFG->taglinesupport;
     strcpy(adat->tearline, CFG->tearline);
@@ -293,7 +293,11 @@ void Area::RandomizeData(int mode)
 
     if(found)
     {
-        char buf[256];
+        //  Sized for the biggest string a group can carry - the origin
+        //  is 160 characters at up to four bytes. At 256 this relay
+        //  quietly undercut the fields it fills, and Grp::GetItm()
+        //  leaves no terminator when the stored item is larger still.
+        char buf[160*4 + 16];
 
         if(CFG->grp.GetItm(GRP_AKA, &adat->aka, sizeof(gaka)))
             SetAka(adat->aka.addr);

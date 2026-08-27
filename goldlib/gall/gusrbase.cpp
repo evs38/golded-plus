@@ -38,6 +38,7 @@ GUser::GUser()
     found   = false;
     index   = 0;
     name    = NULL;
+    namesize = 0;
     recno   = 0;
     records = 0;
     recptr  = NULL;
@@ -98,7 +99,11 @@ void GUser::recinit(const char* __name)
 {
 
     memset(recptr, 0, recsize);
-    strcpy(name, __name);
+    //  Bounded by the record's own field, and cut between characters:
+    //  every base stores the name in a fixed field, and an unbounded
+    //  copy of a UTF-8 name ran past it at half the characters the
+    //  field was designed for.
+    strxcpy_utf8(name, __name, namesize ? namesize : 36);
 }
 
 

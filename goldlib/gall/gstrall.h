@@ -144,6 +144,8 @@ TCHAR *strxcpy_utf8(TCHAR *d, const TCHAR *s, size_t n);
 // through one. Only for text in the internal representation - see the
 // note on the definition.
 //          return d
+// strxcat: append src to dest; max is the whole capacity of dest, the
+// NUL included, as in strxcpy.
 char* strxcat(char *dest, const char *src, size_t max);
 char* strxmerge(char *dest, size_t max, ...);
 size_t strxlen(const char* str, size_t max);

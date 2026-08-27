@@ -217,18 +217,18 @@ void CfgTemplate()
         Tpl tp;
         *tp.name = NUL;
         tp.match.reset();
-        strcpy(tp.file, key);
+        strxcpy(tp.file, key, sizeof(tp.file));
         if((*val == '\'') or (*val == '\"'))
         {
             getkeyval(&key, &val);
-            strcpy(tp.name, key);
+            strxcpy_utf8(tp.name, key, sizeof(tp.name));
             if(*val)
                 tp.match.set(val);
         }
         else if(*val)
             tp.match.set(val);
         if(not *tp.name)
-            strcpy(tp.name, tp.file);
+            strxcpy_utf8(tp.name, tp.file, sizeof(tp.name));
         CFG->tpl.push_back(tp);
     }
 }

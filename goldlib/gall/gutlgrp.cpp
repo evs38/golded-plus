@@ -276,8 +276,15 @@ int Grp::GetItm(int __type, void* __data, int __size, int __no)
         while(__no--) i++;
         void *data = (*i).second.data.object_item;
         int local_size = *((int *)data);
+        int full_size = __size;
         __size = minimum_of_two (local_size, __size);
         memcpy(__data, (char *)data+sizeof(int), __size);
+        //  A cut copy of a string came back without a terminator, and
+        //  the caller then read past its buffer. Terminate whenever
+        //  the stored item did not fit whole: a string needs it, and a
+        //  struct that did not fit is broken with or without it.
+        if((local_size > full_size) and (full_size > 0))
+            ((char*)__data)[full_size-1] = 0;
     }
 
     // Return number of items of this type in the group

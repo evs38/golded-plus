@@ -48,6 +48,7 @@ public:
     int   found;        // User found
     uint  index;        // User index number
     char* name;         // Pointer to name in user record
+    uint  namesize;     // Size of that field in the record
     uint  recno;        // Current user record number
     uint  records;      // Total number of user records
     char* recptr;       // Pointer to user record
