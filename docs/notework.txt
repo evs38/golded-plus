@@ -13,6 +13,15 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- "make strip" tried to link the binaries instead of stripping them,
+  and failed. The stripper's name is derived from the compiler's so
+  that a cross build gets the right one, but the test was merely for a
+  compiler not called "gcc" - which made the name of the stripper
+  "clang", or "cc", on an ordinary native build. It is derived now only
+  from a prefixed compiler, where a triplet like
+  i586-pc-msdosdjgpp-gcc gives i586-pc-msdosdjgpp-strip, and left as
+  the plain strip otherwise.
+
 - The text of a template arrived in the message as whatever its bytes
   happened to mean: squares on screen, question marks once saved. A
   template is one of GoldED+'s own files and is written in the charset

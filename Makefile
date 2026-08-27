@@ -75,8 +75,14 @@ docs:
 
 #  STRIP, not a bare `strip': on a cross build the host's one does not
 #  know the target's object format and answers "file format not
-#  recognized". It follows the compiler unless it is set by hand.
-STRIP?=$(if $(filter-out gcc,$(CC)),$(patsubst %gcc,%strip,$(patsubst %g++,%strip,$(CC))),strip)
+#  recognized". Derive it only from a prefixed compiler - a triplet
+#  like i586-pc-msdosdjgpp-gcc gives the matching -strip - and leave
+#  the plain one for a native build whatever the compiler is called.
+#  Testing merely for "not gcc" turned clang, or cc, into the name of
+#  the stripper, and the target then tried to link the binaries.
+#  CC may carry options, so only its first word is looked at.
+STRIP_CC:=$(firstword $(CC))
+STRIP?=$(if $(filter %-gcc %-g++,$(STRIP_CC)),$(patsubst %-g++,%-strip,$(patsubst %-gcc,%-strip,$(STRIP_CC))),strip)
 
 strip:
 	cd $(BIN)/ ; $(STRIP) *$(PLATFORM)$(EXEEXT)
