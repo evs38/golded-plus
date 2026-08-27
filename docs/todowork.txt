@@ -211,25 +211,3 @@ console.cpp (WriteOutputVT, ~line 1870):
 Do it in one deliberate pass, following FAR line by line, and test
 every step in BOTH consoles: in the attempt, each of the two found a
 different fault within minutes of each other.
-
-______________________________________________________________________
-
-A dormant buffer overflow past update_statuslines()'s old_status_line,
-2026-08-27. Two cores from a production NetBSD node proved that
-something writes past the end of that static buffer and stomps the
-message-base wide globals that followed it in BSS - one core showed
-them as clean nulls, the other as garbage holding stack addresses and
-libc pointers, and the status-line clock text sat exactly one byte
-past the buffer's end. The visible arithmetic of the function is
-in-bounds when read; the writer has not been caught. It is
-content-dependent: it went dormant the moment the unread counts in
-the affected areas changed, and an idle run of 75 clock ticks against
-a guard page did not trigger it.
-
-The trap is armed on a diagnostic branch: old_status_line placed at
-the end of a page with a PROT_NONE page after it, so the next
-occurrence faults on the writer's own instruction and the core names
-it. Until then, the lazy FidoInit at area creation keeps the
-null-stomp from crashing the reader; a garbage-stomp can still crash
-in other ways. When the writer is caught: fix it, then decide whether
-the guard page is worth keeping as permanent cheap hardening.

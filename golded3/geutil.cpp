@@ -124,7 +124,14 @@ void update_statuslines()
         if(begin >= end)
             return;
         // we have at least one mismatch
-        if(*obegin)
+
+        //  The matching tail may only be trusted when both lines are
+        //  the same length. Otherwise the walk compares bytes that sit
+        //  at different offsets in the two lines, and it runs back past
+        //  the point where the heads parted - which is how the span
+        //  came out negative. When the lengths differ, redraw from the
+        //  first difference to the end of the line.
+        if(*obegin and (buf_bytes == (int)strlen(old_status_line)))
         {
             while((*end == *oend) and (buf<end) and (old_status_line<oend) )
             {
@@ -132,8 +139,15 @@ void update_statuslines()
                 --oend;
             }
         }
-        len = end-begin+1;
-        memcpy( obegin, begin, (len<sizeof(old_status_line))? len : sizeof(old_status_line) );
+
+        if(end < begin)
+            end = begin;
+
+        //  Keep the line as a whole. Copying only the changed span
+        //  assumed the two buffers held the same bytes at the same
+        //  offsets, which stops being true the moment the lines differ
+        //  in length.
+        strxcpy(old_status_line, buf, sizeof(old_status_line));
 
 #ifdef GOLD_MOUSE
         gmou.GetStatus();

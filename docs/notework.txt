@@ -13,6 +13,17 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- GoldED+ could corrupt its own memory while redrawing the status
+  line, and crash later somewhere else entirely - opening a *.MSG area
+  on one machine, inside the header editor on another. The redraw
+  compares the new status line with the previous one and repaints only
+  what changed, walking in from both ends; the walk back from the end
+  is only meaningful when both lines are the same length, and when a
+  field was padded to a different width it ran past the point where
+  the two lines first differed. The span then came out negative, which
+  as an unsigned length is enormous, and the copy that followed wrote
+  the whole buffer at an offset inside itself.
+
 + GoldED+ can now hold text in UTF-8 internally. Set XLATLOCALSET to
   UTF-8 to use it. This is about the operating system - console,
   filenames, editing - and not about the wire: the transport charset
