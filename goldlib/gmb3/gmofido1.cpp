@@ -134,6 +134,17 @@ void FidoExit()
 void FidoInit(const char* fidolastread, int fidohwmarks, int fidonullfix, int fidouserno, const char* squishuserpath)
 {
 
+    //  Idempotent: the lazy guard at area creation may have run this
+    //  already, and the startup pass calls it again. Doing the work
+    //  twice would leak the first allocations and re-read the user
+    //  file for nothing. The log line is diagnostic - see the note at
+    //  the guard in gcalst.cpp.
+    if(fidowide != NULL)
+    {
+        WideLog->printf("! FidoInit called again; already initialised, nothing to do.");
+        return;
+    }
+
     fidodata = (FidoData*)throw_calloc(3, sizeof(FidoData));
     fidowide = (FidoWide*)throw_calloc(1, sizeof(FidoWide));
 
