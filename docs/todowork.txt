@@ -211,3 +211,23 @@ console.cpp (WriteOutputVT, ~line 1870):
 Do it in one deliberate pass, following FAR line by line, and test
 every step in BOTH consoles: in the attempt, each of the two found a
 different fault within minutes of each other.
+
+______________________________________________________________________
+
+The personal-mail scan now compares names in the charset the area
+imports (WidePMUsername), which is right for the common case - a CP866
+base under a UTF-8 session. Two edges are left deliberately: a base
+whose messages carry different charsets per message is compared against
+the area's single import charset, so a name in the odd message out can
+still be missed - fixing that would mean reading every header's kludges
+during the scan, which is what the scan's speed forbids; and the
+AdeptXBBS driver builds a Personal_Mail *filename* from the username,
+which on a CP866 filesystem wants the converted form too but is left
+alone until someone actually runs AdeptXBBS.
+
+The JAM lastread continuity: the user's lastread record is found by a
+CRC over the name, now computed in the base's charset - the same value
+every pre-UTF-8 reader wrote, so old lastreads match again. A lastread
+written by the 20260825-20260827 snapshots was computed over the UTF-8
+name and will appear as a fresh user once; the old record stays in the
+file, harmless.

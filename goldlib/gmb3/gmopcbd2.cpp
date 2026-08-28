@@ -342,7 +342,7 @@ void PcbArea::raw_scan(int __keep_index, int __scanpm)
         int umax = (WidePersonalmail & PM_ALLNAMES) ? WideUsernames : 1;
         PcbName* uname = (PcbName*)throw_calloc(umax, sizeof(PcbName));
         for(int un=0; un<umax; un++)
-            strsetsz(strxcpy(uname[un], WideUsername[un], sizeof(PcbName)), 25);
+            strsetsz(strxcpy(uname[un], WidePMUsername[un], sizeof(PcbName)), 25);
         PMrk->ResetAll();
         uint n = lastread + 1;
         uint cnt = Msgn->Count();

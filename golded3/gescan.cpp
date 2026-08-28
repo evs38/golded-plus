@@ -58,6 +58,64 @@ void Area::UpdateAreadata()
 
 
 //  ------------------------------------------------------------------
+//  The usernames, converted to the charset the base stores its headers
+//  in, for the drivers' personal-mail tests. The internal charset went
+//  UTF-8 and the bases stayed CP866, so a straight comparison - or the
+//  CRC the JAM index keeps of the addressee - stopped matching any
+//  name beyond ASCII: "scan for personal mail" silently found nothing.
+
+void PrepareAreaUsernames(const char* importcs)
+{
+    //  Room enough for every configured name, converted; freed never,
+    //  refreshed on every call.
+    static const char** _ptrs = NULL;
+    static std::vector<std::string> _names;
+
+    if(WideUsername == NULL)
+        return;
+
+    _names.clear();
+
+    bool _convert = importcs and *importcs and *CFG->xlatlocalset and
+                    not strieql(importcs, CFG->xlatlocalset);
+    GRecoder* _rec = NULL;
+    if(_convert)
+    {
+        _rec = &g_recoder(CFG->xlatlocalset, importcs);
+        if(not _rec->is_open() or _rec->is_identity())
+            _rec = NULL;
+    }
+
+    for(int u = 0; u < WideUsernames; u++)
+    {
+        if(_rec)
+            _names.push_back(_rec->convert(WideUsername[u], strlen(WideUsername[u])));
+        else
+            _names.push_back(WideUsername[u]);
+    }
+
+    delete[] _ptrs;
+    _ptrs = new const char*[WideUsernames ? WideUsernames : 1];
+    for(int u = 0; u < WideUsernames; u++)
+        _ptrs[u] = _names[u].c_str();
+
+    WidePMUsername = _ptrs;
+}
+
+
+static void PrepareAreaUsernames(Area* a)
+{
+    //  The per-area data exists only once an area has been opened;
+    //  a scan runs over areas that never were, so ask for the area's
+    //  own import charset only when there is one to ask.
+    const char* cs = a->HasData() ? a->Xlatimport() : NULL;
+    if(not (cs and *cs))
+        cs = CFG->xlatimport;
+    PrepareAreaUsernames(cs);
+}
+
+
+//  ------------------------------------------------------------------
 
 void Area::ScanArea()
 {
@@ -68,6 +126,7 @@ void Area::ScanArea()
     area->Msgn = &Msgn;
     area->PMrk = &PMrk;
 
+    PrepareAreaUsernames(this);
     area->scan_area();
 
     isscanned = true;
@@ -87,6 +146,7 @@ void Area::ScanAreaPM()
     area->Msgn = &Msgn;
     area->PMrk = &PMrk;
 
+    PrepareAreaUsernames(this);
     area->scan_area_pm();
 
     isscanned = true;

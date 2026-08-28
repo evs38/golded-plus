@@ -236,7 +236,8 @@ void SquishArea::raw_scan(int __keep_index, int __scanpm)
         int umax = (WidePersonalmail & PM_ALLNAMES) ? WideUsernames : 1;
         std::vector<dword> uhash;
         for(int uh=0; uh<umax; uh++)
-            uhash.push_back(strHash32(WideUsername[uh]));
+            //  Hashed over the base's charset, as the index was.
+            uhash.push_back(strHash32(WidePMUsername[uh]));
         PMrk->Reset();
         uint n = lastread + 1;
         uint cnt = Msgn->Count();
@@ -264,7 +265,7 @@ void SquishArea::raw_scan(int __keep_index, int __scanpm)
                                 ::close(data->fhsqd);
                                 data->fhsqd = -1;
                             }
-                            if(streql(__hdr.to, WideUsername[u]))
+                            if(streql(__hdr.to, WidePMUsername[u]))
                             {
                                 gotpm = true;
                                 break;

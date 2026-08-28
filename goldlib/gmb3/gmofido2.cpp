@@ -190,7 +190,8 @@ void FidoArea::raw_scan(bool __scanpm)
 
                 for(int u=0; u<umax; u++)
                 {
-                    if(strieql(WideUsername[u], hdr_by))
+                    //  In the charset this base stores its headers in.
+                    if(strieql(WidePMUsername[u], hdr_by))
                     {
                         gotpm = true;
                         break;

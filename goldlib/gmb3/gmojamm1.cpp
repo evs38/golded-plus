@@ -69,7 +69,9 @@ void JamInit(const char* jampath, int harddelete, int jamsmapihw)
 
     // Calculate CRC32 of our username for the lastreads
     INam _name;
-    jamstrlwr(strcpy(_name, WideUsername[0]));
+    //  The lastread files know the user by a CRC over the name in the
+    //  base's charset - the one every earlier reader wrote.
+    jamstrlwr(strcpy(_name, WidePMUsername[0]));
     jamwide->userid = jamwide->usercrc = strCrc32(_name, NO, CRC32_MASK_CCITT);
 
     // Enable replies lookahead feature

@@ -155,7 +155,7 @@ int PcbArea::load_message(int __mode, gmsg* __msg, PcbHdr& __hdr)
                                 _ptr += 5;
                             }
                             _addr.set(strskip_wht(_ptr));
-                            if(not _incoming and strieql(__msg->by, WideUsername[0]))
+                            if(not _incoming and strieql(__msg->by, WidePMUsername[0]))
                             {
                                 __msg->dest = _addr;
                                 __msg->odest = _addr;

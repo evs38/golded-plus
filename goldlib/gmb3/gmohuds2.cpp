@@ -659,7 +659,7 @@ void _HudsWide<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::scan_pm()
             umax = (WidePersonalmail & PM_ALLNAMES) ? WideUsernames : 1;
             for(u=0; u<umax; u++)
             {
-                if(strieql(toidx->name, WideUsername[u]))
+                if(strieql(toidx->name, WidePMUsername[u]))
                 {
                     gotpm = true;
                     break;

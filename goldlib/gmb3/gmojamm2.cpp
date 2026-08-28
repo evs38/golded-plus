@@ -338,7 +338,9 @@ void JamArea::raw_scan(int __keep_index, int __scanpm)
         dword* ucrc = (dword*)throw_calloc(umax, sizeof(dword));
         for(int uc=0; uc<umax; uc++)
         {
-            jamstrlwr(strcpy(uname, WideUsername[uc]));
+            //  The usercrc in the index was computed over the name as
+            //  the tosser stored it - the base's charset, not ours.
+            jamstrlwr(strcpy(uname, WidePMUsername[uc]));
             ucrc[uc] = strCrc32(uname, NO, CRC32_MASK_CCITT);
         }
         PMrk->ResetAll();

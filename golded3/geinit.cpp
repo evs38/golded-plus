@@ -1299,6 +1299,10 @@ void Initialize(int argc, char* argv[])
     int w;
     for(w = 0, i = CFG->username.begin(); w < WideUsernames; w++, i++)
         WideUsername[w] = i->name;
+    //  The copies the drivers compare against on-disk headers with,
+    //  in the default import charset to begin with; refreshed with the
+    //  area's own charset before every open and scan.
+    PrepareAreaUsernames(CFG->xlatimport);
     WidePersonalmail = CFG->personalmail;
 
     if(CFG->loadlanguage[0])

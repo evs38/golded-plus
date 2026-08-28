@@ -87,7 +87,7 @@ void SMBArea::raw_scan(bool keep_index, bool scanpm)
                                     bool gotpm = false;
                                     for(int u=0; u<umax; u++)
                                     {
-                                        if(strieql(WideUsername[u], (char *)msg.to))
+                                        if(strieql(WidePMUsername[u], (char *)msg.to))
                                         {
                                             gotpm = true;
                                             break;

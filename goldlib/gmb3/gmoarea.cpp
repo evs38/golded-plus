@@ -33,6 +33,7 @@ glog*        WideLog = NULL;
 int          WideDebug = false;
 int          WideCanLock = true;
 const char** WideUsername = NULL;
+const char** WidePMUsername = NULL;
 int          WideUsernames = 0;
 uint         WideSharemode = SH_DENYNO;
 bool         WideDispsoftcr = true;

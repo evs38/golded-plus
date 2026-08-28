@@ -449,6 +449,13 @@ extern glog*        WideLog;
 extern int          WideDebug;
 extern int          WideCanLock;
 extern const char** WideUsername;
+//  The same names in the charset the current message base stores its
+//  headers in. The reader holds text in the local charset, the base
+//  keeps whatever the tosser wrote - usually CP866 - and a comparison
+//  or a CRC across that boundary silently never matches. golded3
+//  fills this before an area is opened or scanned; every driver's
+//  personal-mail test reads it instead of WideUsername.
+extern const char** WidePMUsername;
 extern int          WideUsernames;
 extern uint         WideSharemode;
 extern bool         WideDispsoftcr;  // DispsoftCR for current area

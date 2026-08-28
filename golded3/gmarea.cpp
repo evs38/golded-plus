@@ -373,6 +373,12 @@ void Area::Open()
     area->Msgn = &Msgn;
     area->PMrk = &PMrk;
 
+    {
+        const char* _cs = Xlatimport();
+        if(not (_cs and *_cs))
+            _cs = CFG->xlatimport;
+        PrepareAreaUsernames(_cs);
+    }
     area->open();
 
     isscanned = true;

@@ -496,6 +496,14 @@ public:
     gmo_area* area;
     AreaData* adat;
 
+    //  Whether the per-area data has been created yet - it is made
+    //  when an area is first opened or randomized, and everything
+    //  behind adat-> is a null dereference before that.
+    bool HasData() const
+    {
+        return adat != NULL;
+    }
+
 
     //  ----------------------------------------------------------------
     //  Constructor and destructor

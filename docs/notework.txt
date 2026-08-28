@@ -13,6 +13,17 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- The scan for personal mail silently found nothing for a name with
+  characters beyond ASCII. The reader now holds the username in UTF-8
+  while a message base stores headers in whatever the tosser wrote -
+  CP866, usually - and every driver compared, hashed or CRC'd straight
+  across that boundary: the JAM index's addressee CRC was computed
+  over different bytes than the tosser had stored, verified against
+  the index arithmetic directly. The drivers now compare against the
+  name converted to the area's import charset, refreshed before every
+  open and scan; this also restores the JAM lastread association that
+  pre-UTF-8 readers wrote.
+
 - Quoting a message from someone with a Cyrillic name put broken
   bytes in front of every quoted line: the initials for the quote
   prefix were collected one byte per letter, and one byte of a
