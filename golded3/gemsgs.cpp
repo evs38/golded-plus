@@ -825,7 +825,7 @@ void Rot13(GMsg* msg)
 
 //  ------------------------------------------------------------------
 
-void LoadText(GMsg* msg, const char* textfile)
+void LoadText(GMsg* msg, const char* textfile, bool cfgcharset)
 {
     uint size;
     char* buf;
@@ -865,6 +865,15 @@ void LoadText(GMsg* msg, const char* textfile)
 
         while (fp.Fgets(buf, PBUFSIZE-1))
         {
+            //  The receipt template is one of GoldED+'s own files,
+            //  like a template or a list of taglines, so it is in
+            //  the charset XLATCONFIGSET names. The file an external
+            //  editor leaves behind is not - that is message text,
+            //  already in the charset the session runs in - which is
+            //  why the caller says which of the two this is.
+            if(cfgcharset)
+                XlatCfgLine(buf, buf_len);
+
             if(EDIT->HardLines() and strneql(buf, hardline, hardlen))
             {
                 hardcr = not hardcr;

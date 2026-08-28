@@ -112,7 +112,9 @@ char* mime_header_encode(char* dest, const char* source, GMsg* msg);
 //  GEDOIT prototypes
 
 void CmfMsgs(GMsg* msg, bool torecycle);
-void LoadText(GMsg* msg, const char* textfile);
+//  cfgcharset: the file is one of GoldED+'s own, in the charset
+//  XLATCONFIGSET names, not message text already in the local one.
+void LoadText(GMsg* msg, const char* textfile, bool cfgcharset=false);
 void SaveLines(int mode, const char* savefile, GMsg* msg, int margin, bool clip=false);
 
 

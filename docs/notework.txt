@@ -150,8 +150,11 @@ ______________________________________________________________________
   XLATCONFIGSET names, but only golded.cfg and the language file were
   being converted from it - so the dates and names a template line
   pulled from the language file came out right while the words around
-  them did not. Templates, the text files they pull in, and the files a
-  random tagline or tearline is drawn from are all converted now.
+  them did not. Templates, the text files they pull in, the files a
+  random tagline or tearline is drawn from, and the receipt template
+  golded.cfm are all converted now. The file an external editor
+  leaves behind is deliberately left alone: that one is message
+  text, already in the charset the session runs in.
 
 - A tagline came out cut in the middle of a word, and stayed cut in
   every message written afterwards. It was being cut as the

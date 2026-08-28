@@ -1329,7 +1329,7 @@ void MakeMsg(int mode, GMsg* omsg, bool ignore_replyto)
                         gfile fp(AddPath(CFG->goldpath, CFG->confirmfile), "rt", CFG->sharemode);
 
                         if (fp.isopen())
-                            LoadText(msg, AddPath(CFG->goldpath, CFG->confirmfile));
+                            LoadText(msg, AddPath(CFG->goldpath, CFG->confirmfile), true);
 
                         if (msg->txt == NULL)
                             msg->txt = throw_strdup("\r\rConfirmation Receipt\r\r");
