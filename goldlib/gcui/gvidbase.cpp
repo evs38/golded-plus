@@ -1232,8 +1232,8 @@ void vputws(int row, int col, vatch* buf, uint len)
 #else
 
     move(row, col);
-    for(uint counter = 0; counter < len; counter++)
-        addch(buf[counter]);
+    for(uint c2 = 0; c2 < len; c2++)
+        addch(buf[c2]);
 
 #endif
 
@@ -2161,8 +2161,8 @@ void vscroll(int srow, int scol, int erow, int ecol, vattr atr, int lines)
         for(int n = 0; n < count; n++)
             mvhline_set(1 + erow - count + n, scol, &filler, width);
     else
-        for(int n = 0; n < -count; n++)
-            mvhline_set(srow + n, scol, &filler, width);
+        for(int n2 = 0; n2 < -count; n2++)
+            mvhline_set(srow + n2, scol, &filler, width);
 
     //  Flush the move now. Leaving it to the caller's repaint meant that
     //  anything refreshing in between - the status-line clock, once a

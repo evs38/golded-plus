@@ -1951,6 +1951,18 @@ void ScanKludges(GMsg* msg, int getvalue)
 //  letter is a character of several bytes now, so the work is done
 //  per character and the string may grow.
 
+//  The characters of the line: offset, width, codepoint of the lead.
+//  At file scope because a type declared inside a function cannot be a
+//  template argument for the VC98 library the MSVC6 target uses.
+
+struct L2LChr
+{
+    size_t   off;
+    int      w;
+    uint32_t cp;
+};
+
+
 void  Latin2Local(std::string &str)
 {
     if (!CFG->latin2local || str.empty()) return;
@@ -1958,8 +1970,6 @@ void  Latin2Local(std::string &str)
     const char* base = str.c_str();
     const char* end  = base + str.length();
 
-    //  The characters: offset, width, codepoint of the lead.
-    struct L2LChr { size_t off; int w; uint32_t cp; };
     std::vector<L2LChr> chars;
     for(const char* p = base; p < end; )
     {
@@ -2009,12 +2019,14 @@ void  Latin2Local(std::string &str)
 
     std::string out;
     out.reserve(str.length());
-    for(size_t i = 0; i < n; i++)
+    //  A fresh name: the VC98 compiler keeps a for-scope variable alive
+    //  to the end of the enclosing block, so reusing i is a redefinition.
+    for(size_t k = 0; k < n; k++)
     {
-        if(convert[i])
-            out += CFG->latintolocal[chars[i].cp];
+        if(convert[k])
+            out += CFG->latintolocal[chars[k].cp];
         else
-            out.append(base + chars[i].off, (size_t)chars[i].w);
+            out.append(base + chars[k].off, (size_t)chars[k].w);
     }
     str = out;
 }
@@ -2108,7 +2120,7 @@ static uint RecodeChar(char*& ptr, char*& bp, int level, GRecoder* recoder)
         if(used <= 0)
             used = 1;
 
-        for(int n = 0; n < used; n++)
+        for(int nb = 0; nb < used; nb++)
             *(++bp) = *ptr++;
 
         int w = g_cp_width(cp);

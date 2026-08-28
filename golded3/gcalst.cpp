@@ -117,24 +117,7 @@ Area* AreaList::NewArea(const char *basetype)
 
     gmo_area* ap = NULL;
     if(streql(basetype, "SEPARATOR")) ap = new SepArea;
-    else if(streql(basetype, "FTS1") or streql(basetype, "OPUS"))
-    {
-        //  The format initialisers normally run once at startup, gated
-        //  on which basetypes the configuration produced. A *.MSG area
-        //  was seen to exist with that gate not having fired - the
-        //  wide data was never made, and opening the area walked into
-        //  a null pointer (raw_scan, gmofido2.cpp). Until the how of
-        //  that is understood, make the initialisation lazy: creating
-        //  the first Fido area brings its wide data into being. The
-        //  log line is the tripwire - if it ever appears, the startup
-        //  gate misfired again and there is a live state to examine.
-        if(fidowide == NULL)
-        {
-            LOG.printf("! FidoInit had not run by the time a Fido area was created; running it now. Please report this.");
-            FidoInit(CFG->fidolastread, CFG->switches.get(fidohwmarks), CFG->switches.get(fidonullfix), CFG->fidouserno, CFG->squishuserpath);
-        }
-        ap = new FidoArea;
-    }
+    else if(streql(basetype, "FTS1") or streql(basetype, "OPUS")) ap = new FidoArea;
 #ifndef GMB_NOEZY
     else if(streql(basetype, "EZYCOM")) ap = new EzycomArea;
 #endif

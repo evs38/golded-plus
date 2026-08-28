@@ -96,8 +96,8 @@ void PrepareAreaUsernames(const char* importcs)
 
     delete[] _ptrs;
     _ptrs = new const char*[WideUsernames ? WideUsernames : 1];
-    for(int u = 0; u < WideUsernames; u++)
-        _ptrs[u] = _names[u].c_str();
+    for(int u2 = 0; u2 < WideUsernames; u2++)
+        _ptrs[u2] = _names[u2].c_str();
 
     WidePMUsername = _ptrs;
 }

@@ -340,8 +340,11 @@ void CfgKludge()
 
 void CfgLatintolocal()
 {
+    //  Not clear(): the VC98 library that builds the MSVC6 target has
+    //  no basic_string::clear(). Assignment empties a string on every
+    //  compiler this tree is built with.
     for(int i = 0; i < 128; i++)
-        CFG->latintolocal[i].clear();
+        CFG->latintolocal[i] = "";
     CFG->latin2local = true;
 
     //  One character of the value per letter - a character, not a
