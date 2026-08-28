@@ -13,6 +13,16 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- A sweep of the places that measured screen positions in bytes and
+  drew translated text out of line: the header's top rule and its
+  right-hand echoid, the real-name fields of gated mail, the Via line,
+  the attach sizes, the nodelist location, the message-list and
+  reply-list date columns, the n/a placeholder, the attributes window,
+  the spell-suggestion popup, the arealist mask picker, centred
+  strings, the help viewer's cross-reference positions, and the status
+  line's own buffer. All of them now measure columns where they mean
+  columns and cut between characters where they cut.
+
 - A round of features that had quietly stopped working for anything
   beyond ASCII. LATINTOLOCAL parsed one byte per letter and so could
   not hold a Cyrillic mapping at all - it takes one character per

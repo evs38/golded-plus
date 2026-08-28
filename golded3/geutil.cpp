@@ -187,11 +187,11 @@ void update_statusline(const char* info)
     {
         LOG.errpointer(__FILE__, __LINE__);
         LOG.printf( "! Parameter is NULL pointer: update_statusline(NULL).");
-        strxcpy(information, UPDATE_STATUSLINE_ERROR, sizeof(information));
+        strxcpy_utf8(information, UPDATE_STATUSLINE_ERROR, sizeof(information));
     }
     else if (*info)
     {
-        strxcpy(information, info, sizeof(information));
+        strxcpy_utf8(information, info, sizeof(information));
     }
     else
         *information = '\0';
@@ -249,7 +249,7 @@ void w_info(const char* info)
     static int erow;
     static int ecol;
     static int len;
-    static char buf[150] = { "" };
+    static char buf[150*4] = { "" };
     std::string shortened;
 
     int prev_wh = whandle();

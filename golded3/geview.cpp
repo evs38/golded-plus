@@ -122,23 +122,25 @@ void GMsgHeaderView::Paint()
 #if defined(__USE_ALLOCA__)
     char *top = (char*)alloca(width+1);
 #else
-    __extension__ char top[width+1];
+    __extension__ char top[(width+1)*4];
 #endif
-    strxmerge(top, width+1, " ", buf1, strtrim(strtmp(area->desc())), " (",
+    strxmerge(top, (width+1)*4, " ", buf1, strtrim(strtmp(area->desc())), " (",
               area->isinternet() ? area->Internetaddress() : area->Aka().addr.make_string(buf),
               ") ", NULL);
+    top[g_utf8_bytes_for_cols(top, (size_t)width)] = NUL;
 
-    int desclen = strlen(top);
+    //  Columns: the fill and the right-hand end are placed by these.
+    int desclen = (int)g_utf8_width(top);
 
     window.printc(0, 0, border_color|ACSET, _box_table(W_BHEAD, 1));
     window.prints(0, 1, title_color, top);
 
     if(msg->areakludgeid)
-        strxmerge(top, width+1, " ", area->echoid(), " (", msg->areakludgeid, ") ", NULL);
+        strxmerge(top, (width+1)*4, " ", area->echoid(), " (", msg->areakludgeid, ") ", NULL);
     else
-        strxmerge(top, width+1, " ", area->echoid(), " ", NULL);
+        strxmerge(top, (width+1)*4, " ", area->echoid(), " ", NULL);
 
-    int taglen = strlen(top);
+    int taglen = (int)g_utf8_width(top);
 
     if((width - (desclen + taglen + 2)) > 0)
         window.fill(0, desclen+1, 0, width-(taglen+1)-1, _box_table(W_BHEAD, 1), border_color|ACSET);
@@ -192,7 +194,8 @@ void GMsgHeaderView::Paint()
         sprintf(ptr, " *%u", replynext);
     throw_free(replies);
 
-    strsetsz(buf, attrsgenerated ? CFG->disphdrnodeset.pos : width);
+    //  Columns again - the line holds language text.
+    strxcpy(buf, g_utf8_fit(buf, attrsgenerated ? CFG->disphdrnodeset.pos : width).c_str(), sizeof(buf));
     window.prints(1, 0, window_color, buf);
 
     // Get marks
@@ -219,7 +222,7 @@ void GMsgHeaderView::Paint()
     }
 
     if((not area->isecho() or area->isnewsgroup()) and *msg->ifrom and *msg->realby)
-        strxmerge(buf, (namewidth+nodewidth), msg->realby, " <", msg->iorig, ">", NULL);
+        strxmerge(buf, (namewidth+nodewidth)*4, msg->realby, " <", msg->iorig, ">", NULL);
     else if((not area->isecho() or area->isnewsgroup()) and *msg->ifrom and *msg->iorig)
         strxcpy(buf, msg->iorig, (namewidth+nodewidth));
     else
@@ -272,14 +275,15 @@ void GMsgHeaderView::Paint()
                     }
                 }
                 nodegenerated = true;
-                strsetsz(buf, nodewidth);
+                //  Columns: the Via label is language text.
+                strxcpy(buf, g_utf8_fit(buf, nodewidth).c_str(), sizeof(buf));
                 window.prints(3, CFG->disphdrnodeset.pos, to_color, buf);
             }
         }
     }
 
     if((not area->isecho() or area->isnewsgroup()) and *msg->ito and *msg->realto)
-        strxmerge(buf, (namewidth+nodewidth), msg->realto, " <", msg->idest, ">", NULL);
+        strxmerge(buf, (namewidth+nodewidth)*4, msg->realto, " <", msg->idest, ">", NULL);
     else if((not area->isecho() or area->isnewsgroup()) and *msg->ito and *msg->idest)
         strxcpy(buf, msg->idest, (namewidth+nodewidth));
     else
@@ -342,7 +346,7 @@ void GMsgHeaderView::Paint()
         if(CFG->dispattachsize)
         {
             char buf2[GMAXPATH];
-            int begpos = strlen(LNG->File);
+            int begpos = (int)g_utf8_width(LNG->File);
             strcpy(buf, msg->re);
             char* ptr = strtok(buf, " ");
             while(ptr)
@@ -368,7 +372,9 @@ void GMsgHeaderView::Paint()
                         break;
                     }
                 }
-                window.prints(5, begpos+int(ptr-buf)-1, title_color, buf1);
+                //  The offset into the subject is bytes; the screen
+                //  wants the column of that offset.
+                window.prints(5, begpos + (int)g_utf8_width(buf, (size_t)(ptr-buf)) - 1, title_color, buf1);
                 ptr = strtok(NULL, " ");
             }
         }
@@ -411,7 +417,7 @@ void GMsgHeaderView::Paint()
         if (loc.length())
         {
             loc += " ";
-            int pos = window.width() - loc.length();
+            int pos = window.width() - (int)g_utf8_width(loc.c_str());
             pos = ((CFG->disphdrlocation >> 16) == TCENTER) ? pos/2 : pos-1;
             window.prints(5, pos, location_color, loc.c_str());
         }

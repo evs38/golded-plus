@@ -433,7 +433,7 @@ static void DispAttrWindow(int show=-1)
     if(show)
     {
         wh_background = whandle();
-        size_t wide = MaxV(strlen(LNG->AttrTitle)+2, strlen(LNG->AttrPvt)+2);
+        size_t wide = MaxV(g_utf8_width(LNG->AttrTitle)+2, g_utf8_width(LNG->AttrPvt)+2);
         wide = MinV(wide, MAXCOL-4);
         wh_attributes = wopen_(6, 0, 17, wide, W_BMENU, C_MENUB, C_MENUW);
         set_title(LNG->AttrTitle, TCENTER, C_MENUT);
@@ -876,7 +876,7 @@ int ChangeUsername()
         for (; it != end; it++)
         {
             it->addr.make_string(adrs);
-            gsprintf(PRINTF_DECLARE_BUFFER(buf), " %-35s %s ", it->name, adrs);
+            gsprintf(PRINTF_DECLARE_BUFFER(buf), " %s %s ", g_utf8_fit(it->name, 35).c_str(), adrs);
             Listi.push_back(buf);
         }
 
@@ -929,7 +929,7 @@ int ChangeTemplate()
         for (; it != end; it++)
         {
             it->match.make_string(adrs);
-            gsprintf(PRINTF_DECLARE_BUFFER(buf), " %-45s %s ", it->name, adrs);
+            gsprintf(PRINTF_DECLARE_BUFFER(buf), " %s %s ", g_utf8_fit(it->name, 45).c_str(), adrs);
             Listi.push_back(buf);
         }
 

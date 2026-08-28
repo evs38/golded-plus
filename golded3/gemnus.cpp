@@ -1250,7 +1250,7 @@ int GMenuSChecker::Run(CSpellChecker &schecker, const char *word)
     Init();
     SetColor(C_ASKW, C_ASKQ, C_ASKN, C_ASKS, CFG->switches.get(screenshadows) ? C_SHADOW : DEFATTR);
     SetTitle(title.c_str(), C_ASKT, TLEFT);
-    SetPos(6, 0, title.length()+2, 0);
+    SetPos(6, 0, g_utf8_width(title.c_str())+2, 0);
     SetBorder(W_BASK, C_ASKB);
     SetMask(M_CLALL);
     SetHelp(0);
@@ -1358,7 +1358,7 @@ int GMenuSChecker::Run(CSpellChecker &schecker, const char *word)
             levels++;
             numrows = levels + 6;
 
-            SetPos(numrows, levels, title.length()+2, 0);
+            SetPos(numrows, levels, g_utf8_width(title.c_str())+2, 0);
             BeginPullDown();
         }
 

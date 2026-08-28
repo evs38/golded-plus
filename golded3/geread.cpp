@@ -1594,7 +1594,7 @@ void GotoReplies()
             //  by is 128 bytes, the list field 36: cut, between
             //  characters, instead of overrunning the array.
             strxcpy_utf8(rlist[replies].name, rmsg->by, sizeof(rlist[replies].name));
-            maxname = MaxV(maxname, (uint)strlen(rlist[replies].name));
+            maxname = MaxV(maxname, (uint)g_utf8_width(rlist[replies].name));
             if(not AA->isinternet())
             {
                 rmsg->orig.make_string(buf);
@@ -1611,7 +1611,7 @@ void GotoReplies()
             strftimei(rlist[replies].written, sizeof(rlist[replies].written), LNG->DateTimeFmt, &tm);
             rlist[replies].written[g_utf8_bytes_for_cols(rlist[replies].written, (size_t)CFG->disphdrdateset.len)] = NUL;
 
-            maxwritten = MaxV(maxwritten, (uint)strlen(rlist[replies].written));
+            maxwritten = MaxV(maxwritten, (uint)g_utf8_width(rlist[replies].written));
             rlist[replies].reln = reln;
             replies++;
             if(gotolink == 0)
@@ -1638,13 +1638,16 @@ void GotoReplies()
             //  since "%-*.*s" would measure it in bytes.
             std::string _rname = g_utf8_fit(rlist[n].name, maxname);
 
-            sprintf(buf, "%c %c %*s : %s  %-*s  %-*s ",
+            //  The date can hold language text; pad it by columns
+            //  like the name above it. The address is plain ASCII.
+            std::string _rwritten = g_utf8_fit(rlist[n].written, maxwritten);
+            sprintf(buf, "%c %c %*s : %s  %-*s  %s ",
                     rlist[n].isread,
                     rlist[n].msgno[0],
                     maxmsgno, rlist[n].msgno+1,
                     _rname.c_str(),
                     maxaddr, rlist[n].addr,
-                    maxwritten, rlist[n].written
+                    _rwritten.c_str()
                    );
 
             listr.push_back(buf);

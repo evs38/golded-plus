@@ -59,6 +59,7 @@
 #include <gvidall.h>
 #include <gwinall.h>
 #include <gwinhelp.h>
+#include <gutf8.h>
 
 
 //  ------------------------------------------------------------------
@@ -442,7 +443,7 @@ static void disp_cat()
                 {
                     *(p+1) = NUL;
                     wprints(wrow, wcol, gwin.active->attr, q);
-                    wcol += strlen(q);
+                    wcol += g_utf8_width(q);
                     q = p + 2;
                 }
                 else
@@ -474,7 +475,7 @@ static void disp_cat()
                             arraycnt++;
                         }
                     }
-                    wcol += strlen(q);
+                    wcol += g_utf8_width(q);
                     q = p + 1;
                 }
             }

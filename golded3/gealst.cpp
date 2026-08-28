@@ -573,7 +573,9 @@ bool SelMaskPick::handle_key()
 void SelMaskPick::Run()
 {
 
-    DESC_LEN = (sizeof(Desc) > (MAXCOL-6)) ? MAXCOL-6 : sizeof(Desc);
+    //  A window width in columns - sizeof(Desc) is bytes, and four
+    //  times the columns it stands for since the type was widened.
+    DESC_LEN = MinV((int)(sizeof(Desc)/4), (int)(MAXCOL-6));
 
     ypos = (MAXROW-18)/2;
     xpos = (MAXCOL-DESC_LEN-4)/2-1;

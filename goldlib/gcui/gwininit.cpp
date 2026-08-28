@@ -34,6 +34,7 @@
 #include <gmemdbg.h>
 #include <gutlmisc.h>
 #include <gwinall.h>
+#include <gutf8.h>
 #include <gkbdcode.h>
 
 
@@ -113,7 +114,9 @@ int wcenters(int wrow, vattr attr, const char* str)
 
     // check length of input string
 
-    string_length=strlen(str);
+    //  Columns: a Russian string measured in bytes either refused to
+    //  draw or drew far off centre.
+    string_length=g_utf8_width(str);
     if(string_length>window_width)
         return gwin.werrno=W_STRLONG;
 

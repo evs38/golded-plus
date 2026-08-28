@@ -405,7 +405,7 @@ void GMsgList::print_line(uint idx, uint pos, bool isbar)
     }
 
     if(AA->Msglistdate())
-        strsetsz(dbuf, 10);
+        strxcpy(dbuf, g_utf8_fit(dbuf, 10).c_str(), sizeof(dbuf));
     else
         *dbuf = NUL;
 
@@ -1024,9 +1024,7 @@ void GThreadlist::print_line(uint idx, uint pos, bool isbar)
         char dbuf[11*4];
         time32_t dt = 0;
 
-        memset(dbuf, ' ', 10);
-        dbuf[10] = NUL;
-        memcpy(dbuf, LNG->n_a, MinV(strlen(LNG->n_a), sizeof(dbuf)-1));
+        strxcpy(dbuf, g_utf8_fit(LNG->n_a, 10).c_str(), sizeof(dbuf));
 
         switch(AA->Msglistdate())
         {

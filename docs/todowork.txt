@@ -244,3 +244,14 @@ the whole path, and the byte-per-gkey storage halves the capacity.
 The GetQuotestr/MAXQUOTELEN quote-prefix buffers are still forty bytes
 against a forty-character intent, with a dozen consumers sized to
 match - worth one deliberate pass of its own.
+
+______________________________________________________________________
+
+CJK in the window toolkit's own builders: disp_item() in the menus and
+wputs() advance one cell per character, so a double-width character in
+a menu item overlaps its neighbour on Windows (the reader's own text
+went through gvid_cellcp and is right). Fixing it wants a
+platform-neutral wide-aware cell appender exported from gvidbase - a
+deliberate small project, not a one-liner, and Cyrillic is unaffected.
+The OS/2 VIO path likewise still counts bytes as cells if an OS/2
+build is ever run with a UTF-8 locale.
