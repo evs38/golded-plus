@@ -118,9 +118,12 @@ void EzycomArea::save_message(int __mode, gmsg* __msg, EzycHdr& __hdr)
     SwapWord32((uint32_t*)&__hdr.posttimedate);
     SwapWord32((uint32_t*)&__hdr.recvtimedate);
 
-    strc2p(strxcpy(__hdr.whoto,   __msg->to, sizeof(__hdr.whoto)));
-    strc2p(strxcpy(__hdr.whofrom, __msg->by, sizeof(__hdr.whofrom)));
-    strc2p(strxcpy(__hdr.subject, __msg->re, sizeof(__hdr.subject)));
+    //  Cut between characters, like the JAM/Squish/Fido/Hudson
+    //  drivers already do: a raw byte cut of a UTF-8 name or subject
+    //  stored half a character as the field's last byte.
+    strc2p(__msg->fit_hdr(__hdr.whoto,   __msg->to, sizeof(__hdr.whoto)));
+    strc2p(__msg->fit_hdr(__hdr.whofrom, __msg->by, sizeof(__hdr.whofrom)));
+    strc2p(__msg->fit_hdr(__hdr.subject, __msg->re, sizeof(__hdr.subject)));
 
     __hdr.orignet.zone  = __msg->oorig.zone;
     __hdr.orignet.net   = __msg->oorig.net;

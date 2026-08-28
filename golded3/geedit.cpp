@@ -2579,7 +2579,14 @@ void IEclass::SCheckerMenu()
     GMenuSChecker menu;
     int finaltag;
 
-    if (!isscchar(txt[col]))
+    //  Every step below is by character, not by byte - the same rule
+    //  dispstringsc() follows. Handed raw bytes, isscchar() stopped a
+    //  Russian word one byte into its first character, and accepting a
+    //  suggestion then spliced the line in the middle of one.
+    size_t txtlen = currline->txt.length();
+    int _cw = 1;
+
+    if (!isscchar(scchar_at(txt, col, txtlen, &_cw)))
         finaltag = menu.Run(schecker, "");
     else
     {
@@ -2587,8 +2594,19 @@ void IEclass::SCheckerMenu()
         size_t beg = col;
         size_t end = col;
 
-        for (; (beg > 0) && isscchar(txt[beg-1]); beg--);
-        for (; isscchar(txt[end]); end++);
+        while(beg > 0)
+        {
+            uint _prev = (uint)(g_utf8_prev(txt, txt + beg) - txt);
+            if(not isscchar(scchar_at(txt, _prev, txtlen, &_cw)))
+                break;
+            beg = _prev;
+        }
+        while(end < txtlen)
+        {
+            if(not isscchar(scchar_at(txt, end, txtlen, &_cw)))
+                break;
+            end += _cw;
+        }
         size_t len = end - beg;
 
         memcpy(buff, &txt[beg], len);

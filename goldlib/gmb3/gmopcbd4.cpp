@@ -209,17 +209,20 @@ void PcbArea::save_message(int __mode, gmsg* __msg, PcbHdr& __hdr)
     char bybuf[150];
     strcpy(tobuf, __msg->to);
     strcpy(bybuf, __msg->by);
-    int _tolen = strlen(tobuf);
-    int _bylen = strlen(bybuf);
+    //  The extended headers carry at most 120 bytes of a name, and
+    //  every cut here falls between characters - a raw byte cut left
+    //  half a character as the last byte of the field.
+    int _tolen = (int)__msg->fit_hdr_len(tobuf, 120);
+    int _bylen = (int)__msg->fit_hdr_len(bybuf, 120);
     int _relen = strlen(__msg->re);
     int _pwlen = strlen(__msg->pcboard.password);
     memset(__hdr.destname, ' ', 25);
     memset(__hdr.origname, ' ', 25);
     memset(__hdr.subject,  ' ', 25);
     memset(__hdr.password, ' ', 12);
-    strncpy(__hdr.destname, tobuf, MinV(_tolen, 25));
-    strncpy(__hdr.origname, bybuf, MinV(_bylen, 25));
-    strncpy(__hdr.subject,  __msg->re, MinV(_relen, 25));
+    strncpy(__hdr.destname, tobuf, __msg->fit_hdr_len(tobuf, 25));
+    strncpy(__hdr.origname, bybuf, __msg->fit_hdr_len(bybuf, 25));
+    strncpy(__hdr.subject,  __msg->re, __msg->fit_hdr_len(__msg->re, 25));
     strncpy(__hdr.password, __msg->pcboard.password, MinV(_pwlen, 12));
     memcpy(_idx.to, __hdr.destname, 25);
     memcpy(_idx.from, __hdr.origname, 25);
@@ -339,7 +342,7 @@ void PcbArea::save_message(int __mode, gmsg* __msg, PcbHdr& __hdr)
             memcpy(_ehdr.function, "SUBJECT", 7);
             _ehdr.colon = ':';
             memset(_ehdr.desc, ' ', 60);
-            memcpy(_ehdr.desc, __msg->re, MinV(60,_relen));
+            memcpy(_ehdr.desc, __msg->re, __msg->fit_hdr_len(__msg->re, 60));
             _ehdr.status = 'N';
             _ehdr.separator = wide->foreign ? '\x0D' : '\xE3';
             write(data->fhmsg, &_ehdr, sizeof(PcbExtHdr));

@@ -185,7 +185,10 @@ void TokenXlat(int mode, std::string &input, GMsg* msg, GMsg* oldmsg, int __orig
     else if (mode != MODE_FORWARD)
         modereptr = msg->re;
 
-    char buf[100];
+    //  Sized for the widened origin - 160 characters at up to four
+    //  bytes - which this buffer relays along with the tagline and
+    //  tearline. At 100 bytes it quietly undid the widening.
+    char buf[160*4 + 16];
 
     std::string::iterator dst;
     for (dst = input.begin(); dst != input.end(); )
@@ -626,23 +629,33 @@ void TokenXlat(int mode, std::string &input, GMsg* msg, GMsg* oldmsg, int __orig
                         text = input.substr(pbeg-input.begin(), pend-pbeg);
                     }
 
-                    size_t tlen = text.length();
-                    if (tlen != padsize)
+                    //  The pad size is a column count - the whole
+                    //  point of the token is lining columns up - so
+                    //  the text is measured in columns and cut between
+                    //  characters. Measured in bytes, ten Cyrillic
+                    //  characters counted as twenty, and a cut landed
+                    //  in the middle of one.
+                    size_t tlen = g_utf8_width(text.c_str());
+                    if ((int)tlen != padsize)
                     {
-                        int diff = padsize - tlen;
+                        int diff = padsize - (int)tlen;
                         switch (align)
                         {
                         case 'L':
                             if (diff > 0)
                                 text.insert(text.end(), diff, fill);
                             else
-                                strerase(text, padsize);
+                                text.erase(g_utf8_bytes_for_cols(text.c_str(), (size_t)padsize));
                             break;
                         case 'R':
                             if (diff > 0)
                                 text.insert(text.begin(), diff, fill);
                             else
-                                text = text.substr(-diff);
+                            {
+                                //  Keep the rightmost padsize columns.
+                                size_t _cut = g_utf8_bytes_for_cols(text.c_str(), (size_t)(tlen - padsize));
+                                text = text.substr(_cut);
+                            }
                             break;
                         default:
                             if (diff > 0)
@@ -652,8 +665,9 @@ void TokenXlat(int mode, std::string &input, GMsg* msg, GMsg* oldmsg, int __orig
                             }
                             else
                             {
-                                text = text.substr((-diff)/2);
-                                strerase(text, padsize);
+                                size_t _cut = g_utf8_bytes_for_cols(text.c_str(), (size_t)((tlen - padsize)/2));
+                                text = text.substr(_cut);
+                                text.erase(g_utf8_bytes_for_cols(text.c_str(), (size_t)padsize));
                             }
                             break;
                         }
@@ -759,8 +773,9 @@ void TokenXlat(int mode, char *&input, size_t size, bool resize, GMsg* msg, GMsg
             input = (char*)throw_realloc(input, size = newsize);
     }
 
-    strncpy(input, buff.c_str(), size);
-    input[size-1] = 0;
+    //  Cut between characters: the expansion is user text and a byte
+    //  cut left half a character at the end of the field.
+    strxcpy_utf8(input, buff.c_str(), size);
 }
 
 

@@ -113,15 +113,18 @@ void WCatArea::save_message(int __mode, gmsg* __msg, WCatHdr& __hdr)
     __hdr.magicnumber = MagicHeaderActive;
     __hdr.msgno = (word)__msg->msgno;
 
-    strc2p(strupr(strxcpy(__hdr.from, __msg->by, sizeof(__hdr.from))));
+    //  Cut between characters, like the JAM/Squish/Fido/Hudson
+    //  drivers already do: a raw byte cut of a UTF-8 name or subject
+    //  stored half a character as the field's last byte.
+    strc2p(strupr(__msg->fit_hdr(__hdr.from, __msg->by, sizeof(__hdr.from))));
     strc2p(strcpy(__hdr.fromtitle, __msg->wildcat.from_title));
     __hdr.fromuserid = __msg->wildcat.from_userid;
 
-    strc2p(strupr(strxcpy(__hdr.to, __msg->to, sizeof(__hdr.to))));
+    strc2p(strupr(__msg->fit_hdr(__hdr.to, __msg->to, sizeof(__hdr.to))));
     strc2p(strcpy(__hdr.totitle, __msg->wildcat.to_title));
     __hdr.touserid = __msg->wildcat.to_userid;
 
-    strc2p(strxcpy(__hdr.subject, __msg->re, sizeof(__hdr.subject)));
+    strc2p(__msg->fit_hdr(__hdr.subject, __msg->re, sizeof(__hdr.subject)));
 
     if(not *__msg->wildcat.network and (isnet() or isecho()))
         strcpy(__msg->wildcat.network, "FTSC");

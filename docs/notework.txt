@@ -13,6 +13,33 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- Quoting a message from someone with a Cyrillic name put broken
+  bytes in front of every quoted line: the initials for the quote
+  prefix were collected one byte per letter, and one byte of a
+  Cyrillic letter is not a letter. They are collected per character
+  now, so "Ivan Petrov" written in Russian quotes as " IP> " in
+  Russian too, where before the prefix was two bare lead bytes -
+  invalid UTF-8, in the message, on the wire. The same byte-for-a-
+  character confusion is fixed in the places around it: @pad in
+  templates cut and centred by bytes; the template tokens funnelled a
+  widened origin through a hundred-byte relay; a template expansion
+  was cut mid-character at the end of the field; the words for @fname
+  and @lname were cut at 39 bytes; the spell-checker menu stopped one
+  byte into a Russian word and spliced the line mid-character when a
+  suggestion was accepted; the box-drawing mode truncated its line
+  characters to one byte, splicing NULs into the text, and could not
+  recognise what it had drawn; and pasting cut the clipboard at an
+  arbitrary byte. The Ezycom, Wildcat, XBBS and PCBoard drivers now
+  cut header fields between characters on their way to disk, as the
+  JAM, Squish, Fido and Hudson drivers already did, and the input
+  fields load and cut their text between characters as well.
+
+- Composing a message through a template that produces no text at all
+  - one of nothing but quote sections, used for a fresh message -
+  crashed with a bus error: an unsigned zero minus one indexed four
+  gigabytes past the buffer. Present for years; found by the audit's
+  test rig.
+
 - A round of buffer overruns, most of them opened or brought within
   reach by text growing to four bytes a character. An unbounded copy of
   the tearline or origin into a 256-byte buffer while a message is

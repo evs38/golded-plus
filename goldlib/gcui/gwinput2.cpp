@@ -208,7 +208,7 @@ void gwinput::reload_all()
         if(current->entry == gwinput::entry_new)
             *current->buf = NUL;
         else
-            strxcpy(current->buf, current->destination.c_str(), current->buf_len+1);
+            strxcpy_utf8(current->buf, current->destination.c_str(), current->buf_len+1);
         current->convert();
         current->buf_end_pos = strlen(current->buf);
         current->draw();
@@ -857,7 +857,10 @@ gwinput::field::field(gwinput* iform, int idnum, int wrow, int wcol, int field_w
     if(entry == gwinput::entry_new)
         *buf = NUL;
     else
-        strxcpy(buf, dest.c_str(), dest_size);
+        //  Cut between characters when the destination is longer than the
+    //  field: a byte cut showed half a character at the end and then
+    //  committed it back.
+    strxcpy_utf8(buf, dest.c_str(), dest_size);
     convert();
     buf_end_pos = strlen(buf);
 }
@@ -952,7 +955,7 @@ void gwinput::field::restore()
 {
 
     std::string tmp(buf);
-    strxcpy(buf, destination.c_str(), buf_len+1);
+    strxcpy_utf8(buf, destination.c_str(), buf_len+1);
     destination = tmp;
     convert();
     activate();

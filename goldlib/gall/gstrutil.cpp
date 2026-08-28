@@ -684,16 +684,19 @@ std::string &strltrim(std::string &str)
 const char* strlword(const char* str, const char *separator)
 {
 
-    char buf[256];
-    static char left[40];
+    //  These carve words out of user names for the reply templates, so
+    //  the room is for characters - up to four bytes each - and a cut
+    //  falls between characters, not through one.
+    char buf[256*4];
+    static char left[40*4];
 
     *left = NUL;
     if(*str)
     {
-        strxcpy(buf, str, sizeof(buf));
+        strxcpy_utf8(buf, str, sizeof(buf));
         if(strtok(buf, (separator == NULL) ? " \t\n\r" : separator) != NULL)
         {
-            strxcpy(left, buf, sizeof(left));
+            strxcpy_utf8(left, buf, sizeof(left));
         }
     }
     return left;
@@ -707,13 +710,13 @@ const char* strrword(const char* str, const char *separator)
 
     char* ptr;
     char* ptr2;
-    char buf[256];
-    static char right[40];
+    char buf[256*4];
+    static char right[40*4];
 
     *right = NUL;
     if(*str)
     {
-        strxcpy(buf, str, sizeof(buf));
+        strxcpy_utf8(buf, str, sizeof(buf));
         if(separator == NULL)
         {
             separator = " \t\n\r";
@@ -727,7 +730,7 @@ const char* strrword(const char* str, const char *separator)
         }
         if(ptr2)
         {
-            strxcpy(right, ptr2, sizeof(right));
+            strxcpy_utf8(right, ptr2, sizeof(right));
         }
     }
     return right;

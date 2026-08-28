@@ -1552,7 +1552,20 @@ void IEclass::ToggleDrawLines()
 
 //  ------------------------------------------------------------------
 
-static void ChrToLines(char chr, byte lines[4])
+//  The box characters are codepoints - three bytes each in a UTF-8
+//  session - so the classification takes the decoded character. A
+//  byte could never match, and drawing state reset on every key.
+
+static vchar boxchr_at(const std::string& txt, uint col)
+{
+    if(col >= txt.length())
+        return ' ';
+    int used = 1;
+    return (vchar)g_utf8_decode(txt.c_str() + col, txt.c_str() + txt.length(), &used);
+}
+
+
+static void ChrToLines(vchar chr, byte lines[4])
 {
     lines[0] = lines[1] = lines[2] = lines[3] = 0;
 
@@ -1701,7 +1714,7 @@ static void ChrToLines(char chr, byte lines[4])
 
 //  ------------------------------------------------------------------
 
-static char LinesToChr(byte lines[4])
+static vchar LinesToChr(byte lines[4])
 {
     if            (lines[0] == 0)
     {
@@ -1867,7 +1880,7 @@ void IEclass::DrawLines(gkey key)
     //-------------------------
     if (drawflag || chartyped)
     {
-        ChrToLines(currline->txt[col], lines);
+        ChrToLines(boxchr_at(currline->txt, col), lines);
 
         switch (key)
         {
@@ -2094,19 +2107,35 @@ void IEclass::DrawLines(gkey key)
     }
 
     //-------------------------
-    char new_chr = LinesToChr(lines);
+    vchar new_chr = LinesToChr(lines);
 
-    if (new_chr != currline->txt[col])
+    //  Replace the whole character standing at col with the whole new
+    //  one. Truncating the codepoint to a byte spliced U+2500 into the
+    //  line as a NUL, and writing one byte over a multibyte character
+    //  left the rest of it behind.
+    if (new_chr != boxchr_at(currline->txt, col))
     {
-        if (col < (currline->txt.length()-1))
+        char enc[8];
+        int encw = g_utf8_encode((uint32_t)new_chr, enc);
+        if(encw <= 0)
         {
+            enc[0] = (char)new_chr;
+            encw = 1;
+        }
+
+        if (col < currline->txt.length())
+        {
+            int oldw = 1;
+            g_utf8_decode(currline->txt.c_str() + col, currline->txt.c_str() + currline->txt.length(), &oldw);
+            if(oldw <= 0)
+                oldw = 1;
             Undo->PushItem(EDIT_UNDO_OVR_CHAR);
-            currline->txt[col] = new_chr;
+            currline->txt.replace(col, (size_t)oldw, enc, (size_t)encw);
         }
         else if (col < maxcol)
         {
             Undo->PushItem(EDIT_UNDO_INS_CHAR);
-            currline->txt.insert(col, 1, new_chr);
+            currline->txt.insert(col, enc, (size_t)encw);
         }
 
         setlinetype(currline);
@@ -2125,19 +2154,26 @@ void IEclass::DrawLines(gkey key)
             GoLeft();
             break;
         default:
+        {
+            //  The aim is the same display column on the next line;
+            //  pcol is a byte offset of the previous one, and on a
+            //  line of three-byte box characters the two have long
+            //  parted ways.
+            uint pdisp = dispcol();
             (key == KK_EditBlockDown) ? GoDown() : GoUp();
-            if (col < pcol)
+            if (dispcol() < pdisp)
             {
-                size_t len = pcol - col;
+                size_t len = pdisp - dispcol();
                 Undo->PushItem(EDIT_UNDO_INS_TEXT|BATCH_MODE, currline, col, len);
                 currline->txt.insert(col, len, ' ');
                 GoEOL();
             }
             break;
         }
+        }
 
         gotorowcol(dispcol(), row);
-        ChrToLines(currline->txt[col], lines);
+        ChrToLines(boxchr_at(currline->txt, col), lines);
 
         switch (key)
         {

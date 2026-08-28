@@ -144,7 +144,13 @@ char* gclipbrd::read(char* buffer, int maxlen)
         }
         else
             p = NULL;
-        strxcpy(buffer, clipdata, i+1);
+        //  When the cut is the buffer running out - not a newline -
+        //  land it between characters, or a paste ended in half of one.
+        strxcpy_utf8(buffer, clipdata, i+1);
+        //  Only the capacity cut can shorten the copy - a newline cut
+        //  ends on ASCII - and the source must advance by what was
+        //  actually consumed.
+        i = MinV(i, (int)strlen(buffer));
         char* p2 = strpbrk(buffer, "\r\n");
         if(p2) *p2 = 0;
         if(p)

@@ -141,9 +141,12 @@ void XbbsArea::save_message(int __mode, gmsg* __msg, XbbsHdr& __hdr)
         data->idx = (XbbsIdx*)throw_realloc(data->idx, data->idx_size*sizeof(XbbsIdx));
     }
 
-    strxcpy(__hdr.from, __msg->by, sizeof(__hdr.from));
-    strxcpy(__hdr.to,   __msg->to, sizeof(__hdr.to));
-    strxcpy(__hdr.subj, __msg->re, sizeof(__hdr.subj));
+    //  Cut between characters, like the JAM/Squish/Fido/Hudson
+    //  drivers already do: a raw byte cut of a UTF-8 name or subject
+    //  stored half a character as the field's last byte.
+    __msg->fit_hdr(__hdr.from, __msg->by, sizeof(__hdr.from));
+    __msg->fit_hdr(__hdr.to,   __msg->to, sizeof(__hdr.to));
+    __msg->fit_hdr(__hdr.subj, __msg->re, sizeof(__hdr.subj));
 
     struct tm _tm;
     ggmtime(&_tm, &__msg->written);
@@ -363,8 +366,8 @@ void XbbsArea::update_personal_mail(gmsg* __msg, XbbsHdr& __hdr, int __addpm)
     XbbsPmi _pmi;
     _pmi.areanumber = board();
     _pmi.msgnumber = __msg->msgno;
-    strxcpy(_pmi.from, __msg->by, sizeof(_pmi.from));
-    strxcpy(_pmi.subject, __msg->re, sizeof(_pmi.subject));
+    __msg->fit_hdr(_pmi.from, __msg->by, sizeof(_pmi.from));
+    __msg->fit_hdr(_pmi.subject, __msg->re, sizeof(_pmi.subject));
     strxcpy(_pmi.date, __hdr.date, sizeof(_pmi.date));
 
     int _pmino = 0;

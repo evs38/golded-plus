@@ -70,6 +70,17 @@ inline int IsInitial(char c)
 }
 
 
+//  The same test over a decoded codepoint: a letter, or anything
+//  beyond ASCII. The byte form above cannot tell a letter from one
+//  byte of a letter.
+
+inline int IsInitialCp(vchar cp)
+{
+
+    return (cp < 128) ? g_isalpha((int)cp) : true;
+}
+
+
 //  ------------------------------------------------------------------
 
 int TemplateToText(int mode, GMsg* msg, GMsg* oldmsg, const char* tpl, int origarea)
@@ -742,6 +753,12 @@ int TemplateToText(int mode, GMsg* msg, GMsg* oldmsg, const char* tpl, int origa
                     if((mode == MODE_QUOTE) or (mode == MODE_REPLYCOMMENT) or
                             (mode == MODE_QUOTEBUF))
                     {
+                        //  An initial is one character, which may be
+                        //  four bytes of it. Collected per byte, a
+                        //  Cyrillic name put a lone lead byte into
+                        //  every quoted line - invalid UTF-8, and it
+                        //  went out on the wire.
+                        char inich[9][8];
                         y = 0;
                         ptr = strskip_wht(oldmsg->By());
 
@@ -749,73 +766,94 @@ int TemplateToText(int mode, GMsg* msg, GMsg* oldmsg, const char* tpl, int origa
 
                         while(*ptr)
                         {
-                            while(not IsInitial(*ptr) and (*ptr != '@') and *ptr)
-                                ptr++;
-                            if(*ptr == '@')
+                            int used = 1;
+                            vchar cp = 0;
+
+                            for(;;)
+                            {
+                                used = 1;
+                                cp = (vchar)g_utf8_decode(ptr, &used);
+                                if((cp == 0) or (cp == '@') or IsInitialCp(cp))
+                                    break;
+                                ptr += used ? used : 1;
+                            }
+                            if((cp == '@') or (cp == 0))
                                 break;
 
-                            if (*ptr)
-                            {
-                                if (y == 0)
-                                {
-                                    initials[y++] = *ptr++;
-
-                                    if (IsInitial(*ptr))
-                                        initials[y++] = *ptr++;
-                                    else
-                                        flag = true;
-                                }
-                                else if ((y == 2) && !flag)
-                                {
-                                    initials[y-1] = *ptr++;
-                                    flag = true;
-                                }
-                                else if (y == 9)
-                                    break;
-                                else
-                                    initials[y++] = *ptr++;
+                            #define GD_TAKE_INI(slot)                                       \
+                            {                                                               \
+                                size_t _n = MinV((size_t)used, sizeof(inich[0])-1);         \
+                                memcpy(inich[slot], ptr, _n);                               \
+                                inich[slot][_n] = NUL;                                      \
                             }
 
-                            while(IsInitial(*ptr) and *ptr)
-                                ptr++;
+                            if (y == 0)
+                            {
+                                GD_TAKE_INI(y); y++; ptr += used;
+
+                                used = 1;
+                                cp = (vchar)g_utf8_decode(ptr, &used);
+                                if(*ptr and IsInitialCp(cp))
+                                {
+                                    GD_TAKE_INI(y); y++; ptr += used;
+                                }
+                                else
+                                    flag = true;
+                            }
+                            else if ((y == 2) && !flag)
+                            {
+                                GD_TAKE_INI(y-1); ptr += used;
+                                flag = true;
+                            }
+                            else if (y == 9)
+                                break;
+                            else
+                            {
+                                GD_TAKE_INI(y); y++; ptr += used;
+                            }
+
+                            #undef GD_TAKE_INI
+
+                            for(;;)
+                            {
+                                used = 1;
+                                cp = (vchar)g_utf8_decode(ptr, &used);
+                                if((cp == 0) or not IsInitialCp(cp))
+                                    break;
+                                ptr += used ? used : 1;
+                            }
                         }
 
-                        initials[y] = NUL;
                         *buf = NUL;
                         if(y > 2)
                         {
                             for(x=1; x<(y-1); x++)
-                                buf[x-1] = initials[x];
-                            buf[x-1] = NUL;
+                                strxcat(buf, inich[x], 64);
                         }
-                        for(n=0,x=0; n<strlen(AA->Quotestring()); n++)
+                        *quotestr = NUL;
+                        for(n=0; n<strlen(AA->Quotestring()); n++)
                         {
                             switch(AA->Quotestring()[n])
                             {
                             case 'F':
                             case 'f':
-                                if(*initials)
-                                {
-                                    quotestr[x++] = *initials;
-                                    quotestr[x] = NUL;
-                                }
+                                if(y > 0)
+                                    strxcat(quotestr, inich[0], sizeof(quotestr));
                                 break;
                             case 'M':
                             case 'm':
-                                strcat(quotestr, buf);
-                                x += strlen(buf);
+                                strxcat(quotestr, buf, sizeof(quotestr));
                                 break;
                             case 'L':
                             case 'l':
                                 if(y > 1)
-                                {
-                                    quotestr[x++] = initials[y-1];
-                                    quotestr[x] = NUL;
-                                }
+                                    strxcat(quotestr, inich[y-1], sizeof(quotestr));
                                 break;
                             default:
-                                quotestr[x++] = AA->Quotestring()[n];
-                                quotestr[x] = NUL;
+                                {
+                                    char _one[2] = { AA->Quotestring()[n], NUL };
+                                    strxcat(quotestr, _one, sizeof(quotestr));
+                                }
                             }
                         }
                         ptr = strskip_wht(quotestr);
@@ -999,7 +1037,12 @@ loop_next:
         {
 
             // Add CR if it missed in template
-            if(msg->txt[pos-1] != CR)
+            //  pos is unsigned, so with a template that produced no
+            //  text at all - one of nothing but @quoted sections, say,
+            //  used for a fresh message - txt[pos-1] read four
+            //  gigabytes past the buffer. A bus error, present for
+            //  years and found by accident.
+            if((pos > 0) and (msg->txt[pos-1] != CR))
             {
                 size++;
                 msg->txt[pos++] = CR;
