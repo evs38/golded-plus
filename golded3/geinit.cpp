@@ -1290,6 +1290,7 @@ void Initialize(int argc, char* argv[])
     // Initialize the messagebases
     update_statuslinef(LNG->LockShareCap, "ST_LOCKSHARECAP", LNG->Checking);
     WideLog = &LOG;
+    whelp_xlat = XlatCfgLine;
     WideDebug = cmdlinedebughg;
     WideCanLock = CFG->sharemode ? TestLockPath(CFG->temppath) : false;
     WideSharemode = CFG->sharemode;

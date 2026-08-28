@@ -478,7 +478,7 @@ void Area::RandomizeData(int mode)
             }
             if(tmp.net == 0)
                 tmp = adat->aka.addr;
-            strxcpy(adat->username.name, buf, sizeof(adat->username.name));
+            strxcpy_utf8(adat->username.name, buf, sizeof(adat->username.name));
             adat->username.addr = tmp;
             SetAka(tmp);
         }

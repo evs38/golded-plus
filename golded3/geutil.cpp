@@ -529,14 +529,23 @@ int is_quote(const char* ptr)
     if(IsQuoteChar(ptr))
         return true;
 
-    endptr = ptr + 11; // match 10 chars after whitespaces
-
+    //  Ten characters, stepped as characters: a byte window held five
+    //  Cyrillic letters, and a quote prefix like a Russian name with
+    //  a ">" was no longer recognised as a quote at all.
+    int qchars = 0;
     while (*ptr && !IsQuoteChar(ptr) &&
             !iscntrl(*ptr) &&
             !strchr(AA->Quotestops(), *ptr) &&
-            !isspace(*ptr)) ptr++;
+            !isspace(*ptr))
+    {
+        if(++qchars > 10)
+            break;
+        int _used = 1;
+        g_utf8_decode(ptr, &_used);
+        ptr += _used ? _used : 1;
+    }
 
-    if ((ptr < endptr) && IsQuoteChar(ptr))
+    if ((qchars <= 10) && IsQuoteChar(ptr))
         return true;
 
     /*

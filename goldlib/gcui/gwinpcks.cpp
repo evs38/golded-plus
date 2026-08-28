@@ -745,13 +745,23 @@ int wpickstr(int srow, int scol, int erow, int ecol, int btype, vattr bordattr, 
             // position for the item that begins with the same ASCII
             // character as the keypress.  If not found after current
             // position, search from the beginning for a match
+            //  The typed character may be several bytes, delivered on
+            //  the keyboard's side channel; one byte of it matched
+            //  nothing but the same lead byte in every Cyrillic item.
+            {
+            int mlen = 0;
+            const char* mchars = gkbd_keychars(xch, &mlen, true);
             ch = (char)g_toupper(char(xch & 0xFF));
-            if (!ch) break;
+            if (!ch and !mchars) break;
+
+            #define GD_QUICKHIT(item)                                          \
+                (mchars ? (strncmp((item).c_str()+quickpos, mchars, (size_t)mlen) == 0)\
+                        : (ch == g_toupper((item)[quickpos])))
 
             size_t i;
             for (i = r.curr + 1; i < r.numelems; i++)
             {
-                if (ch == g_toupper(strarr[i][quickpos]))
+                if (GD_QUICKHIT(strarr[i]))
                     break;
             }
 
@@ -759,16 +769,18 @@ int wpickstr(int srow, int scol, int erow, int ecol, int btype, vattr bordattr, 
             {
                 for (i = 0; i < r.curr; i++)
                 {
-                    if (ch == g_toupper(strarr[i][quickpos]))
+                    if (GD_QUICKHIT(strarr[i]))
                         break;
                 }
 
                 if (i == r.curr) continue;
             }
+            #undef GD_QUICKHIT
 
-            // a matching ASCII character was found.  set position
+            // a matching character was found.  set position
             // to matching element, adjusting window if necessary
             goto_item(&r, strarr, i);
+            }
         }
     }
 } /* wpickstr() */

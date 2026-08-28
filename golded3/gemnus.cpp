@@ -1063,7 +1063,8 @@ int GMenuEditHeader::Run(int mode, GMsg* msg)
                     {
                         if(*AA->Origin() == '@')
                         {
-                            char o[128];
+                            //  Sized for the origin field it feeds.
+                char o[160*4];
                             GetRandomLine(o, sizeof(o), AA->Origin()+1);
                             AA->SetOrigin(o);
                         }

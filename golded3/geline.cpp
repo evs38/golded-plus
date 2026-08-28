@@ -1933,53 +1933,83 @@ void ScanKludges(GMsg* msg, int getvalue)
 
 //  ------------------------------------------------------------------
 
-void  Latin2Local(char *str)
+//  A Latin letter standing beside local text is taken for a slip of
+//  the keyboard layout and replaced with the local letter on the same
+//  key, together with the run of such letters before it. The local
+//  letter is a character of several bytes now, so the work is done
+//  per character and the string may grow.
+
+void  Latin2Local(std::string &str)
 {
-    if (!CFG->latin2local || !str) return;
+    if (!CFG->latin2local || str.empty()) return;
 
-    for (size_t i = 0; str[i]; i++)
+    const char* base = str.c_str();
+    const char* end  = base + str.length();
+
+    //  The characters: offset, width, codepoint of the lead.
+    struct L2LChr { size_t off; int w; uint32_t cp; };
+    std::vector<L2LChr> chars;
+    for(const char* p = base; p < end; )
     {
-        byte chr = str[i];
-        byte xch = CFG->latintolocal[chr];
+        int used = 1;
+        uint32_t cp = g_utf8_decode(p, end, &used);
+        if(used <= 0) used = 1;
+        L2LChr c; c.off = (size_t)(p - base); c.w = used; c.cp = cp;
+        chars.push_back(c);
+        p += used;
+    }
 
-        if (xch && (xch != chr))
+    size_t n = chars.size();
+    std::vector<char> convert(n, 0);
+
+    for(size_t i = 0; i < n; i++)
+    {
+        uint32_t cp = chars[i].cp;
+        if(cp >= 128 || CFG->latintolocal[cp].empty())
+            continue;
+
+        bool leftlocal  = i and (chars[i-1].cp >= 128);
+        bool rightlocal = (i+1 < n) and (chars[i+1].cp >= 128);
+
+        if(leftlocal || rightlocal)
         {
-            byte left = i ? str[i-1] : 0;
-            byte right = str[i+1];
-
-            if (((left  >= 0x80) && g_isalpha(left )) ||
-                    ((right >= 0x80) && g_isalpha(right)))
+            convert[i] = 1;
+            for(size_t j = i; j-- > 0; )
             {
-                str[i] = xch;
-
-                for (size_t j = i-1; j < i; j--)
-                {
-                    chr = str[j];
-                    xch = CFG->latintolocal[chr];
-
-                    if (xch && (xch != chr))
-                        str[j] = xch;
-                    else
-                        break;
-                }
+                uint32_t pc = chars[j].cp;
+                if(pc < 128 and not CFG->latintolocal[pc].empty())
+                    convert[j] = 1;
+                else
+                    break;
             }
         }
     }
+
+    std::string out;
+    out.reserve(str.length());
+    for(size_t i = 0; i < n; i++)
+    {
+        if(convert[i])
+            out += CFG->latintolocal[chars[i].cp];
+        else
+            out.append(base + chars[i].off, (size_t)chars[i].w);
+    }
+    str = out;
 }
 
 
 //  ------------------------------------------------------------------
 
-void  Latin2Local(std::string &str)
+//  The array form: converted through the string one, and cut between
+//  characters if the local form outgrew the field.
+
+void  Latin2Local(char *str, size_t size)
 {
-#if defined(__USE_ALLOCA__)
-    char *temp = (char *)alloca(str.length()+1);
-#else
-    __extension__ char temp[str.length()+1];
-#endif
-    strcpy(temp, str.c_str());
-    Latin2Local(temp);
-    str = temp;
+    if (!CFG->latin2local || !str || !*str) return;
+
+    std::string tmp(str);
+    Latin2Local(tmp);
+    strxcpy_utf8(str, tmp.c_str(), size);
 }
 
 //  ------------------------------------------------------------------

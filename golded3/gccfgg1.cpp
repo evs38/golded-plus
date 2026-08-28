@@ -117,7 +117,7 @@ void CfgAddressmacro()
         {
             // Got real name
             *ptr2++ = NUL;
-            strxcpy(tmp.name, ptr, sizeof(IAdr));
+            strxcpy_utf8(tmp.name, ptr, sizeof(IAdr));
             ptr = strskip_wht(ptr2);
             ptr2 = strchr(ptr, ',');                                  //  macro,name,address^,subj,attribs
             if(ptr2)

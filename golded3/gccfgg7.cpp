@@ -380,7 +380,7 @@ void CfgSearchfor()
 {
 
     INam buf;
-    strxcpy(buf, StripQuotes(val), sizeof(buf));
+    strxcpy_utf8(buf, StripQuotes(val), sizeof(buf));
     if(cfgingroup)
         CFG->grp.AddItm(GRP_SEARCHFOR, buf, strlen(buf)+1);
     else

@@ -84,7 +84,7 @@ void CfgNickname()
 
     Name buf;
 
-    strxcpy(buf, val, sizeof(buf));
+    strxcpy_utf8(buf, val, sizeof(buf));
     if(cfgingroup)
         CFG->grp.AddItm(GRP_NICKNAME, buf, strlen(buf)+1);
     else
@@ -98,7 +98,7 @@ void CfgNetname()
 
     Name buf;
 
-    strxcpy(buf, StripQuotes(val), sizeof(buf));
+    strxcpy_utf8(buf, StripQuotes(val), sizeof(buf));
     if(cfgingroup)
         CFG->grp.AddItm(GRP_NETNAME, buf, strlen(buf)+1);
     else
@@ -246,7 +246,7 @@ void CfgOrganization()
 {
 
     INam buf;
-    strxcpy(buf, val, sizeof(buf));
+    strxcpy_utf8(buf, val, sizeof(buf));
     if(cfgingroup)
         CFG->grp.AddItm(GRP_ORGANIZATION, buf, strlen(buf)+1);
     else

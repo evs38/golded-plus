@@ -1150,6 +1150,41 @@ bool gwinput::field::right()
 
 //  ------------------------------------------------------------------
 
+//  A word character, decoded at a byte offset. The byte test before
+//  it took every byte of a non-ASCII letter for a separator, and
+//  Ctrl-Left walked over the whole of a Russian field in one step.
+
+static bool inp_isword(const char* buf, uint pos, uint end)
+{
+    if(pos >= end)
+        return false;
+    int used = 1;
+    uint32_t cp = (uint32_t)g_utf8_decode(buf + pos, buf + end, &used);
+    return (cp < 128) ? make_bool(isxalnum((int)cp)) : true;
+}
+
+
+static bool inp_isspace_at(const char* buf, uint pos, bool before, uint end)
+{
+    const char* p;
+    if(before)
+    {
+        if(pos == 0)
+            return false;
+        p = g_utf8_prev(buf, buf + pos);
+    }
+    else
+    {
+        if(pos >= end)
+            return false;
+        p = buf + pos;
+    }
+    int used = 1;
+    uint32_t cp = (uint32_t)g_utf8_decode(p, buf + end, &used);
+    return (cp < 128) ? make_bool(isspace((int)cp)) : false;
+}
+
+
 bool gwinput::field::left_word()
 {
 
@@ -1161,16 +1196,16 @@ bool gwinput::field::left_word()
         if(buf_pos > 0)
         {
             move_left();
-            if(not isxalnum(buf[buf_pos]))
+            if(not inp_isword(buf, buf_pos, buf_end_pos))
             {
-                while(not isxalnum(buf[buf_pos]) and (buf_pos > 0))
+                while(not inp_isword(buf, buf_pos, buf_end_pos) and (buf_pos > 0))
                     move_left();
-                while(isxalnum(buf[buf_pos]) and (buf_pos > 0))
+                while(inp_isword(buf, buf_pos, buf_end_pos) and (buf_pos > 0))
                     move_left();
             }
             else
             {
-                while(isxalnum(buf[buf_pos]) and (buf_pos > 0))
+                while(inp_isword(buf, buf_pos, buf_end_pos) and (buf_pos > 0))
                     move_left();
             }
 
@@ -1195,16 +1230,16 @@ bool gwinput::field::right_word()
         if(buf_pos < buf_end_pos)
         {
             move_right();
-            if(not isxalnum(buf[buf_pos]))
+            if(not inp_isword(buf, buf_pos, buf_end_pos))
             {
-                while(not isxalnum(buf[buf_pos]) and ((buf_pos+1) <= buf_end_pos))
+                while(not inp_isword(buf, buf_pos, buf_end_pos) and ((buf_pos+1) <= buf_end_pos))
                     move_right();
             }
             else
             {
-                while(isxalnum(buf[buf_pos]) and ((buf_pos+1) <= buf_end_pos))
+                while(inp_isword(buf, buf_pos, buf_end_pos) and ((buf_pos+1) <= buf_end_pos))
                     move_right();
-                while(not isxalnum(buf[buf_pos]) and ((buf_pos+1) <= buf_end_pos))
+                while(not inp_isword(buf, buf_pos, buf_end_pos) and ((buf_pos+1) <= buf_end_pos))
                     move_right();
             }
             return true;
@@ -1272,13 +1307,13 @@ bool gwinput::field::delete_word(bool left)
     if(entry != gwinput::entry_noedit)
     {
 
-        bool state = make_bool(isspace(buf[buf_pos-((int) left)]));
+        bool state = inp_isspace_at(buf, buf_pos, left, buf_end_pos);
 
         while(left ? buf_pos > 0 : buf_pos < buf_end_pos)
         {
             left ? delete_left() : delete_char();
 
-            if(make_bool(isspace(buf[buf_pos-((int) left)])) != state)
+            if(inp_isspace_at(buf, buf_pos, left, buf_end_pos) != state)
                 break;
         }
         return true;
@@ -1490,7 +1525,9 @@ void gwinput::field::clipboard_paste()
                 buf[buf_pos] = NUL;
                 strxcat(buf, clpbuf, buf_len + 1);
                 buf_end_pos = strlen(buf);
-                for(int i = 0; i < len; i++)
+                //  One step per pasted character - per byte, the caret
+                //  ran past the pasted text into what followed it.
+                for(const char* p = clpbuf; *p; p = g_utf8_cluster_next(p, clpbuf + strlen(clpbuf)))
                     move_right();
             }
 

@@ -13,6 +13,28 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- A round of features that had quietly stopped working for anything
+  beyond ASCII. LATINTOLOCAL parsed one byte per letter and so could
+  not hold a Cyrillic mapping at all - it takes one character per
+  letter now, and the substitution itself works per character and may
+  grow the text. Ctrl-Left, Ctrl-Right and delete-word in the input
+  fields took every byte of a non-ASCII letter for a separator and ate
+  the whole field. The quick search in pick lists compared one byte,
+  so any Russian letter jumped to the first item starting with any
+  Russian letter. A TWITNAME or COLORNAME beyond 35 bytes was cut
+  through a character and then never matched. The caret walked one
+  step per byte over pasted text. A quote prefix was recognised within
+  ten bytes - five Russian characters - of the line's start; the
+  window is ten characters now. The help file joins golded.cfg, the
+  language file and the templates in being converted from
+  XLATCONFIGSET, and the tagline and origin pickers convert the files
+  they list - the picked line used to go into the message in the wrong
+  charset. The advanced-search pattern fields, the per-area language
+  file, EDITCHARPARA and EDITCHARSPACE (which reject a multibyte
+  character rather than store one byte of it), and the name-sized
+  buffers behind NICKNAME, WHOTO, ORGANIZATION, SEARCHFOR and the
+  address macros are all sized or cut for characters as well.
+
 - The scan for personal mail silently found nothing for a name with
   characters beyond ASCII. The reader now holds the username in UTF-8
   while a message base stores headers in whatever the tosser wrote -

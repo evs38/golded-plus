@@ -231,3 +231,16 @@ every pre-UTF-8 reader wrote, so old lastreads match again. A lastread
 written by the 20260825-20260827 snapshots was computed over the UTF-8
 name and will appear as a fresh user once; the old record stays in the
 file, harmless.
+
+______________________________________________________________________
+
+Left over from the audit's fourth batch, deliberately: the compiled
+help (golded__.ghp) is rebuilt when the help file is newer, so a
+change of XLATLOCALSET alone leaves a stale compiled copy in the old
+charset until the help file is touched. A macro in GOLDKEYS.CFG that
+types non-ASCII text plays back byte by byte; the bytes arrive in
+order and may well form the right characters, but nobody has verified
+the whole path, and the byte-per-gkey storage halves the capacity.
+The GetQuotestr/MAXQUOTELEN quote-prefix buffers are still forty bytes
+against a forty-character intent, with a dozen consumers sized to
+match - worth one deliberate pass of its own.

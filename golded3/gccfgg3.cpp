@@ -120,9 +120,14 @@ void CfgEditchangedate()
 void CfgEditcharpara()
 {
 
-    char ch = *StripQuotes(val);
-    if(ch)
-        EDIT->CharPara(ch);
+    //  The stored character is one byte deep, so a multibyte one
+    //  cannot be honoured - its first byte alone would splice invalid
+    //  text into the editor. Keep the default instead, and say so.
+    char* v = StripQuotes(val);
+    if(*v and ((*v & 0x80) == 0))
+        EDIT->CharPara(*v);
+    else if(*v)
+        LOG.printf("! EDITCHARPARA wants a single-byte character; \"%s\" is not one, keeping the default.", v);
 }
 
 //  ------------------------------------------------------------------
@@ -130,9 +135,11 @@ void CfgEditcharpara()
 void CfgEditcharspace()
 {
 
-    char ch = *StripQuotes(val);
-    if(ch)
-        EDIT->CharSpace(ch);
+    char* v = StripQuotes(val);
+    if(*v and ((*v & 0x80) == 0))
+        EDIT->CharSpace(*v);
+    else if(*v)
+        LOG.printf("! EDITCHARSPACE wants a single-byte character; \"%s\" is not one, keeping the default.", v);
 }
 
 //  ------------------------------------------------------------------

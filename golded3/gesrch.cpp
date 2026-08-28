@@ -622,7 +622,9 @@ void AdvancedSearch(GMsg*, int&, int&)
     int   width = 77;
     int   height = patterns+11;
     int   widths[3] = { 55, 5, 7 };
-    int   field_widths[3] = { 100, 5, 7 };
+    //  Bytes for the characters the column width admits - a pattern
+    //  field of 55 columns held only 49 bytes, half of it in Russian.
+    int   field_widths[3] = { 55*4, 5*4, 7 };
     int   border_type   = BT_SINGLE;
     vattr title_color   = YELLOW_|_BLUE;
     vattr heading_color = YELLOW_|_BLUE;
@@ -688,7 +690,7 @@ void AdvancedSearch(GMsg*, int&, int&)
     buffers[i+5] = "Testing";
 
     for(int y=0; y<6; y++,i++)
-        iform.add_field(100+y, patterns+3+y, 15, width-15-3, buffers[i], width-15-3, gwinput::cvt_none, y>=4 ? gwinput::entry_conditional : gwinput::entry_noedit);
+        iform.add_field(100+y, patterns+3+y, 15, width-15-3, buffers[i], (width-15-3)*4, gwinput::cvt_none, y>=4 ? gwinput::entry_conditional : gwinput::entry_noedit);
 
     iform.run(0);
 

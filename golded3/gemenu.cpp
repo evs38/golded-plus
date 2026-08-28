@@ -681,6 +681,12 @@ int SelectFromFile(const char* file, char* selection, const char* title, const c
         for (n = 0; n < lines; n++)
         {
             fp.Fgets(buf, sizeof(buf)-2);
+            //  A tagline or origin file is one of GoldED+'s own, in
+            //  the charset XLATCONFIGSET names; unconverted, its lines
+            //  showed as mojibake and the picked one went into the
+            //  message that way. GetRandomLine() already converts -
+            //  the picker read the same file raw.
+            XlatCfgLine(buf, sizeof(buf)-2);
             strtrim(buf);
             strins(" ", buf, 0);
             strcat(buf, " ");
@@ -699,7 +705,9 @@ int SelectFromFile(const char* file, char* selection, const char* title, const c
 
         if (n != -1)
         {
-            strcpy(selection, Listi[n].c_str());
+            //  Both callers hand a 1024-byte buffer; the line itself
+            //  is at most a screenful.
+            strxcpy_utf8(selection, Listi[n].c_str(), 256*4);
             strtrim(selection);
             strltrim(selection);
             retval = true;
@@ -793,7 +801,7 @@ int ChangeOrigin()
 
     if (not CFG->origin.empty())
     {
-        char buf[256];
+        char buf[256*4];
         gstrarray Listi;
 
         gstrarray::iterator it = CFG->origin.begin();
@@ -802,9 +810,12 @@ int ChangeOrigin()
         for (; it !=end; it++)
         {
             if ((*it)[0] == '@')
-                strxmerge(buf, MAXCOL-2-2, " [", CleanFilename(it->c_str() + 1), "] ", NULL);
+                strxmerge(buf, sizeof(buf), " [", CleanFilename(it->c_str() + 1), "] ", NULL);
             else
-                strxmerge(buf, MAXCOL-2-2, " ", it->c_str(), " ", NULL);
+                strxmerge(buf, sizeof(buf), " ", it->c_str(), " ", NULL);
+
+            //  Columns, not bytes, like the tagline picker above.
+            buf[g_utf8_bytes_for_cols(buf, (size_t)(MAXCOL-2-2))] = NUL;
 
             Listi.push_back(buf);
         }
@@ -820,7 +831,8 @@ int ChangeOrigin()
             const char *orig = CFG->origin[n].c_str();
             if(orig[0] == '@')
             {
-                strxmerge(buf, MAXCOL-2-2, LNG->Origins, " [", CleanFilename(orig+1), "] ", NULL);
+                strxmerge(buf, sizeof(buf), LNG->Origins, " [", CleanFilename(orig+1), "] ", NULL);
+                buf[g_utf8_bytes_for_cols(buf, (size_t)(MAXCOL-2-2))] = NUL;
                 if(SelectFromFile(orig+1, buf, LNG->Origins, LNG->NoOrigDefined))
                 {
                     AA->SetOrigin(buf);

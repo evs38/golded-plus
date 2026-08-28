@@ -366,7 +366,10 @@ public:
     char        keybstack[80];        // keybuf[80];
     gstrarray   kludge;
     bool        latin2local;
-    char        latintolocal[256];
+    //  One entry per ASCII letter, each holding the local character it
+    //  stands for - a character, which may be several bytes. One byte
+    //  per letter could not hold a Cyrillic letter at all.
+    std::string latintolocal[128];
     Path        loadlanguage;
     std::vector< std::pair<std::string, std::string> > locationalias;
     std::string locationdelimiter;

@@ -94,7 +94,7 @@ void CfgIgnorecharset()
 void CfgImportbegin()
 {
 
-    strxcpy(CFG->importbegin, StripQuotes(val), sizeof(CFG->importbegin));
+    strxcpy_utf8(CFG->importbegin, StripQuotes(val), sizeof(CFG->importbegin));
 }
 
 //  ------------------------------------------------------------------
@@ -102,7 +102,7 @@ void CfgImportbegin()
 void CfgImportend()
 {
 
-    strxcpy(CFG->importend, StripQuotes(val), sizeof(CFG->importend));
+    strxcpy_utf8(CFG->importend, StripQuotes(val), sizeof(CFG->importend));
 }
 
 //  ------------------------------------------------------------------
@@ -340,18 +340,27 @@ void CfgKludge()
 
 void CfgLatintolocal()
 {
-    memset(CFG->latintolocal, 0, sizeof(CFG->latintolocal));
+    for(int i = 0; i < 128; i++)
+        CFG->latintolocal[i].clear();
     CFG->latin2local = true;
 
-    //  Stop at the end of the value: a short one used to be read past
-    //  its NUL, into whatever the line buffer held. The byte-per-letter
-    //  scheme itself cannot express a multibyte character and needs a
-    //  redesign of its own - docs/todowork.txt has the note.
-    char *ptr = val, chr;
-    for (chr = 'A'; (chr <= 'Z') and *ptr; chr++, ptr++)
-        CFG->latintolocal[int(chr)] = *ptr;
-    for (chr = 'a'; (chr <= 'z') and *ptr; chr++, ptr++)
-        CFG->latintolocal[int(chr)] = *ptr;
+    //  One character of the value per letter - a character, not a
+    //  byte, since the whole point of the keyword is mapping the Latin
+    //  keys to the local alphabet, which is not ASCII.
+    const char *ptr = val;
+    char chr;
+    for (chr = 'A'; (chr <= 'Z') and *ptr; chr++)
+    {
+        const char* next = g_utf8_cluster_next(ptr, val + strlen(val));
+        CFG->latintolocal[int(chr)].assign(ptr, next - ptr);
+        ptr = next;
+    }
+    for (chr = 'a'; (chr <= 'z') and *ptr; chr++)
+    {
+        const char* next = g_utf8_cluster_next(ptr, val + strlen(val));
+        CFG->latintolocal[int(chr)].assign(ptr, next - ptr);
+        ptr = next;
+    }
 }
 
 //  ------------------------------------------------------------------

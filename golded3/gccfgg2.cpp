@@ -339,7 +339,7 @@ void CfgColorname()
         }
     }
 
-    strxcpy(cn.name, val, sizeof(cn.name));
+    strxcpy_utf8(cn.name, val, sizeof(cn.name));
 
     CFG->colorname.push_back(std::pair<Node, vattr>(cn, color));
 }

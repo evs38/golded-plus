@@ -65,7 +65,9 @@
 //  Constants
 
 #define MAXXREF     50
-#define BUFSIZE     80
+//  Bytes for an 80-column help line whose characters may be four
+//  bytes each.
+#define BUFSIZE     (80*4)
 #define BASETAGID   200
 
 

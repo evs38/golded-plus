@@ -335,14 +335,17 @@ const int REPLYRE_NUMERIC = 2;
 
 //  ------------------------------------------------------------------
 
-const int MAX_DESC =  81;        // Area descriptions
+//  Bytes for the characters these were sized for - a character is up
+//  to four of them now. What the wire allows is enforced where the
+//  wire is written, by the drivers' own fixed fields.
+const int MAX_DESC =  81*4;      // Area descriptions
 const int MAX_ECHO =  81;        // Echoids
 
 
 //  ------------------------------------------------------------------
 //  Name typedefs
 
-typedef TCHAR Name[36];
+typedef TCHAR Name[36*4];
 
 
 //  ------------------------------------------------------------------
@@ -357,7 +360,7 @@ typedef char Tear[77*4];
 //  ------------------------------------------------------------------
 //  Subject typedefs
 
-typedef char Subj[128];
+typedef char Subj[128*4];
 
 
 //  ------------------------------------------------------------------

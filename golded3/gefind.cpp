@@ -130,11 +130,11 @@ bool FindString(GMsg* msg, const char* prompt, int what)
         {
             if (CFG->latin2local)
             {
-                Latin2Local(msg->by);
-                Latin2Local(msg->to);
+                Latin2Local(msg->by, sizeof(msg->by));
+                Latin2Local(msg->to, sizeof(msg->to));
 
                 if (!msg->attr.frq() && !msg->attr.att() && !msg->attr.urq())
-                    Latin2Local(msg->re);
+                    Latin2Local(msg->re, sizeof(msg->re));
 
                 for (Line *ln = msg->lin; ln; ln = ln->next)
                     Latin2Local(ln->txt);

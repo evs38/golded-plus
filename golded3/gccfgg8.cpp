@@ -345,7 +345,7 @@ void CfgTwitname()
         }
     }
 
-    strxcpy(tn.name, StripQuotes(val), sizeof(tn.name));
+    strxcpy_utf8(tn.name, StripQuotes(val), sizeof(tn.name));
 
     if(cfgingroup)
         CFG->grp.AddItm(GRP_TWITNAME, &tn, sizeof(tn));
@@ -617,7 +617,7 @@ void CfgWhoto()
 {
 
     Name buf;
-    strxcpy(buf, val, sizeof(buf));
+    strxcpy_utf8(buf, val, sizeof(buf));
     if(cfgingroup)
         CFG->grp.AddItm(GRP_WHOTO, buf, strlen(buf)+1);
     else
