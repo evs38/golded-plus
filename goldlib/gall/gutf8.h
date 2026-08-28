@@ -288,8 +288,10 @@ bool g_utf8_valid(const char* p, size_t nbytes);
 //  left as they are; matching those case-insensitively is a curiosity
 //  beside every offset in the program becoming approximate.
 //
-//  In 8-bit mode this is g_toupper() over the bytes, which is what the
-//  matchers did before and what the charset's own tables describe.
+//  In 8-bit mode ASCII folds through g_toupper() and everything above
+//  it through the configured charset's Unicode case mapping: the
+//  process locale's toupper() knew nothing of the charset and left
+//  Cyrillic unfolded whenever the locale and the charset disagreed.
 
 std::string g_utf8_fold(const char* p);
 std::string g_utf8_fold(const std::string& s);

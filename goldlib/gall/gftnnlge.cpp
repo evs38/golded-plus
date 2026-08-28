@@ -412,10 +412,43 @@ bool ftn_golded_nodelist_index::open()
     //  An index written by a build with a different _GEIdx would be
     //  read as garbage - every record at the wrong offset - so check
     //  that the file divides into whole records before believing it.
+    //  Divisibility alone is not proof: 48-byte records divide into
+    //  92-byte ones whenever their count is a multiple of 23. So read
+    //  the first record too and require its name to look like one -
+    //  NUL-padded text - which reinterpreted binary never does.
     if(filelength(fhn) % (long)sizeof(_GEIdx))
     {
         close();
         return false;
+    }
+    if(filelength(fhn) >= (long)sizeof(_GEIdx))
+    {
+        _GEIdx _probe;
+        lseek(fhn, 0, SEEK_SET);
+        if(read(fhn, &_probe, sizeof(_probe)) != (int)sizeof(_probe))
+        {
+            close();
+            return false;
+        }
+        lseek(fhn, 0, SEEK_SET);
+
+        bool _sane = false;
+        for(size_t _i = 0; _i < sizeof(_probe.name); _i++)
+        {
+            byte _b = (byte)_probe.name[_i];
+            if(_b == 0)
+            {
+                _sane = true;       // terminated within the field
+                break;
+            }
+            if(_b < ' ')
+                break;              // control bytes are not a name
+        }
+        if(not _sane)
+        {
+            close();
+            return false;
+        }
     }
 
     maxnode = filelength(fha) / sizeof(word);

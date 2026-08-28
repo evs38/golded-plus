@@ -81,7 +81,10 @@ make call:
                    international builds since latin-1 support will be broken.
 
  "ICONV=0"         Do not use iconv at all; recode through the built-in
-                   charset tables. iconv is on by default.
+                   charset tables. iconv is on by default on the
+                   full-featured platforms; the limited ones - DOS,
+                   OS/2, Cygwin, BeOS, the Watcom targets - leave it
+                   off unless asked (make PLATFORM=djg ICONV=1).
 
  "EXTERNAL_CURSES=1"
                    Look for curses in the package-manager prefixes
@@ -93,8 +96,12 @@ make call:
                    Link GNU libiconv from one of those prefixes instead
                    of the iconv the system provides.
 
-                   Both default to 0: curses and iconv are taken from the
-                   operating system. On a native Windows build neither is
+                   Both default to 1 on a capable unix - the package
+                   manager's copies come first and the system's are the
+                   fallback - and to 0 on the cross-built targets, where
+                   the prefixes would name the build host's libraries.
+                   Say EXTERNAL_CURSES=0 EXTERNAL_ICONV=0 to build
+                   against only what the operating system provides. On a native Windows build neither is
                    used at all - the Win32 console layer draws the screen
                    and the Win32 codepage API converts the text - so no
                    curses is even looked for there. Cygwin is a POSIX

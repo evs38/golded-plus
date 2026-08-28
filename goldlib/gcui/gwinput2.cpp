@@ -1158,6 +1158,14 @@ static bool inp_isword(const char* buf, uint pos, uint end)
 {
     if(pos >= end)
         return false;
+
+    //  In an 8-bit session isxalnum() knows the charset's own letters
+    //  and non-letters - box characters, NBSP - through its case
+    //  tables; keep that. Only multibyte text needs the decode, and
+    //  there anything beyond ASCII counts as a letter.
+    if(not g_utf8_mode())
+        return make_bool(isxalnum((int)(unsigned char)buf[pos]));
+
     int used = 1;
     uint32_t cp = (uint32_t)g_utf8_decode(buf + pos, buf + end, &used);
     return (cp < 128) ? make_bool(isxalnum((int)cp)) : true;
@@ -1525,9 +1533,11 @@ void gwinput::field::clipboard_paste()
                 buf[buf_pos] = NUL;
                 strxcat(buf, clpbuf, buf_len + 1);
                 buf_end_pos = strlen(buf);
-                //  One step per pasted character - per byte, the caret
-                //  ran past the pasted text into what followed it.
-                for(const char* p = clpbuf; *p; p = g_utf8_cluster_next(p, clpbuf + strlen(clpbuf)))
+                //  One step per pasted character, and only over the
+                //  pasted len bytes: the strxcat above appended the
+                //  field's tail to clpbuf, and walking all of it left
+                //  the caret at the end of the line.
+                for(const char* p = clpbuf; (p < clpbuf + len) and *p; p = g_utf8_cluster_next(p, clpbuf + len))
                     move_right();
             }
 

@@ -1117,10 +1117,10 @@ void GThreadlist::print_line(uint idx, uint pos, bool isbar)
             //  it into a byte one rather than indexing into the middle
             //  of a character.
             const char* from = msg.By() + g_utf8_bytes_for_cols(msg.By(), skip);
-            strxcpy(buf, from, g_utf8_bytes_for_cols(from, tdlen) + 1);
+            strxcpy(buf, from, g_utf8_bytes_for_cols(from, (size_t)(tdlen-1)) + 1);
         }
         else
-            strxcpy(buf, msg.By(), g_utf8_bytes_for_cols(msg.By(), tdlen - buflen) + 1);
+            strxcpy(buf, msg.By(), g_utf8_bytes_for_cols(msg.By(), (tdlen > buflen) ? (tdlen - buflen - 1) : 0) + 1);
 
         window.prints(pos, 8 + buflen, attr, buf);
     }

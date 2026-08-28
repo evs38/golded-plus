@@ -38,9 +38,6 @@ extern _help_t whelp;
 
 //  ------------------------------------------------------------------
 
-void (*whelp_xlat)(char* line, size_t size) = NULL;
-
-
 void whelpcompile(const char* helpfile, long& offset)
 {
 
@@ -71,11 +68,6 @@ void whelpcompile(const char* helpfile, long& offset)
         bool comment = true;
         while (ifp.Fgets(buf, sizeof(buf)))
         {
-            //  The compiled help holds the session's charset; without
-            //  this a CP866 help file showed as replacement characters
-            //  throughout a UTF-8 session.
-            if(whelp_xlat)
-                whelp_xlat(buf, sizeof(buf));
             if(strnieql(buf, "*B ", 3))
             {
                 comment = false;

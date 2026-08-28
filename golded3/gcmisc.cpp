@@ -77,12 +77,18 @@ int ReadHelpCfg(int force)
                 comment = YES;
                 while (ifp.Fgets(buf, sizeof(buf)))
                 {
+                    //  The help file is one of GoldED+'s own, in the
+                    //  charset XLATCONFIGSET names - like golded.cfg,
+                    //  the language file and the templates. Unconverted
+                    //  it showed as replacement characters throughout a
+                    //  session in another charset.
+                    XlatCfgLine(buf, sizeof(buf));
                     if(strnieql(buf, "*B ", 3))
                     {
                         comment = NO;
                         HlpL[counter].help = atow(buf+3);
                         ptr = strchr(buf, ',');
-                        strbtrim(strxcpy(HlpL[counter].category, ptr ? ptr+1 : "", sizeof(HlpL[counter].category)));
+                        strbtrim(strxcpy_utf8(HlpL[counter].category, ptr ? ptr+1 : "", sizeof(HlpL[counter].category)));
                         HlpL[counter].offset = offset + strlen(buf);
                         counter++;
                     }

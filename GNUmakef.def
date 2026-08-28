@@ -143,7 +143,8 @@ endif
 #   make EXTERNAL_CURSES=0    use only the curses the system itself has
 #   make EXTERNAL_ICONV=0     use only the iconv the system itself has
 #
-# The cross-built targets - DOS, OS/2, the Watcom ones - default to 0,
+# The limited platforms - DOS, OS/2, Cygwin, BeOS, the Watcom ones -
+# default to 0,
 # and not because they could not use these libraries: the prefixes below
 # are found with $(wildcard) on the *build host*, so on a cross build
 # they would put the host's headers and libraries on a DOS or OS/2

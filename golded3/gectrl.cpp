@@ -235,7 +235,10 @@ char* mime_header_encode(char* dest, const char* source, GMsg* msg)
             {
                 if(not inmime)
                 {
-                    if(msg->charset)
+                    //  An array, so testing it was always true and an
+                    //  unset charset wrote "=??Q?" - a MIME word with
+                    //  no charset in it. Ask whether it has content.
+                    if(*msg->charset)
                     {
                         bp = stpcpy(bp, "=?");
                         if(strnieql(msg->charset, "latin", 5))

@@ -285,6 +285,24 @@ These are the GoldED specific environment variables:
     The path where GoldNODE can find a GOLDED.CFG to use.
 
 
+GED, GED2, GEDW32
+
+    Alternative names for the GOLDED variable, tried first: GED2 on
+    OS/2, GEDW32 on Windows, then GED, then GOLDED. They exist so one
+    machine can point each platform's build at its own configuration.
+
+
+GOLDED_CONSOLE
+
+    Windows only. Overrides the automatic choice of console output
+    style: "cells" for a console that draws a surrogate pair from two
+    cells (the classic conhost), "stream" for one that only draws it
+    written as a stream (Windows Terminal). Set it from a shortcut
+    when the automatic detection guesses wrong; it is an environment
+    variable rather than a keyword because the same golded.cfg serves
+    both kinds of window.
+
+
 When the using AREAFILE feature to read external area configuration
 from other programs, the individual AREAFILE's may use specific
 environment variables to find the files. Please read the Area
@@ -2043,6 +2061,13 @@ Here is the complete keyword list:
     characters. This was a great help. Personally I now always use
     redefinitions to ASCII 20 (a paragraph sign) and CP437 250 (a
     small dot).
+
+    Both settings hold exactly one byte, so in a UTF-8 session only an
+    ASCII character can be used; a multibyte one (which the paragraph
+    sign and the small dot become there) is refused with a warning and
+    the default kept. In a single-byte session any character of the
+    charset works, as it always has. The same applies to
+    EDITSOFTCRXLAT.
 
 
 EDITCOMMENT <"word"> <"comment">
@@ -3922,7 +3947,8 @@ Here is the complete keyword list:
 QUOTESTRING <quotespec>  (" FL> ")
 
     With this keyword you define how you want the quotestring to look
-    in your quoted replies.
+    in your quoted replies. The specification holds at most nine
+    characters.
 
     The <quotespec> can contain these characters:
 
@@ -4991,7 +5017,10 @@ Here is the complete keyword list:
 XLATCONFIGSET <charsetid>
 
     The charset GoldED+'s own configuration is written in - golded.cfg
-    and the language file with it. A language file can be in any
+    and, with it, the language file, the templates and the text files
+    they pull in, the files random taglines, tearlines and origins are
+    drawn from, the tagline and origin picker lists, and the help
+    file. A language file can be in any
     charset: goldlang.rus is CP866, goldlang.ru2 is KOI8-R, and either
     can be read in a UTF-8 session.
 
@@ -5038,20 +5067,28 @@ Here is the complete keyword list:
     It can also be used in templates (the @xlatexport token).
 
 
-XLATIMPORT <charsetid>  (IBMPC)
+XLATIMPORT <charsetid>
 
-    Defines the local charset for your machine. See the Character
-    Translation chapter for details.
+    The charset messages are assumed to be in when they carry no CHRS
+    kludge of their own. The default follows the machine: CP866 under
+    a Cyrillic locale (CP1125 under a Ukrainian one), CP437 otherwise.
+    See the Character Translation chapter for details.
 
     This keyword can be used globally and in a Random System group.
 
 
-XLATLOCALSET <charsetid>  (IBMPC)
+XLATLOCALSET <charsetid>
 
     Use this keyword to specify the actual physical charset in effect
-    for text screen display. This was previously the hardcoded value
-    IBMPC, corresponding to the IBM codepage 437 (or the nordic
-    edition 865).
+    for text screen display - and, since text is held internally in
+    this charset, for everything GoldED+ does with it. The default is
+    taken from the operating system: the console codepage on Windows
+    and OS/2, the locale elsewhere, so a UTF-8 terminal gives UTF-8
+    without any keyword at all (in a binary built with GOLD_UTF8,
+    which every shipped build is except DOS). Set it explicitly to run
+    in a charset other than the system's. Setting it to IBMPC, the old
+    hardcoded default, now draws a configuration warning: name the
+    real charset instead - CP437, CP866, LATIN-1, UTF-8.
 
     NOTE: All charset translation files must translate from and to the
     charset identified with the XLATLOCALSET keyword!
@@ -6288,8 +6325,18 @@ continue to support Composed as long as it seems necessary.
 If you want to know more about the details, I suggest you read the
 proposals or contact the authors.
 
-GoldED currently supports two types of translation tables, the *.ESC
-files and the *.CHS files.
+Charset conversion uses, in this order, whichever is available: the
+iconv library, the operating system's own converter (the Win32
+codepage API on Windows, ULS on OS/2), and only where neither exists
+the compiled-in tables and the *.CHS files described below. The
+session's own charset is XLATLOCALSET (UTF-8 on a modern terminal),
+the charset of GoldED+'s own files is XLATCONFIGSET, and area
+descriptions from a tosser's area file follow XLATAREASET. A pair the
+converter knows is handled without any table configuration at all; the
+tables remain for charsets nothing else knows, and for the DOS build.
+
+For the table fallback, GoldED supports two types of translation
+tables, the *.ESC files and the *.CHS files.
 
 
 The ESC translation tables

@@ -120,7 +120,7 @@ void GMsgHeaderView::Paint()
         *buf1 = NUL;
 
 #if defined(__USE_ALLOCA__)
-    char *top = (char*)alloca(width+1);
+    char *top = (char*)alloca((width+1)*4);
 #else
     __extension__ char top[(width+1)*4];
 #endif

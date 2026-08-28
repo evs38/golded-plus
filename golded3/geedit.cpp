@@ -114,6 +114,12 @@ void IEclass::debugtest(char* __test, int __a, int __b, char* __file, int __line
 
 inline bool isscchar(uint32_t cp)
 {
+    //  In an 8-bit session cp is a raw byte of the charset, and the
+    //  Unicode ranges below would call half the Cyrillic alphabet
+    //  punctuation. isxalnum() knows the charset's own letters there.
+    if(not g_utf8_mode())
+        return isxalnum((int)cp) or (cp == '-') or (cp == '\'') or (cp == '.');
+
     if(cp < 0x80)
         return isxalnum((int)cp) or (cp == '-') or (cp == '\'') or (cp == '.');
 

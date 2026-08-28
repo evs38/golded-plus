@@ -458,6 +458,11 @@ static gcbclass gcb_class(uint32_t cp)
 
 const char* g_utf8_cluster_next(const char* p, const char* end)
 {
+    //  A byte is a character in 8-bit mode - even CR LF, which the
+    //  cluster rules below would join into one step.
+    if(not g_utf8_mode())
+        return (p and (p < end) and *p) ? p + 1 : p;
+
     if(p == NULL or p >= end or *p == NUL)
         return p;
 
@@ -558,6 +563,11 @@ const char* g_utf8_cluster_prev(const char* start, const char* p)
     if(start == NULL or p == NULL or p <= start)
         return start;
 
+    //  A byte is a character in 8-bit mode; without this, every step
+    //  backwards re-walked the line from its start.
+    if(not g_utf8_mode())
+        return p - 1;
+
     const char* s    = start;
     const char* last = start;
 
@@ -585,6 +595,9 @@ size_t g_utf8_cluster_width(const char* p, const char* end)
 {
     if(p == NULL or p >= end)
         return 0;
+
+    if(not g_utf8_mode())
+        return 1;
 
     int used = 1;
     size_t w = (size_t)g_cp_width(g_utf8_decode(p, end, &used));

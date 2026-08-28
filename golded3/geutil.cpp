@@ -213,10 +213,14 @@ void update_statuslinef(const char *format, const char *token, ...)
     }
 
     bool error = false;
-    char winfobuf[350];
+    //  Bounded: the format and its arguments are language strings,
+    //  which can be four bytes a character now, and an unbounded
+    //  vsprintf into 350 bytes was one long translation from a smash.
+    char winfobuf[350*4];
     va_list argptr;
     va_start(argptr, token);
-    vsprintf(winfobuf, format, argptr);
+    vsnprintf(winfobuf, sizeof(winfobuf), format, argptr);
+    winfobuf[sizeof(winfobuf)-1] = NUL;
     va_end(argptr);
     update_statusline(winfobuf);
 

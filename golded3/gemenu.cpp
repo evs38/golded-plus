@@ -1142,12 +1142,8 @@ int ChangeXlatImport()
 
         LoadCharset(AA->Xlatimport(), CFG->xlatlocalset);
     }
-    else
-    {
-        w_info(LNG->NoXlatImport);
-        waitkeyt(10000);
-        w_info(NULL);
-    }
+    //  (The no-tables answer now lives in the picker above, built from
+    //  the recoder's own list; the old message became unreachable.)
 
     return true;
 }

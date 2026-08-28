@@ -188,6 +188,13 @@ public:
 
 const word CUR_GOLDLAST_VER = 0x1A02;
 
+//  The width one arealist selection occupies in goldlast.lst - the
+//  historical sizeof(Desc), frozen. The in-memory Desc grew fourfold
+//  for UTF-8, and writing it raw would have changed the file's layout
+//  under an unchanged version word, silently costing every lastread
+//  and mark on upgrade.
+const int GOLDLAST_DESC = 81;
+
 #if defined(GOLD_CANPACK)
     #pragma pack(1)
 #endif

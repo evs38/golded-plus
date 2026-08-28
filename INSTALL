@@ -65,21 +65,26 @@ to the last command - in the zipped file nearby.
 5. Where curses and iconv come from.
 
     GoldED+ uses curses to drive the screen and iconv to convert between
-charsets. Both are taken from the operating system itself by default:
-the base system's curses, and whatever iconv the system provides - the C
-library's on Linux and the BSDs, a separate libiconv that ships with the
-system on macOS. On a native Windows build neither is needed: the Win32
-console layer draws the screen and the Win32 codepage API does the
-conversion, so no curses is looked for at all. Cygwin does not count as
-that - it is a POSIX environment and uses curses like any other unix.
+charsets. On a capable unix the package manager's copies are preferred
+by default - pkgsrc under /usr/pkg, ports and Homebrew under /usr/local
+or /opt/homebrew, MacPorts under /opt/local, OpenCSW under /opt/csw -
+because a packaged ncurses is newer and wide-capable where a base curses
+often is not, and a packaged libiconv knows charsets the C library's
+does not; the operating system's own are the fallback behind them. On a
+native Windows build neither is needed: the Win32 console layer draws
+the screen and the Win32 codepage API does the conversion, so no curses
+is looked for at all. Cygwin does not count as that - it is a POSIX
+environment and uses curses like any other unix.
 
-    Several systems ship a second copy of one or both through a package
-manager - pkgsrc under /usr/pkg, ports and Homebrew under /usr/local or
-/opt/homebrew, MacPorts under /opt/local, OpenCSW under /opt/csw. Those
-are used only when you ask for them:
+    To build against only what the operating system itself provides,
+turn the package copies off:
 
-    cmake:  -DGOLD_EXTERNAL_CURSES=ON   -DGOLD_EXTERNAL_ICONV=ON
-    make:      EXTERNAL_CURSES=1           EXTERNAL_ICONV=1
+    cmake:  -DGOLD_EXTERNAL_CURSES=OFF  -DGOLD_EXTERNAL_ICONV=OFF
+    make:      EXTERNAL_CURSES=0           EXTERNAL_ICONV=0
+
+    The cross-built targets - DOS, OS/2, the Watcom ones, Cygwin's
+mingw - default to off, since the package prefixes are searched on the
+build host and would poison a cross compile.
 
     The two sides are never mixed. GNU libiconv renames iconv_open() to
 libiconv_open() in its header, so that header combined with the C

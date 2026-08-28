@@ -415,7 +415,11 @@ int ShellToDos(const char* command, char* message, vattr cls, int cursor, int pa
     if(scrnbuf)
     {
         vrestore(scrnbuf);
-        throw_xrelease(scrnbuf);
+        //  vfreesave(), not a bare release: under curses the buffer
+        //  owns a WINDOW, and dropping the struct leaked one per
+        //  shell-out.
+        vfreesave(scrnbuf);
+        scrnbuf = NULL;
     }
     else
         vclrscr();

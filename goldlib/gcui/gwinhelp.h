@@ -29,11 +29,6 @@
 #ifndef __gwinhelp_h
 #define __gwinhelp_h
 
-//  Installed by the application: converts a line of its own text files
-//  from the configured charset to the one the session runs in. The
-//  help file is such a file, like the templates and the language file.
-extern void (*whelp_xlat)(char* line, size_t size);
-
 
 //  ------------------------------------------------------------------
 

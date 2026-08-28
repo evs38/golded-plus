@@ -485,19 +485,31 @@ char* strxmimecpy_local(char* dest, const char* source, int size)
     if(*charset == NUL)
     {
         //  Nothing was MIME-encoded, so the text is already as local as
-        //  it is going to get.
-        strxcpy_utf8(dest, buf2, size);
+        //  it is going to get - but a level-0 pass through the loaded
+        //  table still expands MNEMONIC/I51/COMPOSED escapes, which the
+        //  original always did here.
+        if(CharTable)
+        {
+            const std::string plain = XlatStr(buf2, 0, CharTable, (GRecoder*)NULL);
+            strxcpy_utf8(dest, plain.c_str(), size);
+        }
+        else
+            strxcpy_utf8(dest, buf2, size);
         return dest;
     }
 
-    int table = GetCurrentTable();
+    //  Snapshot, not GetCurrentTable(): with a recoder in force the
+    //  table index is -1, and restoring that switched conversion off
+    //  globally - the bug XlatSnapshot() exists for, fixed in the
+    //  sibling strxmimecpy() and missed here.
+    XlatSnap _xlat = XlatSnapshot();
     int level = LoadCharset(charset, CFG->xlatlocalset);
     if(not level)
         level = LoadCharset(AA->Xlatimport(), CFG->xlatlocalset);
 
-    const std::string converted = XlatStr(buf2, level, CharTable);
+    const std::string converted = XlatStr(buf2, level, CharTable, CharRecoder);
 
-    LoadCharset(table);
+    XlatRestore(_xlat);
     //  The text is in the local charset now, so cut it between
     //  characters rather than through one.
     strxcpy_utf8(dest, converted.c_str(), size);
@@ -1962,14 +1974,22 @@ void  Latin2Local(std::string &str)
     size_t n = chars.size();
     std::vector<char> convert(n, 0);
 
+    //  A local letter: beyond ASCII and a letter of the charset - in a
+    //  multibyte session anything decoded past ASCII is one.
+    #define GD_L2L_LOCAL(_cp) \
+        (((_cp) >= 128) and (((_cp) > 255) or g_isalpha((int)(_cp))))
+
     for(size_t i = 0; i < n; i++)
     {
         uint32_t cp = chars[i].cp;
         if(cp >= 128 || CFG->latintolocal[cp].empty())
             continue;
 
-        bool leftlocal  = i and (chars[i-1].cp >= 128);
-        bool rightlocal = (i+1 < n) and (chars[i+1].cp >= 128);
+        //  A neighbour already marked for conversion counts as local:
+        //  the original converted in place, so a run of Latin letters
+        //  after one local character was swallowed left to right.
+        bool leftlocal  = i and (GD_L2L_LOCAL(chars[i-1].cp) or convert[i-1]);
+        bool rightlocal = (i+1 < n) and GD_L2L_LOCAL(chars[i+1].cp);
 
         if(leftlocal || rightlocal)
         {
@@ -1984,6 +2004,8 @@ void  Latin2Local(std::string &str)
             }
         }
     }
+
+    #undef GD_L2L_LOCAL
 
     std::string out;
     out.reserve(str.length());
@@ -3094,9 +3116,14 @@ chardo:
                         //  decoder, which has already produced the byte
                         //  and stepped 'ptr' past its "=XX" form.
                         {
-                            char* dp = &dochar;
-                            RecodeChar(dp, bp, level, _recoder);
-                            ++len;
+                            //  A terminated buffer: RecodeChar() looks
+                            //  a few bytes ahead for a multibyte
+                            //  sequence, and a bare &dochar let it read
+                            //  the stack. The columns it produces count
+                            //  toward the margin, as they always did.
+                            char dbuf[2] = { dochar, NUL };
+                            char* dp = dbuf;
+                            len += RecodeChar(dp, bp, level, _recoder);
                         }
                         break;
                     }

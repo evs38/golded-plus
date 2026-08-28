@@ -146,18 +146,10 @@ Spell checking, 2026-08-26.
   feature quietly does nothing. It should ask the dictionary something
   it must know before saying it is loaded.
 
-* The conversion between the local charset and the dictionary's is done
-  with the 8-bit tables only: CMYSpellLang::BuildRTable() calls
-  LoadCharset() and keeps CharTable, while the recoder LoadCharset()
-  also sets is left in the global and lost. It happens to work where
-  both sides are UTF-8, because nothing has to be converted, and where
-  both are the same 8-bit charset. A UTF-8 session with a dictionary in
-  KOI8-R or CP1251 - which is what the older Russian dictionaries are -
-  cannot be converted by a table at all, and the words will reach
-  hunspell unconverted. The workaround at geedit.cpp, saving and
-  restoring the table number around schecker.Load(), is a symptom of
-  the same thing: see the entry above about the conversion being half a
-  parameter and half a global.
+* (Fixed since: BuildRTable() snapshots the recoders beside the tables
+  - mToDicRecoder/mToLocRecoder - and RecodeText() uses them, so a
+  UTF-8 session converts to an 8-bit dictionary correctly. The Load()
+  bullet above still stands.)
 
 ______________________________________________________________________
 
@@ -235,9 +227,10 @@ file, harmless.
 ______________________________________________________________________
 
 Left over from the audit's fourth batch, deliberately: the compiled
-help (golded__.ghp) is rebuilt when the help file is newer, so a
-change of XLATLOCALSET alone leaves a stale compiled copy in the old
-charset until the help file is touched. A macro in GOLDKEYS.CFG that
+help (golded__.ghp) is rebuilt when the help file changes; whether a
+change of XLATLOCALSET alone retriggers it is worth one check now that
+the conversion lives in ReadHelpCfg() - if not, a stale compiled copy
+keeps the old charset until the help file is touched. A macro in GOLDKEYS.CFG that
 types non-ASCII text plays back byte by byte; the bytes arrive in
 order and may well form the right characters, but nobody has verified
 the whole path, and the byte-per-gkey storage halves the capacity.

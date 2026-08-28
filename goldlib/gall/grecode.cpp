@@ -113,7 +113,7 @@ static const struct
 }
 charset_aliases[] =
 {
-    { "IBMPC",      "CP437"        },
+    //  IBMPC is resolved in canonical(): see the note there.
     { "CP437",      "CP437"        },
     { "437",        "CP437"        },
     { "CP850",      "CP850"        },
@@ -195,6 +195,28 @@ std::string GRecoder::canonical(const char* name)
     std::string s = charset_bare(name);
     if(s.empty())
         return s;
+
+    //  IBMPC has always meant "the PC's own codepage", not CP437 in
+    //  particular: a Russian message announcing CHRS: IBMPC 2 is
+    //  CP866. The old table setup got this right by accident - no
+    //  IBMPC table was configured, so the bytes passed through
+    //  untouched, which under a CP866 local charset was the correct
+    //  answer. Pinning it to CP437 made the recoder "convert" such
+    //  messages and destroy them. Resolve it to the session's own
+    //  charset when that is a single-byte one - passthrough, as
+    //  before - and to the machine's DOS charset when the session is
+    //  UTF-8, which the locale decides (CP866 under a Cyrillic one).
+    if(s == "IBMPC")
+    {
+        std::string local = charset_bare(g_local_charset());
+        if(not local.empty() and local != "UTF-8")
+            s = local;
+        else
+        {
+            const char* dcs = get_dos_charset("");
+            s = (dcs and *dcs) ? charset_bare(dcs) : std::string("CP437");
+        }
+    }
 
     for(size_t n = 0; n < ARRAYSIZE(charset_aliases); n++)
     {
@@ -1463,7 +1485,7 @@ char* ISO2Latin(char* latin_encoding, const char* iso_encoding)
 {
     static const char* latinno[] = { NULL, "1", "2", "3", "4", NULL, NULL, NULL, NULL, "5", "6", NULL, NULL, "7", "8", "9" };
     int chsno = atoi(strstr(iso_encoding, "8859")+5);
-    chsno = chsno > (int)(sizeof(latinno)/sizeof(const char*)) ? 0 : chsno;
+    chsno = (chsno < 0) or (chsno >= (int)(sizeof(latinno)/sizeof(const char*))) ? 0 : chsno;
     if(latinno[chsno] == NULL)
         return strxmerge(latin_encoding, 12, iso_encoding, NULL);
 

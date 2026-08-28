@@ -818,21 +818,23 @@ void Initialize(int argc, char* argv[])
         }
 #endif
 
-        //  Then the program's own directory. An FTN install keeps its
-        //  configuration beside the binary, and that is what the DOS
-        //  and OS/2 builds have always looked at; unix used to be shut
-        //  out of this step and no longer is, so a self-contained
-        //  install works there too.
-        if(not found)
-        {
-            extractdirname(cmdlinecfg, argv[0]);
-            found = FindCfg(cmdlinecfg);
-        }
-
-        //  Then where we were started from.
+        //  Then where we were started from, before the program's own
+        //  directory - the order DOS and OS/2 always used, so a data
+        //  directory with its own golded.cfg keeps winning over the
+        //  one beside the binary on an existing install.
         if(not found)
         {
             getcwd(cmdlinecfg, sizeof(cmdlinecfg));
+            found = FindCfg(cmdlinecfg);
+        }
+
+        //  Then the program's own directory. An FTN install keeps its
+        //  configuration beside the binary; unix used to be shut out
+        //  of this step and no longer is, so a self-contained install
+        //  works there too.
+        if(not found)
+        {
+            extractdirname(cmdlinecfg, argv[0]);
             found = FindCfg(cmdlinecfg);
         }
 
@@ -1290,7 +1292,6 @@ void Initialize(int argc, char* argv[])
     // Initialize the messagebases
     update_statuslinef(LNG->LockShareCap, "ST_LOCKSHARECAP", LNG->Checking);
     WideLog = &LOG;
-    whelp_xlat = XlatCfgLine;
     WideDebug = cmdlinedebughg;
     WideCanLock = CFG->sharemode ? TestLockPath(CFG->temppath) : false;
     WideSharemode = CFG->sharemode;

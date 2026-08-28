@@ -13,6 +13,32 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- A verification pass over the whole branch against the 8-bit build -
+  GOLD_UTF8 off, plain curses - and against the documentation. What it
+  caught, besides much smaller things: a message declaring CHRS IBMPC
+  was run through a real CP437 conversion where the bytes used to pass
+  through untouched - and for the Russian mail that carries that
+  kludge, untouched was correct; IBMPC now resolves to the session's
+  own charset, or to the machine's DOS codepage in a UTF-8 session.
+  The upgrade preserved goldlast.lst by freezing its on-disk layout
+  where an internal widening would have silently invalidated every
+  lastread and mark. On Windows an 8-bit build drew every non-ASCII
+  character through the OEM table twice, coming out as an unrelated
+  glyph. The spell checker in an 8-bit session called half the
+  Cyrillic alphabet punctuation. The box-drawing mode ate the
+  paragraph end of a hard line. The caret after a paste ran to the end
+  of the line. A quoted-printable header field switched charset
+  conversion off globally. The one-byte editor characters are legal
+  again in an 8-bit session. And the guard that keeps an old
+  goldnode.gxn index from being misread as the new record size no
+  longer trusts arithmetic luck.
+
+  One deliberate behaviour note for upgraders: the personal-mail scan
+  now converts the username from the session's charset to the area's.
+  A configuration that worked around the old raw comparison by writing
+  the username in the base's charset - CP866 bytes in a KOI8-R
+  session - should now say so honestly with XLATCONFIGSET instead.
+
 - A sweep of the places that measured screen positions in bytes and
   drew translated text out of line: the header's top rule and its
   right-hand echoid, the real-name fields of gated mail, the Via line,
@@ -296,11 +322,11 @@ ______________________________________________________________________
   the locale on unix. A UTF-8 console is recognised as such.
 
 ! golded.cfg is looked for in more places, and in a defined order:
-  the -c argument; the GOLDED and GED environment variables; any of
-  CFGUSERPATH1, CFGUSERPATH2 or CFGPATH set at build time; the
-  directory the binary is in; the current directory; then the user's
-  own configuration, then the machine's, then <prefix>/etc/golded
-  from the build.
+  the -c argument; the environment - GED2 on OS/2 and GEDW32 on
+  Windows first, then GED, then GOLDED; any of CFGUSERPATH1,
+  CFGUSERPATH2 or CFGPATH set at build time; the current directory;
+  the directory the binary is in; then the user's own configuration,
+  then <prefix>/etc/golded from the build, then the machine's.
 
   On unix the middle two follow the XDG Base Directory specification -
   $XDG_CONFIG_HOME (~/.config/golded when unset), with ~/.golded,

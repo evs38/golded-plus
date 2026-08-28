@@ -182,7 +182,11 @@ extern WCHAR oem2unicode[]; // defined in gutlwin.cpp
 
 vchar gvid_tcpr(vchar chr)
 {
-    if(g_utf8_mode() and chr > 0xFF)
+    //  Already a codepoint - the function may meet its own output,
+    //  since vputs() converts before building cells and vcatch()
+    //  converts again. Feeding U+0440 back through the OEM table
+    //  turned every Cyrillic letter into the glyph of its low byte.
+    if(chr > 0xFF)
         return chr;
 
     if(g_utf8_mode() and chr >= 0x80)

@@ -123,8 +123,11 @@ void CfgEditcharpara()
     //  The stored character is one byte deep, so a multibyte one
     //  cannot be honoured - its first byte alone would splice invalid
     //  text into the editor. Keep the default instead, and say so.
+    //  In an 8-bit session any byte of the charset is a character,
+    //  pseudographics included; only a UTF-8 session cannot store a
+    //  multibyte character in this one-byte setting.
     char* v = StripQuotes(val);
-    if(*v and ((*v & 0x80) == 0))
+    if(*v and (not g_utf8_mode() or ((*v & 0x80) == 0)))
         EDIT->CharPara(*v);
     else if(*v)
         LOG.printf("! EDITCHARPARA wants a single-byte character; \"%s\" is not one, keeping the default.", v);
@@ -136,7 +139,7 @@ void CfgEditcharspace()
 {
 
     char* v = StripQuotes(val);
-    if(*v and ((*v & 0x80) == 0))
+    if(*v and (not g_utf8_mode() or ((*v & 0x80) == 0)))
         EDIT->CharSpace(*v);
     else if(*v)
         LOG.printf("! EDITCHARSPACE wants a single-byte character; \"%s\" is not one, keeping the default.", v);
@@ -360,7 +363,13 @@ void CfgEditsaveutil()
 void CfgEditsoftcrxlat()
 {
 
-    EDIT->SoftCrXlat(*val);
+    //  One byte deep, like EDITCHARPARA: in a UTF-8 session a
+    //  multibyte character cannot be honoured, and storing its first
+    //  byte would substitute a broken byte for every soft CR.
+    if(*val and (not g_utf8_mode() or ((*val & 0x80) == 0)))
+        EDIT->SoftCrXlat(*val);
+    else if(*val)
+        LOG.printf("! EDITSOFTCRXLAT wants a single-byte character; \"%s\" is not one, keeping the default.", val);
 }
 
 //  ------------------------------------------------------------------

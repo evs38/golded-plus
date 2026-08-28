@@ -108,6 +108,18 @@ static inline bool str_is_trimmable(char c)
 }
 
 
+//  Whitespace alone, for the functions that historically asked only
+//  isspace(): giving them iscntrl() too silently reclassified a line
+//  of control bytes as blank.
+
+static inline bool str_is_space(char c)
+{
+    unsigned char b = (unsigned char)c;
+
+    return (b < 0x80) and isspace(b);
+}
+
+
 //  ------------------------------------------------------------------
 //  Determines if a string is blank
 
@@ -117,7 +129,7 @@ bool strblank(const char* str)
     const char* p;
 
     for(p = str; *p; p++)
-        if(not str_is_trimmable(*p))
+        if(not str_is_space(*p))
             return false;
 
     return true;
@@ -482,7 +494,7 @@ char* strrjust(char* str)
     for(p=str; *p; p++)
         ;   // find end of string
     p--;
-    for(q=p; str_is_trimmable(*q) and q>=str; q--)
+    for(q=p; str_is_space(*q) and q>=str; q--)
         ;   // find last non-space character
     if(p != q)
     {
@@ -672,7 +684,7 @@ std::string &strltrim(std::string &str)
         std::string::iterator end = str.end();
         std::string::iterator it = begin;
 
-        for (; (it != end) && str_is_trimmable(*it); it++) { /**/ }
+        for (; (it != end) && str_is_space(*it); it++) { /**/ }
         if (it != begin) str.erase(begin, it);
     }
 

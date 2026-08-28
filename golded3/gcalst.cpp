@@ -186,7 +186,14 @@ void AreaList::WriteGoldLast()
     {
         fp.SetvBuf(NULL, _IOFBF, BUFSIZ);
         fp.Fwrite(&GOLDLAST_VER, sizeof(word));
-        fp.Fwrite(AL.alistselections, sizeof(AL.alistselections));
+
+        //  The on-disk slots keep their historical width; see
+        //  GOLDLAST_DESC. Cut between characters on the way out.
+        char diskselections[16][GOLDLAST_DESC];
+        memset(diskselections, 0, sizeof(diskselections));
+        for(uint _i = 0; _i < 16; _i++)
+            strxcpy_utf8(diskselections[_i], AL.alistselections[_i], GOLDLAST_DESC);
+        fp.Fwrite(diskselections, sizeof(diskselections));
 
         for(area_iterator ap = idx.begin(); ap != idx.end(); ap++)
         {
@@ -236,7 +243,12 @@ void AreaList::ReadGoldLast()
         if (GOLDLAST_VER != CUR_GOLDLAST_VER)
             return;
 
-        fp.Fread(AL.alistselections, sizeof(AL.alistselections));
+        {
+            char diskselections[16][GOLDLAST_DESC];
+            if(fp.Fread(diskselections, sizeof(diskselections)))
+                for(uint _i = 0; _i < 16; _i++)
+                    strxcpy(AL.alistselections[_i], diskselections[_i], GOLDLAST_DESC);
+        }
 
         while (fp.Fread(&entry, sizeof(entry)))
         {

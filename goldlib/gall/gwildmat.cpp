@@ -177,6 +177,19 @@ bool gwildmatch::match(const char* text, const char* pattern, bool ignorecase)
     //  both sides here instead and let the matcher compare bytes.
     if(ignorecase)
     {
+        //  Folding exists for characters beyond ASCII. When neither
+        //  side has any, the matcher's own per-byte g_tolower is the
+        //  old behaviour at the old cost - no copy of the text on
+        //  every call.
+        bool _high = false;
+        for(const char* _p = text; *_p; _p++)
+            if((byte)*_p >= 0x80) { _high = true; break; }
+        if(not _high)
+            for(const char* _p = pattern; *_p; _p++)
+                if((byte)*_p >= 0x80) { _high = true; break; }
+        if(not _high)
+            return match_internal(text, pattern, true) == true;
+
         //  The text changes on every call, the pattern almost never
         //  does: a search folds the same pattern again for every line
         //  of every message. Keep the last one. gbmh and gfuzzy fold

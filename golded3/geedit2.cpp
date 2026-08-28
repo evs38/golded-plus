@@ -2123,7 +2123,11 @@ void IEclass::DrawLines(gkey key)
             encw = 1;
         }
 
-        if (col < currline->txt.length())
+        //  Overwrite only within the text proper: the last character
+        //  of a hard line is its paragraph end, and overwriting it
+        //  turned the line into a soft one. Inserting before it is
+        //  what the original always did.
+        if ((col + 1) < currline->txt.length())
         {
             int oldw = 1;
             g_utf8_decode(currline->txt.c_str() + col, currline->txt.c_str() + currline->txt.length(), &oldw);
