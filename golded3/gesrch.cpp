@@ -308,6 +308,27 @@ void golded_search_manager::prepare_from_string(const char* prompt, int what)
 
 
 //  ------------------------------------------------------------------
+//  Whether this item is asked to look at a line of this kind.
+
+static bool SearchesLine(const search_item& item, uint type)
+{
+    if(item.where.body and not (type & (GLINE_TAGL|GLINE_TEAR|GLINE_ORIG|GLINE_SIGN|GLINE_KLUDGE)))
+        return true;
+    if(item.where.tagline and (type & GLINE_TAGL))
+        return true;
+    if(item.where.tearline and (type & GLINE_TEAR))
+        return true;
+    if(item.where.origin and (type & GLINE_ORIG))
+        return true;
+    if(item.where.signature and (type & GLINE_SIGN))
+        return true;
+    if(item.where.kludges and (type & GLINE_KLUDGE))
+        return true;
+    return false;
+}
+
+
+//  ------------------------------------------------------------------
 
 bool golded_search_manager::search(GMsg* msg, bool quick, bool shortcircuit)
 {
@@ -400,20 +421,7 @@ bool golded_search_manager::search(GMsg* msg, bool quick, bool shortcircuit)
             while(line)
             {
                 uint type = line->type;
-                bool search_this_line = false;
-                if(item->where.body and not (type & (GLINE_TAGL|GLINE_TEAR|GLINE_ORIG|GLINE_SIGN|GLINE_KLUDGE)))
-                    search_this_line = true;
-                if(item->where.tagline and (type & GLINE_TAGL))
-                    search_this_line = true;
-                if(item->where.tearline and (type & GLINE_TEAR))
-                    search_this_line = true;
-                if(item->where.origin and (type & GLINE_ORIG))
-                    search_this_line = true;
-                if(item->where.signature and (type & GLINE_SIGN))
-                    search_this_line = true;
-                if(item->where.kludges and (type & GLINE_KLUDGE))
-                    search_this_line = true;
-                if(search_this_line)
+                if(SearchesLine(*item, type))
                 {
                     if(item->search(line->txt.c_str()))
                     {
@@ -441,6 +449,58 @@ bool golded_search_manager::search(GMsg* msg, bool quick, bool shortcircuit)
                     }
                 }
                 line = line->next;
+            }
+
+            //  A phrase that crosses a line break was invisible to the
+            //  loop above. The text is held as lines, so "alpha bravo"
+            //  split over two of them matched neither - and since a
+            //  space is part of a pattern, that is most of what anyone
+            //  types. Join what this item looks at and try once more;
+            //  the join is a space, which is what the break replaced
+            //  when the paragraph was wrapped.
+            //  Only where the pattern could span a break at all: a
+            //  single word cannot, and every message that does not
+            //  match would otherwise be walked and searched a second
+            //  time for nothing.
+            if((not found) and (item->pattern.find(' ') != std::string::npos))
+            {
+                std::string joined;
+                for(line = msg->lin; line; line = line->next)
+                {
+                    if(not SearchesLine(*item, line->type))
+                        continue;
+                    if(not joined.empty())
+                        joined += ' ';
+                    joined += line->txt;
+                }
+
+                if((not joined.empty()) and item->search(joined.c_str()))
+                {
+                    msg->foundwhere |= GFIND_BODY;
+                    found++;
+
+                    //  Show where it is, where that can be said: a
+                    //  phrase split once lies across two neighbours. A
+                    //  longer one may cross more, and then the message
+                    //  is found with nothing marked inside it.
+                    for(line = msg->lin; line and line->next; line = line->next)
+                    {
+                        if(not SearchesLine(*item, line->type))
+                            continue;
+                        if(not SearchesLine(*item, line->next->type))
+                            continue;
+
+                        std::string pair = line->txt;
+                        pair += ' ';
+                        pair += line->next->txt;
+
+                        if(item->search(pair.c_str()))
+                        {
+                            line->type |= GLINE_HIGH;
+                            line->next->type |= GLINE_HIGH;
+                        }
+                    }
+                }
             }
         }
 

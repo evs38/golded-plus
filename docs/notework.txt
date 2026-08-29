@@ -350,6 +350,16 @@ ______________________________________________________________________
   leaving it, so a charset picked for one letter cannot follow into the
   next echo. Left alone, XLATEXPORT decides as before.
 
+- A search for a phrase found it only where it lay inside one line.
+  The text is held as lines, and each was searched on its own, so
+  "Fast Echomail" was invisible whenever the wrap had fallen between
+  the two words - which, with a space now part of a pattern rather
+  than a separator, is most of what anyone types. The lines a pattern
+  may look at are joined and searched once more when none of them
+  matched on its own; the pair holding the phrase is marked, as a
+  matching line always was. Only for a pattern with a space in it, a
+  single word being unable to span anything.
+
 - Everything the configuration had to say about itself went onto a
   screen nobody could see. Under curses the screen layer takes the
   terminal over - the alternate screen included - and it was started
