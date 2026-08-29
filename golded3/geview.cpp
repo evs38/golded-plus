@@ -104,9 +104,15 @@ void GMsgHeaderView::Paint()
 {
 
     ISub buf;
-    int namewidth = CFG->disphdrnodeset.pos - CFG->disphdrnameset.pos;
-    int nodewidth = CFG->disphdrdateset.pos - CFG->disphdrnodeset.pos;
-    int datewidth = MinV(width - CFG->disphdrdateset.pos, CFG->disphdrdateset.len);
+    //  Never negative. The column positions are resolved against
+    //  MAXCOL once at startup, so a window narrower than that leaves
+    //  these below zero - and they are counts of columns now, handed to
+    //  g_utf8_fit() whose parameter is a size_t. Minus three arrived
+    //  there as 18446744073709551613 and the header threw
+    //  std::length_error where it used to print a ragged line.
+    int namewidth = MaxV(0, CFG->disphdrnodeset.pos - CFG->disphdrnameset.pos);
+    int nodewidth = MaxV(0, CFG->disphdrdateset.pos - CFG->disphdrnodeset.pos);
+    int datewidth = MaxV(0, MinV(width - CFG->disphdrdateset.pos, CFG->disphdrdateset.len));
 
 #if defined(GUTLOS_FUNCS)
     g_set_ostitle_name(struplow(strtmp(area->echoid())), 0);
@@ -334,7 +340,7 @@ void GMsgHeaderView::Paint()
     //  and pad it in columns. Measured in bytes, a Cyrillic subject was
     //  cut at half the width it had room for. g_utf8_fit() pads to the
     //  width as well, which is what strsetsz() used to do here.
-    strxcpy(buf, g_utf8_fit(msg->re, width-lngsubjlen).c_str(), sizeof(buf));
+    strxcpy(buf, g_utf8_fit(msg->re, MaxV(0, width-lngsubjlen)).c_str(), sizeof(buf));
     window.prints(4, lngsubjlen, (msg->foundwhere&GFIND_SUBJECT) ? highlight_color : subject_color, buf);
 
     // Generate bottom line

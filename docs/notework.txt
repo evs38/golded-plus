@@ -350,6 +350,21 @@ ______________________________________________________________________
   leaving it, so a charset picked for one letter cannot follow into the
   next echo. Left alone, XLATEXPORT decides as before.
 
+- Opening a message threw std::length_error and killed the program on
+  any screen narrower than the header's own columns. The date column
+  sits at a position resolved against MAXCOL once at startup; a window
+  narrower than that left "what is left for the date" negative, and
+  that is now a count of columns handed to a size_t parameter, where
+  minus three arrives as 18446744073709551613. It used to be an int
+  that printf simply took for left justification, which is why nothing
+  showed until the fields were measured in columns. The three header
+  widths and the room left for the subject are clamped at zero.
+
+  strsetsz() was the same hazard one step further: given a negative
+  size it wrote the terminator before the start of the string. Three
+  callers work their size out from the screen the same way. It treats
+  a negative size as nothing now, which is the only thing it can mean.
+
 - A search for a phrase found it only where it lay inside one line.
   The text is held as lines, and each was searched on its own, so
   "Fast Echomail" was invisible whenever the wrap had fallen between

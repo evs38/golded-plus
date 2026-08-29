@@ -538,6 +538,13 @@ char* strschg(char* str, const char* find, const char* replace)
 char* strsetsz(char* str, int newsize)
 {
 
+    //  Callers work this out from the screen: a window narrower than
+    //  the column being padded to leaves it negative, and the branch
+    //  below would then write the terminator before the string starts.
+    //  Nothing is what a negative size can sensibly mean.
+    if(newsize < 0)
+        newsize = 0;
+
     int len = strlen(str);
     if(newsize < len)
         *(str+newsize) = NUL;
