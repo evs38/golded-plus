@@ -14257,6 +14257,38 @@ XLATCONFIGSET CP866</eg>
     This keyword can be used globally and in a Random System group.
       </p>
     </div2>
+    <div2 id=XLATREPLYORIGINAL>
+      <head>
+        XLATREPLYORIGINAL &lt;yes/no&gt;
+      </head>
+      <p>
+  (no)
+      </p>
+      <p>
+    Answer in the charset the message being answered was written in,
+    rather than in the one XLATEXPORT names. Only answers are affected -
+    a reply, a quoted reply, a comment and a receipt; a new message
+    still follows XLATEXPORT.
+      </p>
+      <p>
+    The charset is taken from the CHRS kludge of the message being
+    answered. A message that declares none is left to XLATEXPORT. The
+    identifiers FTS-5003 retires are not carried into the answer: IBMPC
+    is resolved the way it is resolved for reading, +7_FIDO is answered
+    as CP866 and MAC as CP10000. Neither are the seven-bit sets of level
+    1, which the standard keeps only for reading old mail: an answer to
+    one goes out in the eight-bit set that covers it, CP437 for ASCII
+    and CP850 for the national ISO 646 sets.
+      </p>
+      <p>
+    The area that decides is the one the answer is written into, so an
+    answer or a forward into another echo, a carbon copy and a crosspost
+    each follow the setting of the area they land in.
+      </p>
+      <p>
+    This keyword can be used globally and in a Random System group.
+      </p>
+    </div2>
     <div2>
       <head>
         XLATLOCALSET &lt;charsetid&gt;

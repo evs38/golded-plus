@@ -352,6 +352,7 @@ struct AreaData
         viewkludge = false;
         viewquote = false;
         striphtml = false;
+        xlatreplyoriginal = false;
 
         ctrlinfo = 0;
         internetrfcbody = 0;
@@ -473,6 +474,7 @@ struct AreaData
     bool   viewkludge;
     bool   viewquote;
     bool   striphtml;
+    bool   xlatreplyoriginal;
     int    writeheader;
 };
 
@@ -980,6 +982,10 @@ public:
     bool   StripHTML() const
     {
         return adat->striphtml;
+    }
+    bool   Xlatreplyoriginal() const
+    {
+        return adat->xlatreplyoriginal;
     }
     const char*  Searchfor() const
     {

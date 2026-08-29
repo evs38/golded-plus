@@ -1341,6 +1341,9 @@ SwitchX:
     case CRC_XLATIMPORT       :
         CfgXlatimport       ();
         break;
+    case CRC_XLATREPLYORIGINAL:
+        CfgXlatreplyoriginal();
+        break;
     case CRC_XLATAREASET      :
         CfgXlatareaset      ();
         break;

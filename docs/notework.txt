@@ -350,6 +350,41 @@ ______________________________________________________________________
   leaving it, so a charset picked for one letter cannot follow into the
   next echo. Left alone, XLATEXPORT decides as before.
 
+- The CHRS kludge carried the name this program calls a charset by,
+  and always level 2 unless it was UTF-8. Neither is what FTS-5003
+  says. The name is the standard's now - the set known here as
+  ISO-8859-1 goes out as LATIN-1, ISO-8859-2 as LATIN-2, ISO-8859-9 as
+  LATIN-5, ISO-8859-15 as LATIN-9, MACINTOSH as CP10000 - and so is
+  the level: 1 for the seven-bit sets of section 4, 2 for the
+  eight-bit ones, 4 for UTF-8. Picking ISO-8859-1 by hand wrote
+  "CHRS: ISO-8859-1 2", which names nothing the standard lists, and
+  ASCII went out as level 2 where the standard says 1.
+
+  A charset the standard retires is resolved rather than written: a
+  configuration still saying XLATEXPORT IBMPC now writes the codepage
+  that was being used anyway, instead of a label the standard forbids
+  in a new message, and the same for +7_FIDO and MAC.
+
++ XLATREPLYORIGINAL, global or in a Random System group, answers in the
+  charset the message being answered was written in rather than in the
+  one XLATEXPORT names. Only answers - a reply, a quoted reply, a
+  comment and a receipt; a new message still follows XLATEXPORT. The
+  charset comes from the CHRS kludge of the message answered, and a
+  message that declares none is left to XLATEXPORT, there being nothing
+  to follow.
+
+  The area that decides is the one the answer is written into, so an
+  answer or a forward into another echo, a carbon copy and a crosspost
+  each follow the setting of the area they land in. A charset chosen by
+  hand overrides it for the message being written, and the charset menu
+  opens on the charset being answered in.
+
+  The identifiers FTS-5003 retires do not come back this way: answering
+  a message that says IBMPC resolves it as reading does, +7_FIDO is
+  answered as CP866 and MAC as CP10000. The standard forbids all three
+  in a message written today, and answering "in the same charset" must
+  not mean reviving the label.
+
 - A carbon copy went out in the charset of the message it was copied
   from rather than that of the area it lands in. A crosspost always had
   this right - it is written after the area has changed, and asks that

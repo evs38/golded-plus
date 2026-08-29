@@ -285,8 +285,14 @@ static void SetLocalCharset(GMsg* msg)
 {
     LoadCharset(-1);
     msg->charsetlevel = 2;
-    gsprintf(PRINTF_DECLARE_BUFFER(msg->charset), "%s %d", CFG->xlatlocalset,
-             GRecoder::is_utf8(CFG->xlatlocalset) ? 4 : 2);
+    //  The kludge carries the name and level FTS-5003 gives the
+    //  charset, which is not always what this program calls it: the set
+    //  it knows as ISO-8859-1 is LATIN-1 there, and a seven-bit set is
+    //  level 1, not 2.
+    char ftn[64];
+    int  ftnlevel = 2;
+    g_charset_ftn(CFG->xlatlocalset, ftn, sizeof(ftn), &ftnlevel);
+    gsprintf(PRINTF_DECLARE_BUFFER(msg->charset), "%s %d", ftn, ftnlevel);
 }
 
 
@@ -316,8 +322,12 @@ static void SetExportCharset(GMsg* msg)
         }
     }
 
-    gsprintf(PRINTF_DECLARE_BUFFER(msg->charset), "%s %d", exp,
-             GRecoder::is_utf8(exp) ? 4 : 2);
+    //  See SetLocalCharset() above: the kludge is written in the
+    //  standard's spelling, at the standard's level.
+    char ftn[64];
+    int  ftnlevel = 2;
+    g_charset_ftn(exp, ftn, sizeof(ftn), &ftnlevel);
+    gsprintf(PRINTF_DECLARE_BUFFER(msg->charset), "%s %d", ftn, ftnlevel);
 }
 
 
@@ -342,6 +352,95 @@ int ApplyExportCharset(GMsg* msg)
         return LoadCharset(-1);
 
     return LoadCharset(CFG->xlatlocalset, msg->charset);
+}
+
+
+//  ------------------------------------------------------------------
+//  The charset a message declares for itself, and nothing when it
+//  declares none.
+//
+//  Not msg->charset: that holds the area's XLATIMPORT where the message
+//  said nothing at all, and answering "in the charset of the original"
+//  only means something when the original named one. The kludges it may
+//  be named in are what g_charset_kludge() knows - CHRS, CHARSET,
+//  CODEPAGE, X-Charset, I51 - so ask that about every kludge line.
+
+static bool OriginalCharset(GMsg* msg, char* out, size_t size)
+{
+    *out = NUL;
+
+    if((msg == NULL) or (msg->txt == NULL))
+        return false;
+
+    for(const char* p = msg->txt; p and *p; )
+    {
+        if((*p == CTRL_A) and g_charset_kludge(p, out, size))
+            return true;
+
+        p = strchr(p, CR);
+        if(p)
+            p++;
+    }
+
+    return false;
+}
+
+
+//  ------------------------------------------------------------------
+//  The name to answer under, when the message being answered named one
+//  that must not go into a new message.
+//
+//  FTS-5003 section 5 retires three identifiers: IBMPC, which never
+//  said which codepage it meant and is resolved here the same way it is
+//  resolved for reading, so the label matches the bytes; +7_FIDO, which
+//  the standard says to treat as CP866; and MAC, which it says to
+//  replace with CP10000. Answering in the charset of the original must
+//  not mean putting its retired label on a message written today.
+//
+//  Everything else is left as it was written: LATIN-1 and its kind are
+//  the spellings the standard lists, and canonicalising them would put
+//  a name into the kludge that no longer appears in it.
+
+static void ModernCharsetName(const char* value, char* out, size_t size)
+{
+    //  The kludge carries the FTN level after the name - "CP866 2" -
+    //  and the name alone is what a charset is called. Leaving the
+    //  level on put it in the answer twice.
+    XlatName name;
+    size_t n = 0;
+    while(value[n] and (value[n] != ' ') and (value[n] != '\t')
+          and (n < sizeof(name) - 1))
+    {
+        name[n] = value[n];
+        n++;
+    }
+    name[n] = NUL;
+
+    const char* chrs = name;
+
+    if(strieql(chrs, "+7_FIDO"))
+        strxcpy(out, "CP866", size);
+    else if(strieql(chrs, "MAC"))
+        strxcpy(out, "CP10000", size);
+    else if(strieql(chrs, "IBMPC"))
+    {
+        //  A named string, not the expression: Open Watcom faults on
+        //  destroying a temporary one.
+        std::string resolved = GRecoder::canonical(chrs);
+        strxcpy(out, resolved.c_str(), size);
+    }
+    else if(g_charset_is_level1(chrs))
+    {
+        //  The seven-bit sets of level 1 the standard keeps only for
+        //  reading old mail. Answering in one would put a retired,
+        //  seven-bit label on a message written today, so the answer
+        //  goes in the eight-bit set that covers it: CP437 for ASCII,
+        //  and CP850 - DOS Latin 1 - for the national ISO 646 sets,
+        //  which are Western European to a one.
+        strxcpy(out, GRecoder::same(chrs, "US-ASCII") ? "CP437" : "CP850", size);
+    }
+    else
+        strxcpy(out, chrs, size);
 }
 
 
@@ -901,6 +1000,29 @@ void MakeMsg(int mode, GMsg* omsg, bool ignore_replyto)
 
     // Random System
     AA->RandomizeData();
+
+    //  Answering: XLATREPLYORIGINAL asks for the answer to go out in
+    //  the charset the message being answered was written in. The
+    //  area that decides is the one being written into - for an answer
+    //  into another echo that is not the one it is answered from, and
+    //  the caller has already made it current.
+    ClearXlatReplyOriginal();
+    if((mode == MODE_REPLY) or (mode == MODE_QUOTE) or
+       (mode == MODE_REPLYCOMMENT) or (mode == MODE_CONFIRM))
+    {
+        XlatName ochrs;
+        if(AA->Xlatreplyoriginal() and OriginalCharset(omsg, ochrs, sizeof(ochrs)))
+        {
+            XlatName modern;
+            ModernCharsetName(ochrs, modern, sizeof(modern));
+
+            //  A charset picked by hand before this answer began is not
+            //  about this answer. Picking again while writing it still
+            //  wins, being later than this.
+            ResetXlatexport();
+            SetXlatReplyOriginal(modern);
+        }
+    }
 
     // Prepare confirmation receipts
     int confirm = NO;
@@ -1489,6 +1611,8 @@ void MakeMsg(int mode, GMsg* omsg, bool ignore_replyto)
     while(post_xparea.size());
 
     _in_editor = NO;
+
+    ClearXlatReplyOriginal();
 
     // Restore original aka
     AA->SetAka(origaka);

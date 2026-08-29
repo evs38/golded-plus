@@ -250,6 +250,10 @@ void g_charset_kludge_value(GChsKludgeKind kind, const char* value, char* out, s
 //  Both at once: false when the line declares no charset.
 bool g_charset_kludge(const char* line, char* out, size_t size);
 
+//  Undo the '_'-for-space some readers write into a charset name,
+//  leaving the one identifier that is spelled with an underscore.
+void g_charset_fix_underscores(char* name);
+
 //  ISO-8859-n and latin-n, in both directions.
 char* ISO2Latin(char* latin_encoding, const char* iso_encoding);
 char* Latin2ISO(char* iso_encoding, const char* latin_encoding);
@@ -276,6 +280,11 @@ std::string g_local_from_unicode(uint32_t cp);
 //  charset be switched while GoldED is running. These are the ones the
 //  recoder can name; iconv accepts plenty more, and a charset typed
 //  into the config is passed through whether or not it is listed here.
+
+//  The name and level FTS-5003 gives a charset in a CHRS kludge.
+//  Pass NULL for either when only the other is wanted.
+void        g_charset_ftn(const char* name, char* out, size_t size, int* level);
+bool        g_charset_is_level1(const char* name);
 
 size_t      g_charset_count();
 const char* g_charset_name(size_t n);

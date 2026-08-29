@@ -743,12 +743,28 @@ void CfgXlatescset()
 }
 
 //  ------------------------------------------------------------------
+//  Answer in the charset the message being answered was written in,
+//  rather than in the one XLATEXPORT names. Set globally or in a
+//  group, like the two charsets themselves.
+
+void CfgXlatreplyoriginal()
+{
+
+    bool flag = make_bool(GetYesno(val));
+    if(cfgingroup)
+        CFG->grp.AddItm(GRP_XLATREPLYORIGINAL, flag);
+    else
+        CFG->xlatreplyoriginal = flag;
+}
+
+//  ------------------------------------------------------------------
 
 void CfgXlatexport()
 {
 
     XlatName buf;
-    strchg(strupr(strxcpy(buf, val, sizeof(buf))), '_', ' ');
+    strupr(strxcpy(buf, val, sizeof(buf)));
+    g_charset_fix_underscores(buf);
     if(cfgingroup)
         CFG->grp.AddItm(GRP_XLATEXPORT, buf, strlen(buf)+1);
     else
@@ -767,7 +783,8 @@ void CfgXlatimport()
 {
 
     XlatName buf;
-    strchg(strupr(strxcpy(buf, val, sizeof(buf))), '_', ' ');
+    strupr(strxcpy(buf, val, sizeof(buf)));
+    g_charset_fix_underscores(buf);
     if(cfgingroup)
         CFG->grp.AddItm(GRP_XLATIMPORT, buf, strlen(buf)+1);
     else

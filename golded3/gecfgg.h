@@ -455,6 +455,8 @@ public:
     Path        squishuserpath;
     int         statuslinehelp;
     bool        striphtml;
+    //  Answer in the charset of the message being answered.
+    bool        xlatreplyoriginal;
     char        stylecodepunct[41];
     char        stylecodestops[41];
     gstrarray   tagline;

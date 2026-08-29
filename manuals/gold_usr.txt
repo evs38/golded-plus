@@ -570,7 +570,9 @@ in the menu that comes before the editor, and "Change Export Charset" in
 the menu that asks whether to save, all offer the charsets this session
 can convert into, with the cursor on the one in force. Auto in that list
 gives the choice back to XLATEXPORT. What you pick belongs to the area
-you picked it in and is forgotten when you leave it; a reply or a
+you picked it in and is forgotten when you leave it. XLATREPLYORIGINAL
+goes further and answers every message in the charset it was written
+in, without being asked each time; a reply or a
 forward into another area, a carbon copy and a crosspost are all written
 in the charset of the area they land in, whatever you picked here.
 

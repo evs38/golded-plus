@@ -206,6 +206,7 @@ void Area::InitData()
     strcpy(adat->nickname, CFG->nickname);
     strcpy(adat->netname, CFG->netname);
     strcpy(adat->whoto, CFG->whoto);
+    adat->xlatreplyoriginal = CFG->xlatreplyoriginal;
     strcpy(adat->xlatexport, CFG->xlatexport);
     strcpy(adat->xlatimport, CFG->xlatimport);
 
@@ -238,6 +239,7 @@ void Area::InitData()
 
     if(found)
     {
+        CFG->grp.GetItm(GRP_XLATREPLYORIGINAL, adat->xlatreplyoriginal);
         CFG->grp.GetItm(GRP_XLATEXPORT, adat->xlatexport, sizeof(adat->xlatexport));
         CFG->grp.GetItm(GRP_XLATIMPORT, adat->xlatimport, sizeof(adat->xlatimport));
     }

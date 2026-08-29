@@ -1221,6 +1221,14 @@ static Area*    xlatexport_area = NULL;
 static XlatName xlatexport_pick;
 
 
+//  The charset of the message being answered, for as long as an
+//  answer is being written. XLATREPLYORIGINAL turns it into the
+//  charset the answer goes out in - for the area the answer is
+//  written into, which is not always the one it is answered from.
+
+static XlatName xlatreply_orig;
+
+
 Area* XlatexportArea()
 {
     return xlatexport_area;
@@ -1234,6 +1242,20 @@ void ResetXlatexport()
 }
 
 
+void SetXlatReplyOriginal(const char* charset)
+{
+    *xlatreply_orig = NUL;
+    if(charset and *charset)
+        strxcpy(xlatreply_orig, charset, sizeof(XlatName));
+}
+
+
+void ClearXlatReplyOriginal()
+{
+    *xlatreply_orig = NUL;
+}
+
+
 //  What an area's messages are to be written in: what was picked by
 //  hand, if the pick belongs to this area, and what the configuration
 //  says if it does not.
@@ -1243,8 +1265,16 @@ const char* AreaXlatexport(Area* area)
     if(area == NULL)
         return CFG->xlatexport;
 
+    //  A charset chosen by hand wins: it is the latest thing said.
+    //  Starting an answer drops an older pick, so what is left here
+    //  can only have been chosen while writing this one.
     if((area == xlatexport_area) and *xlatexport_pick)
         return xlatexport_pick;
+
+    //  Then the charset of the message being answered, where this
+    //  area asked to answer in it.
+    if(*xlatreply_orig and area->Xlatreplyoriginal())
+        return xlatreply_orig;
 
     return area->Xlatexport();
 }

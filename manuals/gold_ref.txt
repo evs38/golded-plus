@@ -5077,6 +5077,44 @@ Here is the complete keyword list:
     This keyword can be used globally and in a Random System group.
 
 
+XLATREPLYORIGINAL <yes/no>  (no)
+
+    Answer in the charset the message being answered was written in,
+    rather than in the one XLATEXPORT names. Only answers are
+    affected - a reply, a quoted reply, a comment and a receipt; a new
+    message still follows XLATEXPORT.
+
+    The charset is taken from the CHRS kludge of the message being
+    answered, or from the CHARSET, CODEPAGE, X-Charset or I51 line
+    where that is what it carries. A message that declares none is
+    left to XLATEXPORT, there being nothing to follow. The identifiers
+    FTS-5003 retires are not carried into the answer: IBMPC is
+    resolved the way it is resolved for reading, +7_FIDO is answered
+    as CP866 and MAC as CP10000. Neither are the seven-bit sets of
+    level 1 - ASCII, GERMAN, UK, ISO-10 and the rest - which the
+    standard keeps only for reading old mail: an answer to one goes
+    out in the eight-bit set that covers it, CP437 for ASCII and CP850
+    for the national ISO 646 sets. Choosing one by hand still works
+    and still writes its own kludge, at level 1.
+
+    The area that decides is the one the answer is written into. An
+    answer or a forward into another echo, a carbon copy and a
+    crosspost each follow the setting of the area they land in, not of
+    the one they were written from.
+
+    A charset chosen by hand overrides this for the message being
+    written, and the charset menu opens on the charset being answered
+    in.
+
+    This keyword can be used globally and in a Random System group.
+
+        GROUP NETMAIL;
+          MEMBER            NETMAIL
+          XLATEXPORT        CP850
+          XLATREPLYORIGINAL Yes
+        ENDGROUP
+
+
 XLATLOCALSET <charsetid>
 
     Use this keyword to specify the actual physical charset in effect

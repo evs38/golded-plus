@@ -871,6 +871,7 @@ CfgGed::CfgGed()
     squishuserno = 0;
     statuslinehelp = 0;
     striphtml = false;
+    xlatreplyoriginal = false;
     taglineno = 0;
     strcpy(taglinechar, ".");
     taglinesupport = true;

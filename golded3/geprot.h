@@ -238,6 +238,11 @@ const char* AreaXlatexport(Area* area);
 Area* XlatexportArea();
 void  ResetXlatexport();
 
+//  The charset of the message being answered, which XLATREPLYORIGINAL
+//  turns into the charset the answer is written in.
+void  SetXlatReplyOriginal(const char* charset);
+void  ClearXlatReplyOriginal();
+
 
 //  ------------------------------------------------------------------
 //  GEMSGS prototypes

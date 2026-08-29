@@ -1100,6 +1100,90 @@ static const char* known_charsets[] =
 };
 
 
+//  ------------------------------------------------------------------
+//  What FTS-5003 calls a charset, and at what level, when the name goes
+//  into a CHRS kludge.
+//
+//  The names above are the ones a converter answers to; several of them
+//  the standard spells differently, and a kludge has to carry the
+//  standard's spelling or the reader at the other end has nothing to
+//  look up - ISO-8859-1 is LATIN-1 there, and MACINTOSH is CP10000.
+//
+//  The level is the standard's own: 1 for the seven-bit sets of
+//  section 4, 4 for UTF-8, 2 for the eight-bit sets, which is what
+//  anything not named here is.
+
+static const struct
+{
+    const char* name;
+    const char* ftn;
+    int         level;
+}
+ftn_charsets[] =
+{
+    { "US-ASCII",          "ASCII",    1 },
+    { "ISO646-DE",         "GERMAN",   1 },
+    { "ISO646-FR",         "FRENCH",   1 },
+    { "ISO646-IT",         "ITALIAN",  1 },
+    { "ISO646-NO",         "NORWEIG",  1 },
+    { "ISO646-PT",         "PORTU",    1 },
+    { "ISO646-ES",         "SPANISH",  1 },
+    { "ISO646-CA",         "CANADIAN", 1 },
+    { "ISO646-GB",         "UK",       1 },
+    { "ISO646-SE",         "SWEDISH",  1 },
+    { "ISO646-NL",         "DUTCH",    1 },
+    { "ISO646-CH",         "SWISS",    1 },
+    { "ISO-8859-1",        "LATIN-1",  2 },
+    { "ISO-8859-2",        "LATIN-2",  2 },
+    { "ISO-8859-9",        "LATIN-5",  2 },
+    { "ISO-8859-15",       "LATIN-9",  2 },
+    { "MACINTOSH",         "CP10000",  2 },
+    { "MAC-CYRILLIC",      "CP10007",  2 },
+    { "MAC-CENTRALEUROPE", "CP10029",  2 },
+    { "UTF-8",             "UTF-8",    4 },
+};
+
+
+//  The name to write into a CHRS kludge, and the level to write beside
+//  it. Anything the table does not name is an eight-bit set already
+//  spelled the way the standard spells it.
+
+void g_charset_ftn(const char* name, char* out, size_t size, int* level)
+{
+    std::string c = GRecoder::canonical(name);
+
+    for(size_t n = 0; n < ARRAYSIZE(ftn_charsets); n++)
+    {
+        if(c == ftn_charsets[n].name)
+        {
+            if(out)
+                strxcpy(out, ftn_charsets[n].ftn, size);
+            if(level)
+                *level = ftn_charsets[n].level;
+            return;
+        }
+    }
+
+    if(out)
+        strxcpy(out, c.c_str(), size);
+    if(level)
+        *level = 2;
+}
+
+
+//  True of the seven-bit sets of level 1, which the standard keeps only
+//  for reading old mail.
+
+bool g_charset_is_level1(const char* name)
+{
+    int level = 2;
+    g_charset_ftn(name, NULL, 0, &level);
+    return level == 1;
+}
+
+
+//  ------------------------------------------------------------------
+
 size_t g_charset_count()
 {
     return ARRAYSIZE(known_charsets);
@@ -1492,6 +1576,25 @@ GChsKludgeKind g_charset_kludge_tag(const char* line, const char** value)
 }
 
 
+//  ------------------------------------------------------------------
+//  Some mail readers store '_' where a charset name has a space, and
+//  the name has to be repaired before anything recognises it.
+//
+//  Not +7_FIDO: that is the one identifier FTS-5003 spells with an
+//  underscore of its own. Repairing it left "+7", which names no
+//  charset at all - so a message announcing +7_FIDO was read as
+//  nothing in particular, and answering one produced a message in
+//  the session's own charset rather than in CP866.
+
+void g_charset_fix_underscores(char* name)
+{
+    if(name and not strnieql(name, "+7_FIDO", 7))
+        strchg(name, '_', ' ');
+}
+
+
+//  ------------------------------------------------------------------
+
 void g_charset_kludge_value(GChsKludgeKind kind, const char* value, char* out, size_t size)
 {
     if(out == NULL or size == 0)
@@ -1525,7 +1628,7 @@ void g_charset_kludge_value(GChsKludgeKind kind, const char* value, char* out, s
     case GCHS_CODEPAGE:
         //  A bare codepage number; the charset name puts CP in front.
         strxmerge(out, size, "CP", val, NULL);
-        strchg(out, '_', ' ');
+        g_charset_fix_underscores(out);
         break;
 
     case GCHS_XCHARSET:
@@ -1552,8 +1655,7 @@ void g_charset_kludge_value(GChsKludgeKind kind, const char* value, char* out, s
             //  follows it - the CHRS level.
             memmove(out + wlen - 2, out + wlen, strlen(out + wlen) + 1);
         }
-        //  Some mail readers store '_' where the name has a space.
-        strchg(out, '_', ' ');
+        g_charset_fix_underscores(out);
         break;
     }
     }

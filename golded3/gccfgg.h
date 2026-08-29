@@ -414,6 +414,7 @@ const word CRC_XLATCHARSET      = 0xA860;
 const word CRC_XLATCHARSETALIAS = 0x8B19;
 const word CRC_XLATESCSET       = 0x4BA7;
 const word CRC_XLATEXPORT       = 0x29CB;
+const word CRC_XLATREPLYORIGINAL = 0x098C;
 const word CRC_XLATIMPORT       = 0xCE6A;
 const word CRC_XLATLOCALSET     = 0x7180;
 const word CRC_XLATPATH         = 0x7FA1;
