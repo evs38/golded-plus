@@ -519,6 +519,10 @@ void Reader()
                             ChangeXlatImport();
                             break;
 
+                        case KK_ReadChangeXlatExport:
+                            ChangeXlatExport();
+                            break;
+
                         case KK_ReadLookupDest:
                             LookupNode(msg, "", LOOK_DEST);
                             reader_keyok = true;

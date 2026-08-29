@@ -166,6 +166,7 @@ struct LangGed
     char*  ExternalEd;         // MI_EXTERNALED
     char*  SaveNoEdit;         // MI_SAVEMESSAGE
     char*  AttrO;              // MI_ATTRO
+    char*  XlatExport;         // MI_XLATEXPORT
     char*  Template;           // MI_TEMPLATE
     char*  Origin;             // MI_ORIGIN
     char*  QuitMessage;        // MI_QUITMESSAGE
@@ -402,6 +403,8 @@ struct LangGed
     char*  NoTagline;          // IL_NOTAGLINE
     char*  Charsets;           // WT_CHARSETS
     char*  ChangeXlatImp;      // ST_CHANGEXLATIMP
+    char*  ChangeXlatExp;      // ST_CHANGEXLATEXP
+    char*  XlatExportS;        // MI_XLATEXPORTS
     char*  CharsetAuto;        // MI_CHARSETAUTO
     char*  NoXlatImport;       // IL_NOXLATIMPORT
     char*  n_a;                // WT_N_A

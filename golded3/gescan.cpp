@@ -161,6 +161,13 @@ void Area::ScanAreaPM()
 int AreaList::SetActiveAreaNo(int __areano)
 {
 
+    //  An export charset picked by hand belongs to the area it was
+    //  picked in. Going anywhere else drops it, so it cannot follow
+    //  into the next echo - nor into a crosspost, which is written
+    //  after this has run for the area it lands in.
+    if(idx[__areano] != XlatexportArea())
+        ResetXlatexport();
+
     AA = idx[__areano];
     CurrArea = AA->areaid();
     CFG->originno = AA->originno();

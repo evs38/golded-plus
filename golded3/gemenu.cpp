@@ -1006,12 +1006,15 @@ int ChangeAka()
 //  ------------------------------------------------------------------
 
 //  ------------------------------------------------------------------
-//  Build the charset list for the "change charset" menu out of what the
-//  recoder can do, for the case where no .chs tables are configured -
-//  which is the normal state of affairs once iconv is doing the work.
+//  Build the charset list for the "change charset" menus out of what
+//  the recoder can do, for the case where no .chs tables are configured
+//  - which is the normal state of affairs once iconv is doing the work.
 //
 //  The entries have the same shape as the table-derived ones, because
-//  the caller picks the source charset back out with tokenize().
+//  the caller picks the charset back out with tokenize(): the name it
+//  wants is the first word of the line either way. Reading, that is the
+//  charset a message is in; writing, the one it is to be written in -
+//  so the list runs the other way round and the name stays in front.
 
 //  Whether a charset is worth putting in the menu at all.
 //
@@ -1021,20 +1024,22 @@ int ChangeAka()
 //  charset the session cannot convert would give the user an entry that
 //  quietly does nothing, so each one is tried before it is listed.
 
-static bool XlatOffered(const char* name)
+static bool XlatOffered(const char* name, bool importing)
 {
     //  The session's own charset belongs in the list like any other,
-    //  even though converting it to itself does nothing: picking it is
-    //  how the reader says "this message is in my charset, leave the
-    //  bytes alone". Without it there is no way back from a charset
-    //  chosen by hand - Auto returns to what the message's own CHRS
-    //  says, which is the very thing being overridden.
+    //  even though converting it to itself does nothing. Reading, it is
+    //  how one says "this message is in my charset, leave the bytes
+    //  alone" - and without it there is no way back from a charset
+    //  chosen by hand, since Auto returns to what the message's own
+    //  CHRS says, the very thing being overridden. Writing, it is how
+    //  one says "send it as it stands".
     GRecoder probe;
-    return probe.open(name, CFG->xlatlocalset);
+    return importing ? probe.open(name, CFG->xlatlocalset)
+                     : probe.open(CFG->xlatlocalset, name);
 }
 
 
-static void BuiltinXlatList(gstrarray& list)
+static void BuiltinXlatList(gstrarray& list, bool importing)
 {
     char buf[100];
 
@@ -1043,18 +1048,22 @@ static void BuiltinXlatList(gstrarray& list)
                                 // for-scoped variable outlive its loop
     for (n = 0; n < g_charset_count(); n++)
     {
-        if (XlatOffered(g_charset_name(n)))
+        if (XlatOffered(g_charset_name(n), importing))
             width = MaxV(width, strlen(g_charset_name(n)));
     }
 
     for (n = 0; n < g_charset_count(); n++)
     {
         const char* name = g_charset_name(n);
-        if (not XlatOffered(name))
+        if (not XlatOffered(name, importing))
             continue;
 
-        gsprintf(PRINTF_DECLARE_BUFFER(buf), " %*s -> %s ",
-                 (int)width, name, CFG->xlatlocalset);
+        if (importing)
+            gsprintf(PRINTF_DECLARE_BUFFER(buf), " %*s -> %s ",
+                     (int)width, name, CFG->xlatlocalset);
+        else
+            gsprintf(PRINTF_DECLARE_BUFFER(buf), " %*s <- %s ",
+                     (int)width, name, CFG->xlatlocalset);
         list.push_back(buf);
     }
 }
@@ -1070,7 +1079,7 @@ int ChangeXlatImport()
         //  of telling the user there is nothing to choose from.
         gstrarray Listi;
         Listi.push_back(LNG->CharsetAuto);
-        BuiltinXlatList(Listi);
+        BuiltinXlatList(Listi, true);
 
         size_t startat = 0;
         size_t n;               // see BuiltinXlatList() above
@@ -1194,6 +1203,163 @@ int ChangeXlatImport()
     }
     //  (The no-tables answer now lives in the picker above, built from
     //  the recoder's own list; the old message became unreachable.)
+
+    return true;
+}
+
+
+//  ------------------------------------------------------------------
+//  The export charset chosen by hand, and the area it was chosen in.
+//
+//  It belongs to the echo in front of the reader, not to the session.
+//  SetActiveAreaNo() drops it on the way out, so a charset picked for
+//  one letter does not silently follow into the next echo - and a
+//  crosspost, which is written after the area has changed, takes the
+//  charset of the area it lands in for the same reason.
+
+static Area*    xlatexport_area = NULL;
+static XlatName xlatexport_pick;
+
+
+Area* XlatexportArea()
+{
+    return xlatexport_area;
+}
+
+
+void ResetXlatexport()
+{
+    xlatexport_area = NULL;
+    *xlatexport_pick = NUL;
+}
+
+
+//  What an area's messages are to be written in: what was picked by
+//  hand, if the pick belongs to this area, and what the configuration
+//  says if it does not.
+
+const char* AreaXlatexport(Area* area)
+{
+    if(area == NULL)
+        return CFG->xlatexport;
+
+    if((area == xlatexport_area) and *xlatexport_pick)
+        return xlatexport_pick;
+
+    return area->Xlatexport();
+}
+
+
+//  ------------------------------------------------------------------
+//  The charset the next message written here goes out in.
+//
+//  The mirror of ChangeXlatImport() above, and it shares the list -
+//  the same charsets, tried the other way round. Auto means the same
+//  thing at this end as it does at that one: stop overriding and let
+//  the configuration decide, which here is XLATEXPORT. It sits first
+//  and is never tokenized.
+//
+//  The cursor starts on the charset actually in force - the one picked
+//  by hand where there is one, and the one XLATEXPORT resolves to
+//  where there is not - never on Auto itself. What the message will be
+//  written in is a charset either way, and that is what the reader
+//  came to see.
+
+int ChangeXlatExport()
+{
+    gstrarray Listi;
+    char      buf[100];
+
+    Listi.push_back(LNG->CharsetAuto);
+
+    if (CFG->xlatcharsets.empty())
+    {
+        BuiltinXlatList(Listi, false);
+    }
+    else
+    {
+        //  Tables: those that start from the charset the session runs
+        //  in, since that is what the text is held in on its way out.
+        int maxexp = (int)strlen(CFG->xlatlocalset);
+        int maxloc = maxexp;
+
+        ChrsMap::iterator xlt = CFG->xlatcharsets.begin();
+        ChrsMap::iterator end = CFG->xlatcharsets.end();
+
+        for (; xlt != end; ++xlt)
+        {
+            if (strieql((*xlt).first.first.c_str(), CFG->xlatlocalset))
+            {
+                maxexp = MaxV(maxexp, (int)(*xlt).first.second.size());
+                maxloc = MaxV(maxloc, (int)(*xlt).first.first.size());
+            }
+        }
+
+        //  Writing in the session's own charset needs no table at all -
+        //  the text is already in it - so that entry is always there.
+        gsprintf(PRINTF_DECLARE_BUFFER(buf), " %*.*s <- %-*.*s ",
+                 maxexp, maxexp, CFG->xlatlocalset,
+                 maxloc, maxloc, CFG->xlatlocalset);
+        Listi.push_back(buf);
+
+        for (xlt = CFG->xlatcharsets.begin(); xlt != end; ++xlt)
+        {
+            if (strieql((*xlt).first.first.c_str(), CFG->xlatlocalset)
+                and not strieql((*xlt).first.second.c_str(), CFG->xlatlocalset))
+            {
+                gsprintf(PRINTF_DECLARE_BUFFER(buf), " %*.*s <- %-*.*s ",
+                         maxexp, maxexp, (*xlt).first.second.c_str(),
+                         maxloc, maxloc, (*xlt).first.first.c_str());
+                Listi.push_back(buf);
+            }
+        }
+    }
+
+    if (Listi.size() < 2)
+        return false;           // nothing but Auto: nothing to choose
+
+    const char* current = AreaXlatexport(AA);
+    if ((current == NULL) or (*current == NUL))
+        current = CFG->xlatlocalset;
+
+    size_t startat = 0;
+    size_t n;                   // one declaration: Visual C++ 6.0 lets
+                                // a for-scoped variable outlive its loop
+    for (n = 1; n < Listi.size(); n++)
+    {
+        gstrarray parts;
+        tokenize(parts, Listi[n].c_str());
+        if (not parts.empty() and GRecoder::same(parts[0].c_str(), current))
+        {
+            startat = n;
+            break;
+        }
+    }
+
+    n = MinV(Listi.size(), (size_t)(MAXROW-10));
+    set_title(LNG->Charsets, TCENTER, C_ASKT);
+    update_statusline(LNG->ChangeXlatExp);
+    whelppcat(H_ChangeXlatExport);
+    n = wpickstr(6, 0, 6+n+1, -1, W_BASK, C_ASKB, C_ASKW, C_ASKS, Listi, startat, title_shadow);
+    whelpop();
+
+    if (n == (size_t)-1)
+        return false;
+
+    if (n == 0)
+    {
+        //  Auto: back to what XLATEXPORT says for this area.
+        ResetXlatexport();
+        return true;
+    }
+
+    gstrarray xlat;
+    tokenize(xlat, Listi[n].c_str());
+    if (xlat.empty())
+        return false;
+
+    xlatexport_area = AA;
+    strxcpy(xlatexport_pick, xlat[0].c_str(), sizeof(XlatName));
 
     return true;
 }

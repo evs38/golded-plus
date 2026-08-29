@@ -333,6 +333,30 @@ ______________________________________________________________________
   its list from the recoder these days, and this was the only way to
   reach it while importing.
 
++ The charset a message is written in can be changed as it is written,
+  the way a tagline or an origin can. Ctrl-Y in the reader - the keyboard
+  command is READCHANGEXLATEXPORT - "Export Charsets" in the menu that
+  comes before the editor, and "Change Export Charset" in the menu that
+  asks whether to save, both between Change
+  Attributes and Change Tagline. The list is the one Ctrl-J offers,
+  read the other way round - the charsets this session can convert the
+  text into - and Auto means at this end what it means at that one:
+  give the choice back to the configuration. The cursor starts on the
+  charset in force, whether that came from a choice made by hand or
+  from XLATEXPORT, and never on Auto: what the message will go out in
+  is a charset either way, and that is what one opens the menu to see.
+
+  The choice belongs to the area it was made in and is forgotten on
+  leaving it, so a charset picked for one letter cannot follow into the
+  next echo. Left alone, XLATEXPORT decides as before.
+
+- A carbon copy went out in the charset of the message it was copied
+  from rather than that of the area it lands in. A crosspost always had
+  this right - it is written after the area has changed, and asks that
+  area - and a carbon copy now does the same. A charset chosen by hand
+  reaches neither of them for the same reason: it belongs to the area
+  it was chosen in.
+
 - The charset menu had no way back. The session's own charset was left
   out of it, on the grounds that reading it as itself converts nothing
   - but that entry is how the reader says "this message is in my

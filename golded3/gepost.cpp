@@ -294,7 +294,7 @@ static void SetLocalCharset(GMsg* msg)
 
 static void SetExportCharset(GMsg* msg)
 {
-    const char* exp = AA->Xlatexport();
+    const char* exp = AreaXlatexport(AA);
 
     if((exp == NULL) or (*exp == NUL) or strieql(exp, CFG->xlatlocalset))
     {
@@ -542,6 +542,11 @@ static void MakeMsg3(int& mode, GMsg* msg)
                 else
                     break;
 
+            //  A carbon copy is written in the charset of the area it
+            //  goes to - the one AA points at here - and not the one
+            //  carried over from the message it was copied from.
+            //  Before DoKludges(), which puts it in the CHRS line.
+            SetExportCharset(cmsg);
             DoKludges(mode, cmsg);
 
             if(have_origin(cmsg))

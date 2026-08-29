@@ -301,6 +301,7 @@ F2          READchangemsg
 ^T          READchangetemplate
 ^U          READchangeusername
 ^J          READchangexlatimport
+^Y          READchangexlatexport
 @G          READcommentmsg
 G           READcommentmsg
 #F8         READcopymoveforward

@@ -227,6 +227,16 @@ int ChangeOrigin();
 int ChangeTemplate();
 int ChangeUsername();
 int ChangeXlatImport();
+int ChangeXlatExport();
+
+//  The export charset an area's messages are written in: what was
+//  picked by hand in that area, and what the configuration says
+//  everywhere else. ResetXlatexport() forgets the pick, which is what
+//  leaving the area does.
+class Area;
+const char* AreaXlatexport(Area* area);
+Area* XlatexportArea();
+void  ResetXlatexport();
 
 
 //  ------------------------------------------------------------------

@@ -520,6 +520,7 @@ int GMenuEditfile::Run(GMsg* __msg)
         TAG_CONTINUE,
         TAG_ROT13,
         TAG_ATTRS,
+        TAG_XLATEXPORT,
         TAG_TAGLINE,
         TAG_ORIGIN,
         TAG_VIEW,
@@ -546,6 +547,7 @@ int GMenuEditfile::Run(GMsg* __msg)
         Item(TAG_CONTINUE, LNG->Continue);
         Item(TAG_ROT13,    LNG->Rot13,    M_CLOSE);
         Item(TAG_ATTRS,    LNG->AttribS,  _ask_attributes, 0);
+        Item(TAG_XLATEXPORT, LNG->XlatExportS);
         if(not CFG->tagline.empty())
             Item(TAG_TAGLINE,  LNG->TaglineS);
         Item(TAG_ORIGIN,   LNG->OriginS);
@@ -582,6 +584,13 @@ int GMenuEditfile::Run(GMsg* __msg)
             Rot13(__msg);
             BodyView->Use(AA, __msg, _topline);
             BodyView->Paint();
+            break;
+
+        //  Nothing on screen changes: the charset is read again when
+        //  the message is written, so there is no line to repaint,
+        //  unlike a tagline or an origin.
+        case TAG_XLATEXPORT:
+            ChangeXlatExport();
             break;
 
         case TAG_TAGLINE:
@@ -975,6 +984,7 @@ int GMenuEditHeader::Run(int mode, GMsg* msg)
         TAG_EXTERNAL,
         TAG_SAVE,
         TAG_ATTRS,
+        TAG_XLATEXPORT,
         TAG_TEMPLATE,
         TAG_TAGLINE,
         TAG_ORIGIN,
@@ -1039,6 +1049,7 @@ int GMenuEditHeader::Run(int mode, GMsg* msg)
                     Item(TAG_EXTERNAL, LNG->ExternalEd);
                 Item(TAG_SAVE,     LNG->SaveNoEdit);
                 Item(TAG_ATTRS,    LNG->AttrO);
+                Item(TAG_XLATEXPORT, LNG->XlatExport);
                 Item(TAG_TEMPLATE, LNG->Template);
                 if(not CFG->tagline.empty())
                     Item(TAG_TAGLINE,  LNG->Tagline);
@@ -1089,6 +1100,10 @@ int GMenuEditHeader::Run(int mode, GMsg* msg)
                         }
                         strxcpy(msg->tagline, AA->Tagline(), sizeof(msg->tagline));
                     }
+                    _again = true;
+                    break;
+                case TAG_XLATEXPORT:
+                    ChangeXlatExport();
                     _again = true;
                     break;
                 case TAG_TEMPLATE:

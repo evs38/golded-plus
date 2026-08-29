@@ -286,6 +286,7 @@ const gkey KK_ReadChangeTagline    = 0xFF58;
 const gkey KK_ReadChangeTemplate   = 0xFF59;
 const gkey KK_ReadChangeUsername   = 0xFF5A;
 const gkey KK_ReadChangeXlatImport = 0xFF5B;
+const gkey KK_ReadChangeXlatExport = 0xFF54;
 const gkey KK_ReadCommentMsg       = 0xFF5C;
 const gkey KK_ReadCopyMoveForward  = 0xFF5D;
 const gkey KK_ReadDecreaseMargin   = 0xFF5E;

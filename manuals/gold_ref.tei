@@ -16158,6 +16158,8 @@ READchangeorigin        Change default origin for the current area.
 READchangetagline       Change default tagline.
 READchangetemplate      Change default template.
 READchangeusername      Change default username.
+READchangexlatexport    Change the charset the next message written
+                        in this area is sent in.
 READchangexlatimport    Change default import charset.
 READcommentmsg          Comment-Reply to message. (Reply to TO name).
 READcopymoveforward     Enter the Copy/Move/Forward function menu.

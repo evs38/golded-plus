@@ -564,6 +564,16 @@ GoldED will put a kludge "^aCHRS LATIN-1 2" or "^aCHARSET LATIN-1 2"
 into your messages so that other mail readers can translate to their
 native character set if necessary.
 
+XLATEXPORT sets the charset an area's messages are written in, but it
+need not be the last word on it. Ctrl-Y in the reader, "Export Charsets"
+in the menu that comes before the editor, and "Change Export Charset" in
+the menu that asks whether to save, all offer the charsets this session
+can convert into, with the cursor on the one in force. Auto in that list
+gives the choice back to XLATEXPORT. What you pick belongs to the area
+you picked it in and is forgotten when you leave it; a reply or a
+forward into another area, a carbon copy and a crosspost are all written
+in the charset of the area they land in, whatever you picked here.
+
 That's it.
 
 #page

@@ -208,6 +208,7 @@ CmdKey DefaultKeyset[] =
     { Key_C_T, KK_ReadChangeTemplate, KT_R },
     { Key_C_U, KK_ReadChangeUsername, KT_R },
     { Key_C_J, KK_ReadChangeXlatImport, KT_R },
+    { Key_C_Y, KK_ReadChangeXlatExport, KT_R },
     { Key_G, KK_ReadCommentMsg, KT_R },
     { Key_A_G, KK_ReadCommentMsg, KT_R },
     { Key_M, KK_ReadCopyMoveForward, KT_R },
@@ -418,6 +419,7 @@ tglobalkey globalkeys[] =
     { CRC_K_AF11, Key_A_F11,    0 },                                 // 0x14FF
     { CRC_LISTGOTONEXT, KK_ListGotoNext, KT_M },                     // 0x1641
     { CRC_K_LEFT, Key_Lft,    0 },                                   // 0x1694
+    { CRC_READCHANGEXLATEXPORT, KK_ReadChangeXlatExport, KT_R },     // 0x16C8
     { CRC_READREPLYMSG, KK_ReadReplyMsg, KT_R },                     // 0x172F
     { CRC_AREAGOTOLAST, KK_AreaGotoLast, KT_A },                     // 0x177A
     { CRC_READINCREASEMARGIN, KK_ReadIncreaseMargin, KT_R },         // 0x1797

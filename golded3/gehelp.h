@@ -44,6 +44,7 @@
 #define H_ChangeUsername    1008
 #define H_ChangeTagline     1009
 #define H_ChangeXlatImport  1010
+#define H_ChangeXlatExport  1011
 
 
 //  ------------------------------------------------------------------
