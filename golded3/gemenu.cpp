@@ -1013,6 +1013,27 @@ int ChangeAka()
 //  The entries have the same shape as the table-derived ones, because
 //  the caller picks the source charset back out with tokenize().
 
+//  Whether a charset is worth putting in the menu at all.
+//
+//  Naming one is not the same as being able to convert it: iconv, the
+//  Win32 codepage API and OS/2's ULS each know a different set, and a
+//  build with none of them has only the compiled-in tables. Offering a
+//  charset the session cannot convert would give the user an entry that
+//  quietly does nothing, so each one is tried before it is listed.
+
+static bool XlatOffered(const char* name)
+{
+    //  The session's own charset belongs in the list like any other,
+    //  even though converting it to itself does nothing: picking it is
+    //  how the reader says "this message is in my charset, leave the
+    //  bytes alone". Without it there is no way back from a charset
+    //  chosen by hand - Auto returns to what the message's own CHRS
+    //  says, which is the very thing being overridden.
+    GRecoder probe;
+    return probe.open(name, CFG->xlatlocalset);
+}
+
+
 static void BuiltinXlatList(gstrarray& list)
 {
     char buf[100];
@@ -1021,13 +1042,16 @@ static void BuiltinXlatList(gstrarray& list)
     size_t n;                   // one declaration: Visual C++ 6.0 lets a
                                 // for-scoped variable outlive its loop
     for (n = 0; n < g_charset_count(); n++)
-        width = MaxV(width, strlen(g_charset_name(n)));
+    {
+        if (XlatOffered(g_charset_name(n)))
+            width = MaxV(width, strlen(g_charset_name(n)));
+    }
 
     for (n = 0; n < g_charset_count(); n++)
     {
         const char* name = g_charset_name(n);
-        if (strieql(name, CFG->xlatlocalset))
-            continue;               // converting to itself says nothing
+        if (not XlatOffered(name))
+            continue;
 
         gsprintf(PRINTF_DECLARE_BUFFER(buf), " %*s -> %s ",
                  (int)width, name, CFG->xlatlocalset);
@@ -1109,6 +1133,23 @@ int ChangeXlatImport()
             }
         }
 
+        //  Is one of the tables the session's own charset read as
+        //  itself? If not, the entry is added at the end: see
+        //  XlatOffered() above for why the list needs it. The widths
+        //  have to allow for the name, since the format truncates.
+        bool haslocal = false;
+        for (xlt = CFG->xlatcharsets.begin(); xlt != end; ++xlt)
+        {
+            if (strieql((*xlt).first.first.c_str(), CFG->xlatlocalset)
+                and strieql((*xlt).first.second.c_str(), CFG->xlatlocalset))
+                haslocal = true;
+        }
+        if (not haslocal)
+        {
+            maximport = MaxV(maximport, (int)strlen(CFG->xlatlocalset));
+            maxexport = MaxV(maxexport, (int)strlen(CFG->xlatlocalset));
+        }
+
         Listi.push_back(LNG->CharsetAuto);
 
         for (xlt = CFG->xlatcharsets.begin(); xlt != end; ++xlt)
@@ -1119,6 +1160,15 @@ int ChangeXlatImport()
                          maximport, maximport, (*xlt).first.first.c_str(), maxexport, maxexport, (*xlt).first.second.c_str());
                 Listi.push_back(buf);
             }
+        }
+
+        if (not haslocal)
+        {
+            gsprintf(PRINTF_DECLARE_BUFFER(buf), " %*.*s -> %-*.*s ",
+                     maximport, maximport, CFG->xlatlocalset, maxexport, maxexport, CFG->xlatlocalset);
+            Listi.push_back(buf);
+            if (CFG->ignorecharset and strieql(AA->Xlatimport(), CFG->xlatlocalset))
+                startat = Listi.size() - 1;
         }
 
         size_t n = MinV(Listi.size(), (MAXROW-10));

@@ -319,6 +319,40 @@ ______________________________________________________________________
   alone. A charset typed into the configuration still reaches the
   converter whether or not it is one of the names listed there.
 
+  The names offered are every eight-bit and multi-byte charset that
+  FTS-5003.001 lists, plus KOI8-R and KOI8-U, which the standard does
+  not name but which mail gated from the newsgroups arrives in. Each is
+  tried before it is offered: what iconv, the Win32 codepage API and
+  OS/2's ULS know differs from one system to the next, and an entry
+  that would quietly do nothing is left out rather than listed.
+
+- "Use Charset.." was missing from the import-text menu on any
+  configuration without .chs tables, which is the usual one now. The
+  item is as old as the tables and hiding it was once right, since the
+  picker it opens had nothing to offer without them; the picker builds
+  its list from the recoder these days, and this was the only way to
+  reach it while importing.
+
+- The charset menu had no way back. The session's own charset was left
+  out of it, on the grounds that reading it as itself converts nothing
+  - but that entry is how the reader says "this message is in my
+  charset, leave the bytes alone". Having picked KOI8-R by hand on a
+  CP866 screen there was no CP866 to pick afterwards, and Auto is no
+  help: it returns to what the message's CHRS declares, which is the
+  very thing being overridden. The charset is now listed like any
+  other, and a table-driven configuration that has no such table of its
+  own gets the entry added to the menu just the same.
+
++ Every character set identifier FTS-5003.001 names is now recognised
+  in a CHRS kludge, including the ones spelled another way internally:
+  +7_FIDO as CP866, which the standard requires outright, CP848 as the
+  Ukrainian CP1125, CP10000 and CP10007 as the Macintosh sets, and the
+  seven-bit national sets of level 1 - GERMAN, FRENCH, SWEDISH and the
+  rest - as their ISO 646 names. The standard keeps level 1 only for
+  backward compatibility and no converter carries all of it; where one
+  is missing the text passes through as it did before, an ISO 646 set
+  differing from ASCII in about a dozen positions.
+
 ! With no XLATLOCALSET in the configuration, the local charset is now
   taken from the system rather than assumed: GetConsoleOutputCP() on
   Windows, DosQueryCp() on OS/2, the country information on DOS, and

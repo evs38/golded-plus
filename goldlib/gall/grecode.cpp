@@ -160,6 +160,38 @@ charset_aliases[] =
     { "UTF8",       "UTF-8"        },
     { "CP65001",    "UTF-8"        },
     { "65001",      "UTF-8"        },
+    //  The identifiers FTS-5003.001 lists that are spelled some other
+    //  way above, so a CHRS kludge naming any of them is understood.
+    //  The standard requires the first of these outright; the Macintosh
+    //  ones are the codepage numbers section 5 points at in place of the
+    //  bare "MAC".
+    { "+7_FIDO",    "CP866"        },
+    { "CP848",      "CP1125"       },  //  IBM's Ukrainian DOS codepage,
+    { "848",        "CP1125"       },  //  the same repertoire as CP1125
+    { "CP10000",    "MACINTOSH"    },
+    { "10000",      "MACINTOSH"    },
+    { "CP10007",    "MAC-CYRILLIC" },
+    { "CP10029",    "MAC-CENTRALEUROPE" },
+    //  The seven-bit national sets of level 1. The standard keeps them
+    //  only for backward compatibility, and no converter has all of
+    //  them - glibc knows these spellings, GNU libiconv knows none of
+    //  them. Where one is missing the recoder finds nothing and the
+    //  bytes pass through, which is what happened before these names
+    //  were listed at all: an ISO 646 set differs from ASCII in about
+    //  a dozen positions and is readable either way.
+    { "GERMAN",     "ISO646-DE"    },
+    { "FRENCH",     "ISO646-FR"    },
+    { "ITALIAN",    "ISO646-IT"    },
+    { "NORWEIG",    "ISO646-NO"    },
+    { "PORTU",      "ISO646-PT"    },
+    { "SPANISH",    "ISO646-ES"    },
+    { "CANADIAN",   "ISO646-CA"    },
+    { "UK",         "ISO646-GB"    },
+    { "SWEDISH",    "ISO646-SE"    },
+    { "FINNISH",    "ISO646-SE"    },  //  one set, two names, plus the
+    { "ISO-10",     "ISO646-SE"    },  //  deprecated alias for it
+    { "DUTCH",      "ISO646-NL"    },  //  named for completeness: no
+    { "SWISS",      "ISO646-CH"    },  //  converter ships either one
     //  ASCII-only charsets. Anything outside ASCII gets substituted,
     //  which is exactly what the old asc_* tables did.
     { "ASCII",      "US-ASCII"     },
@@ -272,6 +304,7 @@ static unsigned win_codepage(const std::string& name)
         { "ISO-8859-15",  28605 },
         { "MACINTOSH",    10000 },
         { "MAC-CYRILLIC", 10007 },
+        { "MAC-CENTRALEUROPE", 10029 },
     };
 
     for(size_t n = 0; n < ARRAYSIZE(known); n++)
@@ -503,6 +536,34 @@ void GRecoder::close()
 }
 
 
+//  ------------------------------------------------------------------
+//  The other way an iconv spells a charset name.
+//
+//  The Macintosh sets are where the two implementations disagree in
+//  writing: glibc says MAC-CYRILLIC and MAC-CENTRALEUROPE, GNU libiconv
+//  says MACCYRILLIC and MACCENTRALEUROPE, and neither answers to the
+//  other's spelling. The names in this file carry the hyphen, so the
+//  one without it is what to ask for next. Empty when there is no
+//  second spelling to try.
+//
+//  Without this a Macintosh Cyrillic message converted through the
+//  built-in table where a table happened to exist, and not at all where
+//  none did - CP10029 among them.
+
+static std::string iconv_alt_spelling(const std::string& name)
+{
+    //  Not compare(pos, len, const char*): Open Watcom's basic_string
+    //  has no such overload.
+    if((name.length() > 4) and (strncmp(name.c_str(), "MAC-", 4) == 0))
+    {
+        std::string alt("MAC");
+        alt += name.substr(4);
+        return alt;
+    }
+    return std::string();
+}
+
+
 bool GRecoder::open(const char* from, const char* to)
 {
     close();
@@ -524,10 +585,32 @@ bool GRecoder::open(const char* from, const char* to)
     //  a Cyrillic quote becoming a plain one beats the whole line being
     //  refused. Not every implementation supports the suffix, so fall
     //  back to the bare name.
-    std::string tospec = __to + "//TRANSLIT";
-    iconv_t cd = iconv_open(tospec.c_str(), __from.c_str());
-    if(cd == (iconv_t)(-1))
-        cd = iconv_open(__to.c_str(), __from.c_str());
+    //
+    //  Each name is tried in its other spelling as well, so a charset
+    //  this iconv does know is not passed over for the way it is
+    //  written here: see iconv_alt_spelling() above.
+    const std::string from_alt = iconv_alt_spelling(__from);
+    const std::string to_alt   = iconv_alt_spelling(__to);
+
+    iconv_t cd = (iconv_t)(-1);
+    for(int attempt = 0; (cd == (iconv_t)(-1)) and (attempt < 4); attempt++)
+    {
+        //  Pointers, not references: a conditional between two strings
+        //  is one more thing for an old compiler to get wrong.
+        const std::string* f = (attempt & 1) ? &from_alt : &__from;
+        const std::string* c = (attempt & 2) ? &to_alt   : &__to;
+        if(f->empty() or c->empty())
+            continue;           // no second spelling for that side
+
+        //  A named string, not the expression: Open Watcom faults on
+        //  destroying a temporary one.
+        std::string tospec = *c;
+        tospec += "//TRANSLIT";
+        cd = iconv_open(tospec.c_str(), f->c_str());
+        if(cd == (iconv_t)(-1))
+            cd = iconv_open(c->c_str(), f->c_str());
+    }
+
     if(cd != (iconv_t)(-1))
     {
         __cd = (void*)cd;
@@ -977,8 +1060,19 @@ GRecoder& g_from_local(const char* to)
 //  ------------------------------------------------------------------
 //  The charsets we can name.
 //
-//  Taken from the alias table, with the duplicates that the aliases
-//  necessarily produce collapsed, so the menu lists each charset once.
+//  Every eight-bit and multi-byte set FTS-5003.001 section 4 lists,
+//  under the spelling the rest of this file uses - LATIN-1 is here as
+//  ISO-8859-1, CP10000 as MACINTOSH, CP848 as CP1125 - so each set
+//  appears once however many identifiers the standard gives it. The
+//  aliases above take care of the other spellings when one turns up in
+//  a CHRS kludge.
+//
+//  KOI8-R and KOI8-U are not in the standard at all. They are here
+//  because mail gated from the newsgroups has always arrived in them.
+//
+//  Naming a charset is not the same as being able to convert it: what
+//  iconv, the Win32 codepage API and OS/2's ULS each know differs, so
+//  the menu that shows this list probes every entry before offering it.
 
 static const char* known_charsets[] =
 {
@@ -988,6 +1082,7 @@ static const char* known_charsets[] =
     "KOI8-R",
     "KOI8-U",
     "CP1125",
+    "CP855",
     "ISO-8859-5",
     "MAC-CYRILLIC",
     "CP437",
@@ -998,6 +1093,7 @@ static const char* known_charsets[] =
     "CP1252",
     "ISO-8859-1",
     "ISO-8859-2",
+    "ISO-8859-9",
     "ISO-8859-15",
     "MACINTOSH",
     "US-ASCII",

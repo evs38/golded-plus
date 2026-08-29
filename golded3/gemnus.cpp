@@ -441,8 +441,12 @@ int GMenuImportTxt::Run()
     Item(TAG_BINMIME, LNG->ImportTxtMime);
     Item(TAG_CLIPBRD, LNG->ImportTxtClip);
 
-    if(not CFG->xlatcharsets.empty())
-        Item(TAG_XLAT, LNG->ImportTxtXlat, 0, do_changexlatimport);
+    //  Unconditionally: the charset picker used to have nothing to
+    //  show without .chs tables, so hiding the item that opens it was
+    //  right. It builds its list from the recoder now, which is the
+    //  usual case - the item was the only way to reach it from here,
+    //  and it stayed hidden on every configuration that had no tables.
+    Item(TAG_XLAT, LNG->ImportTxtXlat, 0, do_changexlatimport);
 
     Item(TAG_QUIT, LNG->ImportTxtQuit);
     End();
