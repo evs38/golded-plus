@@ -366,6 +366,15 @@ ______________________________________________________________________
   as a node of its own. The nodelist in the tree compiles to a
   byte-identical index.
 
+- The charset menus named charsets the way this program does rather
+  than the way a CHRS kludge does, so the list offered ISO-8859-1 and
+  US-ASCII where the kludge that would come out of the choice says
+  LATIN-1 and ASCII. The names shown are the standard's now, and so is
+  the charset the session runs in on the other side of the arrow. The
+  word the picked line puts into XLATIMPORT is the same one, which the
+  recoder resolves as it always did, and the cursor finds the charset
+  in force by what it means rather than by how it is spelled.
+
 - Opening a message threw std::length_error and killed the program on
   any screen narrower than the header's own columns. The date column
   sits at a position resolved against MAXCOL once at startup; a window

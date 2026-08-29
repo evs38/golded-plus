@@ -1042,6 +1042,16 @@ static bool XlatOffered(const char* name, bool importing)
 static void BuiltinXlatList(gstrarray& list, bool importing)
 {
     char buf[100];
+    char ftn[64];
+    char local[64];
+
+    //  The names shown are the ones FTS-5003 uses, which is what a CHRS
+    //  kludge carries and therefore what the reader recognises: LATIN-1
+    //  rather than the ISO-8859-1 this program calls it by, ASCII
+    //  rather than US-ASCII, CP10000 rather than MACINTOSH. What the
+    //  picked line puts into XLATIMPORT is the same word, and the
+    //  recoder resolves it back, so nothing downstream needs to know.
+    g_charset_ftn(CFG->xlatlocalset, local, sizeof(local), NULL);
 
     size_t width = 0;
     size_t n;                   // one declaration: Visual C++ 6.0 lets a
@@ -1049,7 +1059,10 @@ static void BuiltinXlatList(gstrarray& list, bool importing)
     for (n = 0; n < g_charset_count(); n++)
     {
         if (XlatOffered(g_charset_name(n), importing))
-            width = MaxV(width, strlen(g_charset_name(n)));
+        {
+            g_charset_ftn(g_charset_name(n), ftn, sizeof(ftn), NULL);
+            width = MaxV(width, strlen(ftn));
+        }
     }
 
     for (n = 0; n < g_charset_count(); n++)
@@ -1058,12 +1071,14 @@ static void BuiltinXlatList(gstrarray& list, bool importing)
         if (not XlatOffered(name, importing))
             continue;
 
+        g_charset_ftn(name, ftn, sizeof(ftn), NULL);
+
         if (importing)
             gsprintf(PRINTF_DECLARE_BUFFER(buf), " %*s -> %s ",
-                     (int)width, name, CFG->xlatlocalset);
+                     (int)width, ftn, local);
         else
             gsprintf(PRINTF_DECLARE_BUFFER(buf), " %*s <- %s ",
-                     (int)width, name, CFG->xlatlocalset);
+                     (int)width, ftn, local);
         list.push_back(buf);
     }
 }
@@ -1087,7 +1102,7 @@ int ChangeXlatImport()
         {
             gstrarray parts;
             tokenize(parts, Listi[n].c_str());
-            if (not parts.empty() and strieql(parts[0].c_str(), AA->Xlatimport()))
+            if (not parts.empty() and GRecoder::same(parts[0].c_str(), AA->Xlatimport()))
             {
                 startat = n;
                 break;
