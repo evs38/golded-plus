@@ -111,10 +111,10 @@ int ReadHelpCfg(int force)
         }
     }
 
-    // Init the help system
-    whelpdef(CFG->helpged, Key_F1, C_HELPB, C_HELPW, C_HELPQ, C_HELPS, NULL);
-    whelpwin(0, 0, MAXROW-2, MAXCOL-1, W_BHELP, NO);
-    whelpcat(H_General);
+    //  Setting the help system up wants MAXROW and MAXCOL, which are
+    //  the screen's, and under curses the screen is deliberately not
+    //  started until the configuration has been read and had its say.
+    //  Initialize() does it once both are in place.
 
     return 0;
 }

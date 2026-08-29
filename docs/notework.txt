@@ -350,6 +350,23 @@ ______________________________________________________________________
   leaving it, so a charset picked for one letter cannot follow into the
   next echo. Left alone, XLATEXPORT decides as before.
 
+- Everything the configuration had to say about itself went onto a
+  screen nobody could see. Under curses the screen layer takes the
+  terminal over - the alternate screen included - and it was started
+  before the configuration was read, so a typo in golded.cfg or a stale
+  keyword in goldkeys.cfg produced a black screen waiting for a key,
+  with the explanation printed where it could not be read. It is
+  started after the reading now: the complaints land on the console
+  they were written for, stay there after GoldED+ exits, and the prompt
+  waits on the terminal as it stands, since the keyboard layer is not
+  up either. Only the curses builds are affected - Windows, OS/2 and
+  DOS print over the console they are on and always showed this.
+
+  What that moved had to move with it: the message views and the help
+  system measure themselves against the screen as they are built, and
+  the configuration's own default colour set asked the video layer
+  whether the adapter was monochrome, which under curses it never is.
+
 - The CHRS kludge carried the name this program calls a charset by,
   and always level 2 unless it was UTF-8. Neither is what FTS-5003
   says. The name is the standard's now - the set known here as

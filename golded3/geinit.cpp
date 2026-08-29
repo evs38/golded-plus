@@ -31,6 +31,32 @@
 #ifdef __WIN32__
     #include <windows.h>
 #endif
+#if defined(__USE_NCURSES__)
+    #include <unistd.h>
+#endif
+
+
+//  ------------------------------------------------------------------
+//  Take the screen.
+//
+//  Under curses this is where the terminal stops belonging to the user:
+//  initscr() switches to the alternate screen, and everything printed
+//  afterwards is printed where nobody will see it. So there it is put
+//  off until the configuration has been read and had its say - the
+//  complaints about it are the whole reason anyone reads that output.
+//  Every other platform leaves the console where it is and prints over
+//  it, so nothing is gained by moving this and the order stays as it
+//  has always been.
+
+static void StartScreenLayer()
+{
+#if defined(__USE_NCURSES__)
+    gkbd.Init();
+#endif
+
+    gvid = new GVid;
+    throw_new(gvid);
+}
 
 //  ------------------------------------------------------------------
 //  Handle commandline parameters
@@ -750,12 +776,10 @@ void Initialize(int argc, char* argv[])
     //  line - is meant for the console the user is looking at, and under
     //  curses the keyboard used to take that console over before main()
     //  had even run. See the note in GKbd::GKbd().
-#if defined(__USE_NCURSES__)
-    gkbd.Init();
+#if !defined(__USE_NCURSES__)
+    StartScreenLayer();
 #endif
 
-    gvid = new GVid;
-    throw_new(gvid);
     CfgInit();
     GFTrkInit(gftrk_set_max);
 
@@ -880,14 +904,6 @@ void Initialize(int argc, char* argv[])
         exit(0);
     }
 
-    HeaderView = new GMsgHeaderView;
-    throw_new(HeaderView);
-    BodyView = new GMsgBodyView;
-    throw_new(BodyView);
-
-    if((CFG->screensize == 50) and (gvid->adapter & V_EGA))
-        CFG->screensize = 43;
-
 #if defined(GUTLOS_FUNCS)
     g_init_title(CFG->tasktitle, CFG->titlestatus);
     g_set_ostitle_name(CFG->tasktitle, 1);
@@ -928,10 +944,47 @@ void Initialize(int argc, char* argv[])
 
     if (cfgerrors)
     {
+#if defined(__USE_NCURSES__)
+        //  Still on the user's own console, which is the point: the
+        //  complaints above are readable there and stay readable after
+        //  GoldED+ exits. waitkey() belongs to the screen layer that
+        //  has not started yet, so the wait is done on the terminal as
+        //  it stands - a line at a time, it being still cooked - and
+        //  only when there is somebody at it.
+        STD_PRINTNL("* Total CFG errors found: " << cfgerrors << ". Press Enter to continue.");
+        if(isatty(fileno(stdin)))
+        {
+            int c;
+            while(((c = fgetc(stdin)) != EOF) and (c != '\n'))
+                ;
+        }
+#else
         STD_PRINTNL("* Total CFG errors found: " << cfgerrors << ". Press almost any key to continue.");
         kbclear();
         waitkey();
+#endif
     }
+
+#if defined(__USE_NCURSES__)
+    StartScreenLayer();
+#endif
+
+    //  Both views are windows, and a window measures itself against the
+    //  screen as it is built, so they are built once there is one.
+    HeaderView = new GMsgHeaderView;
+    throw_new(HeaderView);
+    BodyView = new GMsgBodyView;
+    throw_new(BodyView);
+
+    //  Both the compiled help and the screen it is drawn on are in
+    //  place only here; ReadHelpCfg() used to do this itself, back
+    //  when the screen was always up before it ran.
+    whelpdef(CFG->helpged, Key_F1, C_HELPB, C_HELPW, C_HELPQ, C_HELPS, NULL);
+    whelpwin(0, 0, MAXROW-2, MAXCOL-1, W_BHELP, NO);
+    whelpcat(H_General);
+
+    if((CFG->screensize == 50) and (gvid->adapter & V_EGA))
+        CFG->screensize = 43;
 
     if (CFG->switches.get(keybclear) || !keybuf.empty() || *CFG->keybstack)
     {

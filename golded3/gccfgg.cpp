@@ -951,7 +951,12 @@ CfgGed::CfgGed()
     areatypeorder[GMB_ECHO]               = 3;
     areatypeorder[GMB_ECHO|GMB_NEWSGROUP] = 4;
     areatypeorder[GMB_LOCAL]              = 5;
-    if(gvid->adapter & V_MONO)
+    //  The screen layer may not have started yet: under curses it is
+    //  started only once the configuration has been read, so that what
+    //  the configuration has to say reaches the console rather than a
+    //  screen curses is about to take over. There the adapter is always
+    //  V_VGA, so the colour set is the right default either way.
+    if(gvid and (gvid->adapter & V_MONO))
         memcpy(color, gold_mono1, sizeof(color));
     else
         memcpy(color, gold_color1, sizeof(color));
