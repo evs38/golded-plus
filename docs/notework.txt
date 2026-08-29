@@ -350,6 +350,22 @@ ______________________________________________________________________
   leaving it, so a charset picked for one letter cannot follow into the
   next echo. Left alone, XLATEXPORT decides as before.
 
+- A nodelist line longer than the buffer it was read into wrote through
+  the stack. The line is read into 512 bytes and then walked to repair
+  an embedded NUL - overwrite it, measure again - but a line too long
+  to fit brings no terminator with it, so what got overwritten was the
+  NUL the read had put at the end, and the measuring went off the array
+  and the writing after it. A 519-column line laid 1249 spaces past the
+  end before it happened to meet a carriage return in the stack.
+
+  FTS-5000 section 5 asks software reading a nodelist to cope with
+  lines of 1024 characters - maintainers keep to 157, but the standard
+  says as much about that limit being lifted. The buffer holds 1024
+  now, the repair stops at the end of it, and a line too long even for
+  that is swallowed whole and reported rather than having its tail read
+  as a node of its own. The nodelist in the tree compiles to a
+  byte-identical index.
+
 - Opening a message threw std::length_error and killed the program on
   any screen narrower than the header's own columns. The date column
   sits at a position resolved against MAXCOL once at startup; a window

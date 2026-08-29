@@ -634,7 +634,11 @@ static void read_nodelists()
     char* ptr;
     _GEIdx nlst;
     Addr nlstz;
-    char buf[512], buf2[100];
+    //  FTS-5000 section 5: a nodelist maintainer should keep lines to
+    //  157 characters, but software reading one is told to cope with
+    //  1024, and the standard says as much about the limit being
+    //  lifted. Room for that, the terminator and a stray CR.
+    char buf[1027], buf2[100];
     int point;
     uint line, realfno;
     size_t no, nodes;
@@ -685,10 +689,20 @@ static void read_nodelists()
                     // Note file position
                     nlst.pos = pos;
 
-                    // Get line length and fix possible errors
+                    //  Get line length and fix possible errors. A NUL
+                    //  inside the line makes strlen() stop early, so it
+                    //  is overwritten and the line measured again - but
+                    //  only while there is buffer left. A line longer
+                    //  than the buffer has no terminator in it, and the
+                    //  NUL being overwritten is then the one Fgets put
+                    //  at the end: strlen() would walk off the array
+                    //  and the loop write spaces through the stack
+                    //  until it met a CR somewhere in it. A 519-column
+                    //  line wrote 1249 of them.
                     uint llen = strlen(buf);
                     ptr = buf+llen-1;
-                    while(llen and not (*ptr == '\r' or *ptr == '\n' or *ptr == '\x1A'))
+                    while(llen and (llen < sizeof(buf)-1)
+                          and not (*ptr == '\r' or *ptr == '\n' or *ptr == '\x1A'))
                     {
                         buf[llen] = ' ';
                         if(not quiet)
@@ -700,6 +714,30 @@ static void read_nodelists()
                         ptr = buf+llen-1;
                     }
                     pos += llen;
+
+                    //  Longer than the buffer, so no terminator came
+                    //  with it: the rest of the line is still in the
+                    //  file and would otherwise be read as a node of
+                    //  its own. Swallow it and let the line go. The
+                    //  standard asks for 1024 columns and the buffer
+                    //  holds that, so anything here is malformed.
+                    if((llen == sizeof(buf)-1) and
+                       not (buf[llen-1] == '\r' or buf[llen-1] == '\n'))
+                    {
+                        int ch;
+                        while((ch = lfp.Fgetc()) != EOF)
+                        {
+                            pos++;
+                            if(ch == '\n')
+                                break;
+                        }
+                        if(not quiet)
+                        {
+                            int len = 16-strlen(name);
+                            std::cout << "\r* |--" << name << std::setw((len > 0) ? len : 1) << " " << "Warning line " << line << " - Line too long, skipped." << std::endl;
+                        }
+                        continue;
+                    }
 
                     // Skip whitespace
                     ptr = buf;
