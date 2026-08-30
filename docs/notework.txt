@@ -420,6 +420,22 @@ ______________________________________________________________________
   saying whether a cut may fall inside a character was worked out one
   line after the cuts that needed it, and is worked out before them.
 
+- One line of a quoted paragraph came out plain where the rest of the
+  paragraph was coloured, both in the reader and in the editor. The
+  quote test opens by asking whether the line is uuencoded data, so
+  that encoded data is not taken for a quote and reflowed; a sentence
+  of the wrong length was answering yes. The length test was tightened
+  once already, and what was left is that every printable character
+  decodes to something, so the check on the data itself rejected
+  nothing. It is made against what an encoder writes rather than what a
+  decoder will tolerate: the alphabet is 0x20 to 0x5F and holds no
+  lowercase letter, and the one character past it that turns up in real
+  data is the backquote some encoders write for a zero. English prose
+  runs almost entirely above that, which is why the damage fell on the
+  Latin lines of a message and left the Russian ones alone. Measured
+  against uuencoded lines of every length an encoder produces - full
+  ones and each form of the last - which are recognised as before.
+
 - Opening a message threw std::length_error and killed the program on
   any screen narrower than the header's own columns. The date column
   sits at a position resolved against MAXCOL once at startup; a window

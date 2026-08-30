@@ -429,6 +429,22 @@ static int uu_xlat(unsigned char c)
     return -1;
 }
 
+//  A character a uuencoder can actually have written. The alphabet is
+//  0x20 to 0x5F - space through underscore - and holds no lowercase
+//  letter at all; the one character past it that turns up in real data
+//  is the backquote, which some encoders write for a zero so that the
+//  space it would otherwise be is not eaten in transit.
+//
+//  Decoding accepts the whole lowercase range as an alias, and taking
+//  that for a licence to *read* it as data is what let ordinary prose
+//  be mistaken for an encoded line: English runs almost entirely in
+//  0x61 and above.
+
+static bool uu_writable(unsigned char c)
+{
+    return (c >= ' ' && c <= '_') || (c == '`');
+}
+
 // UUE Detection Heuristic
 bool is_uue_line(const char* ptr)
 {
@@ -441,6 +457,8 @@ bool is_uue_line(const char* ptr)
     }
 
     if (linelen == 0) return false;
+
+    if (!uu_writable(s[0])) return false;
 
     int decoded_bytes = uu_xlat(s[0]);
     if (decoded_bytes < 0 || decoded_bytes > 45) return false;
@@ -484,9 +502,16 @@ bool is_uue_line(const char* ptr)
 
     if (!length_ok) return false;
 
-    // Validate overall data stream
+    //  Validate overall data stream. Against what an encoder writes,
+    //  not against what a decoder will tolerate: the length test alone
+    //  leaves a window four bytes wide, and every printable character
+    //  decoding to something meant an ordinary sentence that happened
+    //  to land in it was taken for encoded data. It then lost its quote
+    //  colour and was kept out of the wrap logic - which is how one
+    //  line of a quoted paragraph came out plain while the rest of the
+    //  paragraph did not.
     for (int i = 0; i < datalen; i++) {
-        if (uu_xlat(s[i]) < 0) return false;
+        if (!uu_writable(s[i])) return false;
     }
 
     return true;
