@@ -645,7 +645,7 @@ void TokenXlat(int mode, std::string &input, GMsg* msg, GMsg* oldmsg, int __orig
                             if (diff > 0)
                                 text.insert(text.end(), diff, fill);
                             else
-                                text.erase(g_utf8_bytes_for_cols(text.c_str(), (size_t)padsize));
+                                text = text.substr(0, g_utf8_bytes_for_cols(text.c_str(), (size_t)padsize));
                             break;
                         case 'R':
                             if (diff > 0)
@@ -667,7 +667,7 @@ void TokenXlat(int mode, std::string &input, GMsg* msg, GMsg* oldmsg, int __orig
                             {
                                 size_t _cut = g_utf8_bytes_for_cols(text.c_str(), (size_t)((tlen - padsize)/2));
                                 text = text.substr(_cut);
-                                text.erase(g_utf8_bytes_for_cols(text.c_str(), (size_t)padsize));
+                                text = text.substr(0, g_utf8_bytes_for_cols(text.c_str(), (size_t)padsize));
                             }
                             break;
                         }

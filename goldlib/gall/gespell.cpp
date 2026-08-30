@@ -51,16 +51,22 @@
 #include <geall.h>
 #include <string>
 
+//  ------------------------------------------------------------------
+
+#if defined(GCFG_SPELL_INCLUDED)
+
+
+//  The conversion the spell checker borrows. These belong inside the
+//  guard with the only code that uses them: GRecoder is named by
+//  gespell.h, whose whole body is behind the same guard, so declaring
+//  them above it left the name undefined on every build without a
+//  spell checker - which is what the Watcom and Borland targets are.
+
 int LoadCharset(const char* imp, const char* exp);
 std::string XlatStr(const char* src, int level, Chs* chrtbl, GRecoder* recoder, int qpencoded=false, bool i51=false);
 
 extern Chs* CharTable;
 extern GRecoder* CharRecoder;
-
-
-//  ------------------------------------------------------------------
-
-#if defined(GCFG_SPELL_INCLUDED)
 
 
 //  ------------------------------------------------------------------

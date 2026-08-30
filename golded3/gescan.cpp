@@ -74,7 +74,7 @@ void PrepareAreaUsernames(const char* importcs)
     if(WideUsername == NULL)
         return;
 
-    _names.clear();
+    gclear(_names);
 
     bool _convert = importcs and *importcs and *CFG->xlatlocalset and
                     not strieql(importcs, CFG->xlatlocalset);
