@@ -389,6 +389,37 @@ ______________________________________________________________________
   not wrap itself. The confirmation receipt is read the same way and
   lost paragraphs the same way.
 
+! The header fields are bounded by what FTS-0001 gives them, and the
+  cut to it falls between characters. The standard sizes fromUserName
+  and toUserName at 36 bytes and subject at 72, and that is the field a
+  type-2 packet carries whatever base the mail was written in. What
+  packs the mail copies those bytes out knowing nothing of charsets, so
+  in UTF-8 the cut lands inside a letter as often as not; a base with
+  room for more only moves the cut, it does not avoid it. GoldED+ now
+  makes it itself, once the export charset is settled and a character
+  can still be seen whole.
+
+  Which charset a message goes out in is not known while it is being
+  written, so the field the name is typed into is bounded in characters
+  instead - 35 for a name and 71 for a subject, what is left of the
+  standard's 36 and 72 once the terminator each of them is required to
+  carry is counted - and the cut to bytes is made on the way out. In a
+  DOS codepage the two coincide and nothing is lost; in UTF-8 a Russian
+  subject of 71 characters is kept to the 35 whole characters that fit
+  in those bytes. It used to be kept to whatever the base allowed, which
+  for JAM is 100 bytes - 100 characters in CP866 and 50 in UTF-8, a
+  limit that moved with the charset and was cut through a character at
+  the far end.
+
+  An Internet area is not sized by FTS-0001: a display name and a
+  subject going into a MIME header keep what they hold, as does the
+  subject of a file attach or request, which is a list of names.
+
+  The buffer behind a name was 128 bytes, too few for 36 characters of
+  four bytes each; it is as wide as the count it now holds. The flag
+  saying whether a cut may fall inside a character was worked out one
+  line after the cuts that needed it, and is worked out before them.
+
 - Opening a message threw std::length_error and killed the program on
   any screen narrower than the header's own columns. The date column
   sits at a position resolved against MAXCOL once at startup; a window

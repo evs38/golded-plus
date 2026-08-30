@@ -48,7 +48,10 @@
 //  ------------------------------------------------------------------
 //  Internet name typedefs
 
-typedef char INam[128];
+//  Wide enough for the 36 characters FTS-0001 counts in a name, at
+//  four bytes each, and for the longer names an Internet area puts
+//  in the same field.
+typedef char INam[36*4+1];
 
 
 //  ------------------------------------------------------------------

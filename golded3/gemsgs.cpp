@@ -1012,11 +1012,57 @@ void LoadText(GMsg* msg, const char* textfile, bool cfgcharset)
 
 //  ------------------------------------------------------------------
 
+//  ------------------------------------------------------------------
+//  Cut the header fields to what FTS-0001 sizes them at, once they are
+//  in the charset the message will carry.
+//
+//  The fields are entered in characters - 36 for a name and 72 for a
+//  subject, the counts the standard gives - because which charset the
+//  message goes out in is not settled while it is being written. It is
+//  settled by the time this runs, and those characters have become
+//  bytes: the same 36 in a DOS codepage, up to four times as many in
+//  UTF-8. What the standard sizes is the field on the wire, so the cut
+//  is made here, where the charset is known and a character can still
+//  be seen whole.
+//
+//  It has to be made here rather than left to whatever packs the mail.
+//  A packer copies 36 and 72 bytes out of the base into a type-2 packet
+//  knowing nothing of charsets, and in UTF-8 that byte lands inside a
+//  letter as often as not. A base that can hold more - JAM gives these
+//  fields 100 bytes - only moves the cut, it does not avoid it.
+//
+//  An Internet area is not sized by FTS-0001 and keeps what fits in the
+//  field; nor is the subject of a file attach or request, which holds a
+//  list of names rather than a subject.
+//
+//  Call after the LinesToText() that converts to the export charset,
+//  not after the one that leaves the fields in the session's own.
+
+void GMsg::FitFtnHeader()
+{
+    if(AA->isinternet())
+        return;
+
+    by[fit_hdr_len(by, 35)] = NUL;
+    to[fit_hdr_len(to, 35)] = NUL;
+
+    if(not (attr.frq() or attr.att() or attr.urq()))
+        re[fit_hdr_len(re, 71)] = NUL;
+}
+
+
+//  ------------------------------------------------------------------
+
 void GMsg::LinesToText()
 {
 
     Chs* _xlat_table = CharTable;
     int _xlat_level = _xlat_table ? (_xlat_table->level ? _xlat_table->level : 2) : 0;
+
+    //  Settled before the fields are cut rather than after: the cuts
+    //  below need to know whether the charset they are cutting is one
+    //  where a cut can fall inside a character.
+    hdrutf8 = strnieql(charset, "UTF-8", 5) or strnieql(charset, "UTF8", 4);
 
     strxcpy(realby, XlatStr(realby, _xlat_level, _xlat_table).c_str(), sizeof(realby));
     strxcpy(realto, XlatStr(realto, _xlat_level, _xlat_table).c_str(), sizeof(realto));
@@ -1026,12 +1072,6 @@ void GMsg::LinesToText()
     {
         strxcpy(re, XlatStr(re, _xlat_level, _xlat_table).c_str(), sizeof(re));
     }
-
-    //  The fields are now in the charset the message is going to carry,
-    //  and the message base driver is about to cut them to its fixed
-    //  header widths. Tell it whether a cut can fall inside a
-    //  character - only this side knows what they were converted to.
-    hdrutf8 = strnieql(charset, "UTF-8", 5) or strnieql(charset, "UTF8", 4);
 
     bool _lfterm = EDIT->CrLfTerm() and (AA->basetype() == "PCBOARD");
     bool _hardterm = AA->Edithardterm() or AA->requirehardterm();

@@ -113,6 +113,10 @@ public:
     void TextToLines(int __line_width, bool getvalue = true, bool header_recode = true);
     void LinesToText();
 
+    //  Cut the header fields to the sizes FTS-0001 gives them, on a
+    //  character boundary. Call once the export charset is in force.
+    void FitFtnHeader();
+
     void Reset();
 };
 

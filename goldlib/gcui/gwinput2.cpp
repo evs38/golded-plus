@@ -113,10 +113,10 @@ void gwinput::after()
 
 //  ------------------------------------------------------------------
 
-void gwinput::add_field(int idnum, int wrow, int wcol, int field_width, std::string& dest, int dest_size, int cvt, int mode)
+void gwinput::add_field(int idnum, int wrow, int wcol, int field_width, std::string& dest, int dest_size, int cvt, int mode, int maxchars)
 {
 
-    field* fld = new field(this, idnum, wrow, wcol, field_width, dest, dest_size, cvt, mode);
+    field* fld = new field(this, idnum, wrow, wcol, field_width, dest, dest_size, cvt, mode, maxchars);
     throw_new(fld);
     if(current)
     {
@@ -833,7 +833,7 @@ bool gwinput::handle_key(gkey key)
 
 //  ------------------------------------------------------------------
 
-gwinput::field::field(gwinput* iform, int idnum, int wrow, int wcol, int field_width, std::string& dest, int dest_size, int cvt, int mode)
+gwinput::field::field(gwinput* iform, int idnum, int wrow, int wcol, int field_width, std::string& dest, int dest_size, int cvt, int mode, int maxchars)
     : destination(dest)
 {
     prev = next = NULL;
@@ -846,6 +846,7 @@ gwinput::field::field(gwinput* iform, int idnum, int wrow, int wcol, int field_w
     max_pos = field_width - 1;
     max_column = wcol + max_pos;
     buf_len = dest_size - 1;
+    max_chars = maxchars;
     buf = new char[dest_size];
     throw_new(buf);
     conversion = cvt;
@@ -863,6 +864,7 @@ gwinput::field::field(gwinput* iform, int idnum, int wrow, int wcol, int field_w
     strxcpy_utf8(buf, dest.c_str(), dest_size);
     convert();
     buf_end_pos = strlen(buf);
+    fit_max_chars();
 }
 
 
@@ -982,6 +984,37 @@ void gwinput::field::move_cursor()
 
 //  ------------------------------------------------------------------
 //  Byte offsets and screen columns.
+
+//  ------------------------------------------------------------------
+//  Cut what the field holds back to max_chars characters. Counted in
+//  codepoints rather than in clusters: the count has to bound the byte
+//  length for the buffer behind it to be sized at all, and a cluster
+//  can be any number of codepoints long.
+
+void gwinput::field::fit_max_chars()
+{
+    if(max_chars <= 0)
+        return;
+
+    const char* p = buf;
+    for(int n = 0; n < max_chars; n++)
+    {
+        if(*p == NUL)
+            return;
+        p = g_utf8_next(p);
+    }
+
+    if(*p == NUL)
+        return;
+
+    buf_end_pos = (int)(p - buf);
+    buf[buf_end_pos] = NUL;
+    if(buf_pos > buf_end_pos)
+        buf_pos = buf_end_pos;
+}
+
+
+//  ------------------------------------------------------------------
 
 int gwinput::field::next_off(int off) const
 {
@@ -1341,6 +1374,12 @@ bool gwinput::field::insert_char(const char* chars, int len)
 
         conditional();
 
+        //  The field is bounded in characters as well as in bytes, so
+        //  that a name is the same length whatever charset it goes out
+        //  in. One more character has to be within both.
+        if(max_chars and ((int)g_utf8_strlen(buf) >= max_chars))
+            return false;
+
         if(buf_end_pos + len <= buf_len)
         {
             int tail = buf_end_pos - buf_pos;
@@ -1395,6 +1434,11 @@ bool gwinput::field::overwrite_char(const char* chars, int len)
         int now = (int)text.length();
 
         if(buf_end_pos - old + now > buf_len)
+            return false;
+
+        //  Replacing a character leaves the count alone; typing past the
+        //  end of what is held adds one, and that one has to fit.
+        if(max_chars and (old == 0) and ((int)g_utf8_strlen(buf) >= max_chars))
             return false;
 
         if(old != now)
@@ -1525,6 +1569,7 @@ void gwinput::field::clipboard_paste()
             {
                 strxcat(buf, clpbuf, buf_len + 1);
                 buf_end_pos = strlen(buf);
+                fit_max_chars();
                 end();
             }
             else
@@ -1539,6 +1584,7 @@ void gwinput::field::clipboard_paste()
                 //  the caret at the end of the line.
                 for(const char* p = clpbuf; (p < clpbuf + len) and *p; p = g_utf8_cluster_next(p, clpbuf + len))
                     move_right();
+                fit_max_chars();
             }
 
             if(conversion == gwinput::cvt_mixedcase)

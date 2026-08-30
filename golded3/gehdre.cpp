@@ -462,11 +462,28 @@ int EditHeaderinfo(int mode, GMsgHeaderView &view, bool doedithdr)
 
         hedit.setup(C_HEADW, C_HEADW, C_HEADE, _box_table(W_BHEAD,13), true);
 
-        hedit.add_field(GMsgHeaderEdit::id_from_name, 2, from_name_pos, from_name_len, from_name, sizeof(INam), name_cvt);
+        //  FTS-0001 gives a name 36 bytes and a subject 72, and says
+        //  of each that it is null terminated - so what may be written
+        //  in them is 35 and 71. Which charset those bytes will be is
+        //  not known while the message is being written, so the field
+        //  is bounded in characters here and cut to the bytes the
+        //  standard allows when the charset is settled, on the way out.
+        //  The counts are the same ones the cut uses, so that a name
+        //  entered in a DOS codepage arrives whole rather than a
+        //  character short.
+        //
+        //  An Internet area is not sized by that standard: a display
+        //  name and a subject going into a MIME header have no such
+        //  limit, and the field keeps whatever it holds.
+        int name_chars = AA->isinternet() ? 0 : 35;
+        int subj_chars = AA->isinternet() ? 0 : 71;
+        int entry = gwinput::entry_conditional;
+
+        hedit.add_field(GMsgHeaderEdit::id_from_name, 2, from_name_pos, from_name_len, from_name, sizeof(INam), name_cvt, entry, name_chars);
         hedit.add_field(GMsgHeaderEdit::id_from_addr, 2, from_addr_pos, from_addr_len, from_addr, sizeof(IAdr), addr_cvt);
-        hedit.add_field(GMsgHeaderEdit::id_to_name,   3,   to_name_pos,   to_name_len,   to_name, sizeof(INam), name_cvt);
+        hedit.add_field(GMsgHeaderEdit::id_to_name,   3,   to_name_pos,   to_name_len,   to_name, sizeof(INam), name_cvt, entry, name_chars);
         hedit.add_field(GMsgHeaderEdit::id_to_addr,   3,   to_addr_pos,   to_addr_len,   to_addr, sizeof(IAdr), addr_cvt);
-        hedit.add_field(GMsgHeaderEdit::id_subject,   4,   subject_pos,   subject_len,   subject, sizeof(ISub), subj_cvt);
+        hedit.add_field(GMsgHeaderEdit::id_subject,   4,   subject_pos,   subject_len,   subject, sizeof(ISub), subj_cvt, entry, subj_chars);
 
         hedit.start_id = GMsgHeaderEdit::id_to_name;
         switch(mode)

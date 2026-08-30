@@ -61,6 +61,11 @@ public:
         int buf_end_pos;
         int buf_pos;
         int buf_len;
+        //  A limit in characters, where buf_len is one in bytes: the
+        //  message base fields the standard sizes are counted in
+        //  characters here, so the same name fits whatever charset
+        //  the message finally goes out in. Zero is no limit.
+        int max_chars;
 
         std::string& destination;
 
@@ -74,7 +79,7 @@ public:
         field* prev;
         field* next;
 
-        field(gwinput* iform, int idnum, int wrow, int wcol, int field_width, std::string& dest, int dest_size, int cvt, int mode);
+        field(gwinput* iform, int idnum, int wrow, int wcol, int field_width, std::string& dest, int dest_size, int cvt, int mode, int maxchars);
         ~field();
 
         bool visible();
@@ -101,6 +106,8 @@ public:
         {
             return overwrite_char(&ch, 1);
         }
+        //  Cut what is held back to max_chars characters.
+        void fit_max_chars();
         bool home();
         bool end();
 
@@ -181,7 +188,7 @@ public:
 
     void setup(vattr i_attr, vattr a_attr, vattr e_attr, vchar fill, bool fill_acs);
 
-    void add_field(int idnum, int wrow, int wcol, int field_width, std::string& dest, int dest_size, int cvt=gwinput::cvt_none, int mode=gwinput::entry_conditional);
+    void add_field(int idnum, int wrow, int wcol, int field_width, std::string& dest, int dest_size, int cvt=gwinput::cvt_none, int mode=gwinput::entry_conditional, int maxchars=0);
 
     bool first(int id=0);
     bool next();
