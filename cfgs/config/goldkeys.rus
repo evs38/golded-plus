@@ -446,7 +446,6 @@ W           READwritemsg
 ^H          READtogglestyles
 #F7         READPeekURLs
 #F5         READExternUtilMenu
-#F2         ReadSearch
 @0          READSoundKill  ; Прекратить воспроизведение звукового файла.
 ^Y          READTouchSemaphore  ; Вызов стpоки ввода имени файла-семафора.
 [           READDecreaseMargin  ; Уменьшение пpавой гpаницы текста сообщения.
