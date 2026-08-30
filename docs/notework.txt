@@ -375,6 +375,20 @@ ______________________________________________________________________
   recoder resolves as it always did, and the cursor finds the charset
   in force by what it means rather than by how it is spelled.
 
+- A message came back from an external editor with only the first line
+  of each wrapped paragraph; the rest were dropped between the editor's
+  file and the message. Lines are wrapped leaving the space at the end
+  of the line rather than at the start of the next, so reading the file
+  back the join sees that space and rightly inserts no second one - but
+  it then leaves the write position on the line feed that ended the
+  line before, and the test deciding whether to copy the line at all
+  accepts only a carriage return behind it or the end of the text.
+  Neither holds, so the line is discarded, and so is every line after
+  it until one carrying the hardline string. Forwarding is where this
+  shows, being the one thing that hands the editor a paragraph it did
+  not wrap itself. The confirmation receipt is read the same way and
+  lost paragraphs the same way.
+
 - Opening a message threw std::length_error and killed the program on
   any screen narrower than the header's own columns. The date column
   sits at a position resolved against MAXCOL once at startup; a window

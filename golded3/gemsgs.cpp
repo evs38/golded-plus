@@ -984,7 +984,18 @@ void LoadText(GMsg* msg, const char* textfile, bool cfgcharset)
                     strcpy(buf, "\r");
                 }
             }
-            if((*(txtptr-1) == CR) or (*txtptr == NUL))
+            //  A soft-wrapped line has to be copied onto the LF that
+            //  ended the one before it. Lines are wrapped leaving the
+            //  space at the end, so the branch above finds a space
+            //  already there and inserts none - which leaves txtptr on
+            //  the LF, and this test then refused to copy at all. Every
+            //  wrapped line but the first of a paragraph was dropped on
+            //  the way back from an external editor.
+            //
+            //  The order matters as well: txtptr is the start of the
+            //  buffer on the first line, where reading txtptr[-1] is a
+            //  byte before it.
+            if((*txtptr == NUL) or (*txtptr == LF) or (*(txtptr-1) == CR))
             {
                 size = strlen(buf);
                 memcpy(txtptr, buf, size);
