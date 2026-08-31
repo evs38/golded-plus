@@ -436,6 +436,24 @@ ______________________________________________________________________
   against uuencoded lines of every length an encoder produces - full
   ones and each form of the last - which are recognised as before.
 
+- An RFC header named a charset the way a CHRS kludge names it. The
+  two are not the same register: FTS-5003 calls ISO-8859-1 LATIN-1 and
+  MACINTOSH CP10000, and writing the kludge in the standard's spelling
+  put those words into Content-Type and into the =?charset?Q? of an
+  encoded header field as well. LATIN-1 was caught there by a converter
+  written for it and came out iso-8859-1; CP10000 was caught by nothing
+  and went out as it stood, naming a charset that appears in no IANA
+  registry. Reached from the charset menu, which offers CP10000 and
+  CP10007 by those names, in any area that carries RFC headers.
+
+  The name is now resolved back before either header is built, through
+  the same table the forward spelling comes from, so the two cannot
+  drift apart. That retires three special cases - the LATIN converter,
+  the one for ASCII and the test on the first five letters - and closes
+  the seven-bit sets with them: a configuration naming ISO646-DE writes
+  GERMAN in the kludge, as the standard asks, and iso646-de in the
+  header.
+
 - Opening a message threw std::length_error and killed the program on
   any screen narrower than the header's own columns. The date column
   sits at a position resolved against MAXCOL once at startup; a window

@@ -241,14 +241,21 @@ char* mime_header_encode(char* dest, const char* source, GMsg* msg)
                     if(*msg->charset)
                     {
                         bp = stpcpy(bp, "=?");
-                        if(strnieql(msg->charset, "latin", 5))
                         {
-                            bp = Latin2ISO(bp, msg->charset);
-                        }
-                        else
-                        {
+                            //  An RFC header names a charset to the
+                            //  Internet, so it takes the name IANA
+                            //  lists, not the one FTS-5003 writes into
+                            //  a CHRS kludge: iso-8859-1, not latin-1,
+                            //  and macintosh, not cp10000.
                             char *pbp = bp;
-                            bp = stpcpy(bp, IsQuotedPrintable(msg->charset) ? ExtractPlainCharset(msg->charset) : strlword(msg->charset));
+                            char iana[64];
+                            if(IsQuotedPrintable(msg->charset))
+                                bp = stpcpy(bp, ExtractPlainCharset(msg->charset));
+                            else
+                            {
+                                g_charset_from_ftn(msg->charset, iana, sizeof(iana));
+                                bp = stpcpy(bp, iana);
+                            }
                             strlwr(pbp);
                         }
                         bp = stpcpy(bp, "?Q?");
@@ -765,14 +772,15 @@ void DoKludges(int mode, GMsg* msg, int kludges)
                 char encoding[100];
                 bool isusascii = make_bool(striinc("ASCII", msg->charset));
                 bool isqp = not isusascii and IsQuotedPrintable(msg->charset);
-                if(strnieql(msg->charset, "latin", 5))
-                    Latin2ISO(encoding, msg->charset);
-                else if(isusascii)
-                    strcpy(encoding, "us-ascii");
-                else if(isqp)
+                //  Same here: the charset is being named to the
+                //  Internet, so it is named the way IANA lists it. The
+                //  kludge spelling would put latin-1 and cp10000 in a
+                //  Content-Type, and the second of those is in no
+                //  registry at all.
+                if(isqp)
                     strcpy(encoding, ExtractPlainCharset(msg->charset));
                 else
-                    strcpy(encoding, msg->charset);
+                    g_charset_from_ftn(msg->charset, encoding, sizeof(encoding));
                 strlwr(encoding);
                 sprintf(buf, "%sContent-Type: text/plain; charset=%s", rfc, strlword(encoding));
                 line = AddKludge(line, buf);

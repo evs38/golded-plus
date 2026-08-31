@@ -284,6 +284,12 @@ std::string g_local_from_unicode(uint32_t cp);
 //  The name and level FTS-5003 gives a charset in a CHRS kludge.
 //  Pass NULL for either when only the other is wanted.
 void        g_charset_ftn(const char* name, char* out, size_t size, int* level);
+
+//  The name this program knows a charset by, given the one FTS-5003
+//  writes into a CHRS kludge. For naming a charset to anything that is
+//  not Fidonet - an RFC header, where IANA's spelling is what counts
+//  and LATIN-1 or CP10000 name nothing.
+void        g_charset_from_ftn(const char* ftn, char* out, size_t size);
 bool        g_charset_is_level1(const char* name);
 
 size_t      g_charset_count();

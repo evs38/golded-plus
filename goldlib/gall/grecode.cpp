@@ -1148,6 +1148,49 @@ ftn_charsets[] =
 //  it. Anything the table does not name is an eight-bit set already
 //  spelled the way the standard spells it.
 
+//  ------------------------------------------------------------------
+//  The other way round: the name this program knows a charset by, given
+//  the one FTS-5003 writes into a CHRS kludge.
+//
+//  A kludge value carries the level after the name - "LATIN-1 2" - and
+//  only the name is looked up. What the table does not name comes back
+//  as it was, which is right: those are spelled the same in both.
+//
+//  Wanted wherever a charset has to be named to something that is not
+//  Fidonet - an RFC header reaches the Internet, where LATIN-1 means
+//  nothing and CP10000 is in no registry at all. There the name has to
+//  be the one IANA lists, which is the one held internally.
+
+void g_charset_from_ftn(const char* ftn, char* out, size_t size)
+{
+    if((out == NULL) or (size == 0))
+        return;
+
+    char word[64];
+    size_t n = 0;
+    while(ftn[n] and (ftn[n] != ' ') and (ftn[n] != '\t')
+          and (n < sizeof(word) - 1))
+    {
+        word[n] = ftn[n];
+        n++;
+    }
+    word[n] = NUL;
+
+    for(n = 0; n < ARRAYSIZE(ftn_charsets); n++)
+    {
+        if(strieql(word, ftn_charsets[n].ftn))
+        {
+            strxcpy(out, ftn_charsets[n].name, size);
+            return;
+        }
+    }
+
+    strxcpy(out, word, size);
+}
+
+
+//  ------------------------------------------------------------------
+
 void g_charset_ftn(const char* name, char* out, size_t size, int* level)
 {
     std::string c = GRecoder::canonical(name);
