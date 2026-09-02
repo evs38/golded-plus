@@ -59,11 +59,11 @@ extern char tl[256], tu[256];
 //  before the table.
 inline int g_tolower(int c)
 {
-    return tl[(uint8_t)c];
+    return tl[(unsigned char)c];
 }
 inline int g_toupper(int c)
 {
-    return tu[(uint8_t)c];
+    return tu[(unsigned char)c];
 }
 }
 #else
