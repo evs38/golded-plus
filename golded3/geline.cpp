@@ -2368,6 +2368,8 @@ static void adopt_charset(GMsg* __msg, int& __level, GRecoder*& __recoder,
 {
     __level = __msg->charsetlevel = __chslev;
     __recoder = CharRecoder;
+    if(__recoder)
+        __recoder->clear_substitutes();
     strxcpy(__msg->charset, __chsbuf, sizeof(__msg->charset));
 }
 
@@ -3234,6 +3236,20 @@ chardo:
                     strxmimecpy(msg->re, msg->re, level, sizeof(ISub), true);
 
                 XlatRestore(hdr_saved);
+            }
+
+            //  Once per message, not once per character: the recoder
+            //  puts a substitute where a character could not be
+            //  converted and counts how often, and this is the only
+            //  trace in the log that a message had bytes its declared
+            //  charset does not explain - a wrong kludge, or a
+            //  truncated sequence.
+            if(_recoder and _recoder->substitutes())
+            {
+                LOG.printf("! %u character(s) of message %u could not be converted from %s to %s and were replaced by '?'",
+                           (uint)_recoder->substitutes(), (uint)msg->msgno,
+                           _recoder->from(), _recoder->to());
+                _recoder->clear_substitutes();
             }
 
             // Scan msg body top for RFC headerlines

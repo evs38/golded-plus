@@ -39,6 +39,7 @@
 #define __grecode_h
 
 #include <string>
+#include <map>
 #include <gdefs.h>
 
 //  ------------------------------------------------------------------
@@ -139,6 +140,20 @@ public:
     //  True if the named charset is UTF-8.
     static bool is_utf8(const char* name);
 
+    //  How many characters have been replaced by the substitute since
+    //  the count was last cleared - for a caller that converts a whole
+    //  message piecemeal and wants to say once, afterwards, that some
+    //  of it could not be converted. Counted where the substitution
+    //  is made and again on every cached repeat of it.
+    size_t substitutes() const
+    {
+        return __substitutes;
+    }
+    void clear_substitutes() const
+    {
+        __substitutes = 0;
+    }
+
 private:
 
     enum state_t
@@ -165,6 +180,27 @@ private:
     //  path.
     mutable bool        __chartab_ready;
     mutable std::string __chartab[256];
+    mutable bool        __chartab_bad[256];
+
+    //  The same for a UTF-8 source, where a character is a sequence of
+    //  up to four bytes: the sequence packed into one word is the key,
+    //  and sequences of different lengths cannot collide because every
+    //  longer one is worth more than any shorter one. Filled as
+    //  characters are met, so a message in UTF-8 read on an 8-bit
+    //  console costs one conversion per distinct character rather than
+    //  one per character - and on the DOS and OS/2 builds, where every
+    //  UTF-8 message takes this path, that was most of the reading.
+    struct seqval
+    {
+        std::string text;
+        bool        bad;
+    };
+    //  Three template arguments: Borland C++ 5.02's map has no default
+    //  for the comparison.
+    typedef std::map<uint32_t, seqval, std::less<uint32_t> > seqmap;
+    mutable seqmap __seqtab;
+
+    mutable size_t      __substitutes;
 
     //  When iconv is unavailable we go through Unicode using a pair of
     //  256-entry tables, one for each direction.

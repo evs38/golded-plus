@@ -482,7 +482,7 @@ static int cptable_encode(const uint16_t* tab, uint32_t cp)
 
 GRecoder::GRecoder()
     : __from(), __to(), __state(state_closed),
-      __chartab_ready(false),
+      __chartab_ready(false), __substitutes(0),
       __to_unicode(NULL), __from_unicode(NULL), __cd(NULL),
       __cp_from(0), __cp_to(0), __uconv_from(NULL), __uconv_to(NULL)
 {
@@ -491,7 +491,7 @@ GRecoder::GRecoder()
 
 GRecoder::GRecoder(const char* from, const char* to)
     : __from(), __to(), __state(state_closed),
-      __chartab_ready(false),
+      __chartab_ready(false), __substitutes(0),
       __to_unicode(NULL), __from_unicode(NULL), __cd(NULL),
       __cp_from(0), __cp_to(0), __uconv_from(NULL), __uconv_to(NULL)
 {
@@ -536,6 +536,8 @@ void GRecoder::close()
             strerase(__chartab[n]);
         __chartab_ready = false;
     }
+    gclear(__seqtab);
+    __substitutes = 0;
 }
 
 
@@ -715,6 +717,8 @@ std::string GRecoder::convert_table(const char* src, size_t len) const
         else
         {
             int b = cptable_encode(__from_unicode, cp);
+            if(b < 0)
+                __substitutes++;
             result += (char)(b < 0 ? SUBSTITUTE : b);
         }
     }
@@ -914,6 +918,7 @@ std::string GRecoder::convert(const char* src, size_t len) const
             }
             *outbuf++ = SUBSTITUTE;
             outleft--;
+            __substitutes++;
             inbuf  += skip;
             inleft -= skip;
             break;
@@ -975,18 +980,47 @@ size_t GRecoder::convert_char(const char* src, size_t len, std::string& out) con
         //  of reading such a message.
         if(not __chartab_ready)
         {
+            //  The substitutions made while filling the table are
+            //  nobody's; those of the characters actually met are
+            //  counted below, from the flag kept beside each entry.
+            size_t before = __substitutes;
             for(int n = 0; n < 256; n++)
             {
                 char b = (char)n;
+                size_t was = __substitutes;
                 __chartab[n] = convert(&b, 1);
+                __chartab_bad[n] = (__substitutes != was);
             }
+            __substitutes = before;
             __chartab_ready = true;
         }
 
         out += __chartab[(unsigned char)*src];
+        if(__chartab_bad[(unsigned char)*src])
+            __substitutes++;
     }
     else
-        out += convert(src, used);
+    {
+        //  One sequence always converts to the same thing; look it up,
+        //  and convert only a sequence not seen before.
+        uint32_t key = 0;
+        for(size_t n = 0; n < used; n++)
+            key = (key << 8) | (unsigned char)src[n];
+
+        seqmap::iterator it = __seqtab.find(key);
+        if(it == __seqtab.end())
+        {
+            seqval v;
+            size_t was = __substitutes;
+            v.text = convert(src, used);
+            v.bad  = (__substitutes != was);
+            it = __seqtab.insert(seqmap::value_type(key, v)).first;
+        }
+        else if((*it).second.bad)
+            __substitutes++;
+
+        out += (*it).second.text;
+    }
 
     return used;
 }
