@@ -215,7 +215,10 @@ static std::string charset_bare(const char* name)
     std::string s;
     while(*name and *name != ' ' and *name != '\t')
     {
-        s += (char)g_toupper(*name);
+        //  As an unsigned value: a name copied out of a message can
+        //  carry any byte, and toupper() of a negative char is not
+        //  defined - NetBSD's ctype faults on it.
+        s += (char)g_toupper((uint8_t)*name);
         name++;
     }
     return s;
@@ -1583,7 +1586,10 @@ GChsKludgeKind g_charset_kludge_tag(const char* line, const char** value)
     if(strnieql(line, "RFC", 3))
     {
         line += 3;
-        if(not g_isalpha(*line))
+        //  Only a separator is stepped over, never the terminator: a
+        //  kludge that is just "RFC" must not send the scan past the
+        //  end of its buffer.
+        if(*line and not g_isalpha((uint8_t)*line))
             line++;
     }
 
@@ -1687,12 +1693,12 @@ void g_charset_kludge_value(GChsKludgeKind kind, const char* value, char* out, s
     {
         //  A name may carry the QP suffix of FSC-0054 level 3; the
         //  charset itself is the name without it.
-        const char* word = strlword(val);
-        size_t wlen = strlen(word);
-        bool qp = (wlen > 2) and strnieql("QP", word + wlen - 2, 2);
-
+        //  Measured on the copy, after it has been cut to the caller's
+        //  buffer: the word's length in the source could exceed that
+        //  buffer, and an offset computed from it pointed past the end.
         strxcpy(out, val, size);
-        if(qp and (wlen - 2) < size)
+        size_t wlen = strcspn(out, " \t");
+        if((wlen > 2) and strnieql("QP", out + wlen - 2, 2))
         {
             //  Cut the suffix out of the first word, keeping what
             //  follows it - the CHRS level.

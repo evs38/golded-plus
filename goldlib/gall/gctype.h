@@ -54,13 +54,16 @@ extern char tl[256], tu[256];
 //  Plain `inline': this block is inside #ifdef __cplusplus, so the
 //  keyword is the right one everywhere, and Borland's compiler will not
 //  take __inline inside an extern "C" block at all.
+//  The cast matches the C macros below: a plain char promoted to int is
+//  negative for anything above 0x7F, and a negative subscript reads
+//  before the table.
 inline int g_tolower(int c)
 {
-    return tl[c];
+    return tl[(uint8_t)c];
 }
 inline int g_toupper(int c)
 {
-    return tu[c];
+    return tu[(uint8_t)c];
 }
 }
 #else
