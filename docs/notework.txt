@@ -463,6 +463,30 @@ ______________________________________________________________________
   an argument outside its table rather than reading past it. The range
   check now comes first.
 
+- A UTF-8 message read on an 8-bit console - every UTF-8 message, on
+  the DOS and OS/2 builds - was converted one character at a time with
+  a full iconv call, and a shift-state reset, for each. Single-byte
+  sources had been given a lookup table long ago; the multibyte source
+  now has one too, keyed by the byte sequence and filled as characters
+  are met, so a message costs one conversion per distinct character.
+
+- A character the declared charset cannot express is replaced by "?",
+  and since the recoder took over from the tables nothing said so:
+  the old log lines about invalid and incomplete sequences had gone
+  with the code that wrote them. The recoder now counts what it
+  replaces and the reader writes one line per message to the log,
+  naming the message and the two charsets - the one trace that a
+  message carries bytes its CHRS kludge does not explain.
+
+- The Windows 9x console lost its screen and keyboard when the cells
+  went Unicode: WriteConsoleOutputW, ReadConsoleOutputW, WriteConsoleW
+  and the wide input calls are stubs on 9x, and the NT/9x split that
+  used to choose the ANSI calls there had gone from the two output
+  paths and the five input paths while surviving in four other places.
+  All of them now go through one pair of helpers each: on NT the wide
+  calls as before, on 9x the ANSI calls with the cells converted to
+  and from the OEM codepage on the way.
+
 - Opening a message threw std::length_error and killed the program on
   any screen narrower than the header's own columns. The date column
   sits at a position resolved against MAXCOL once at startup; a window
