@@ -147,7 +147,10 @@ void Area::SaveHdr(int mode, GMsg* msg)
     }
 
     // Translate softcr to configured char
-    if (adat->usesoftcrxlat && EDIT->SoftCrXlat())
+    //  Not in a UTF-8 session: 0x8D is a continuation byte there - the
+    //  second byte of the Cyrillic э - and swapping it would break the
+    //  character.
+    if (adat->usesoftcrxlat && EDIT->SoftCrXlat() && !g_utf8_mode())
     {
         strchg(msg->by, SOFTCR, EDIT->SoftCrXlat());
         strchg(msg->to, SOFTCR, EDIT->SoftCrXlat());

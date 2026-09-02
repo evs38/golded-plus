@@ -448,7 +448,8 @@ void Area::SaveMsg(int mode, GMsg* msg)
     }
 
     // Translate softcr to configured char
-    if (adat->usesoftcrxlat && EDIT->SoftCrXlat())
+    //  Not in a UTF-8 session, where 0x8D continues a character.
+    if (adat->usesoftcrxlat && EDIT->SoftCrXlat() && !g_utf8_mode())
     {
         strchg(msg->by, SOFTCR, EDIT->SoftCrXlat());
         strchg(msg->to, SOFTCR, EDIT->SoftCrXlat());
