@@ -97,6 +97,7 @@ public:
         //  A character, not a byte: 'chars' holds its whole encoding.
         bool insert_char(const char* chars, int len);
         bool overwrite_char(const char* chars, int len);
+        bool put_char(const char* chars, int len, bool insert);
 
         bool insert_char(char ch)
         {

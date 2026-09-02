@@ -211,6 +211,7 @@ void gwinput::reload_all()
             strxcpy_utf8(current->buf, current->destination.c_str(), current->buf_len+1);
         current->convert();
         current->buf_end_pos = strlen(current->buf);
+        current->fit_max_chars();
         current->draw();
     }
     while(next());
@@ -960,6 +961,10 @@ void gwinput::field::restore()
     strxcpy_utf8(buf, destination.c_str(), buf_len+1);
     destination = tmp;
     convert();
+    //  The same bound the constructor applies: what comes back must
+    //  fit, or the field is full and refuses every keystroke.
+    buf_end_pos = strlen(buf);
+    fit_max_chars();
     activate();
 }
 
@@ -1380,19 +1385,14 @@ bool gwinput::field::insert_char(const char* chars, int len)
         if(max_chars and ((int)g_utf8_strlen(buf) >= max_chars))
             return false;
 
-        if(buf_end_pos + len <= buf_len)
-        {
-            int tail = buf_end_pos - buf_pos;
-            memmove(buf+buf_pos+len, buf+buf_pos, tail+1);
-            buf_end_pos += len;
-            //  The room is made; overwrite_char() now just fills it in,
-            //  and must not push the end out a second time.
-            int saved_end = buf_end_pos;
-            bool rc = overwrite_char(chars, len);
-            buf_end_pos = saved_end;
-            buf[buf_end_pos] = NUL;
-            return rc;
-        }
+        //  Making the room first and then overwriting into it went
+        //  wrong: overwrite_char() measured the character under the
+        //  cursor after the tail had already been moved, saw the stale
+        //  bytes there, and moved the tail a second time by the
+        //  difference. Inserting a Cyrillic letter before a Latin one
+        //  swapped the two that followed. The insertion is now done
+        //  in one place, as a replacement of nothing.
+        return put_char(chars, len, true);
     }
     return false;
 }
@@ -1401,6 +1401,17 @@ bool gwinput::field::insert_char(const char* chars, int len)
 //  ------------------------------------------------------------------
 
 bool gwinput::field::overwrite_char(const char* chars, int len)
+{
+    return put_char(chars, len, false);
+}
+
+
+//  ------------------------------------------------------------------
+
+//  Put one character at the cursor: in place of the one there, or in
+//  front of it when 'insert' is set.
+
+bool gwinput::field::put_char(const char* chars, int len, bool insert)
 {
 
     if(entry != gwinput::entry_noedit)
@@ -1429,8 +1440,10 @@ bool gwinput::field::overwrite_char(const char* chars, int len)
             }
         }
 
-        //  A replacement of a different length has to move the tail.
-        int old = (buf_pos < buf_end_pos) ? next_off(buf_pos) - buf_pos : 0;
+        //  A replacement of a different length has to move the tail;
+        //  an insertion replaces nothing and moves it by the whole
+        //  character.
+        int old = (not insert and (buf_pos < buf_end_pos)) ? next_off(buf_pos) - buf_pos : 0;
         int now = (int)text.length();
 
         if(buf_end_pos - old + now > buf_len)
