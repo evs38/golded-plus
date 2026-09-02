@@ -3648,7 +3648,7 @@ int LoadCharset(const char* imp, const char* exp)
     std::string impCharset(strlword(imp));
     strupr(impCharset);
 
-    std::string expCharset(exp);
+    std::string expCharset(strlword(exp));
     strupr(expCharset);
 
     // Find and load charset table
