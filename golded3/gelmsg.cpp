@@ -54,23 +54,29 @@ int Area::LoadHdr(GMsg* msg, uint32_t msgno, bool enable_recode)
     {
         // Use default translation by default
         int table = GetCurrentTable();
-        if((table == -1) or not CFG->ignorecharset)
+
+        //  A CHRS kludge normally lives in the message text, and
+        //  reading every message just to build a list would be far
+        //  too slow. Some bases keep the kludges in the header
+        //  instead - there the driver has already handed us the
+        //  charset for nothing, and the list can decode the header
+        //  fields exactly as the reader does. Where it has not, the
+        //  area's own import charset is all we know.
+        //
+        //  Not when the user has fixed the charset by hand: the reader
+        //  ignores the kludges then, and the list has to agree with
+        //  it. That is decided on the option alone - with a recoder in
+        //  force there is no table, so its index says nothing.
+        msg->charsetlevel = 0;
+        if(*msg->hdrchrs and not CFG->ignorecharset)
+            msg->charsetlevel = LoadCharset(msg->hdrchrs, CFG->xlatlocalset);
+        if(not msg->charsetlevel)
         {
-            //  A CHRS kludge normally lives in the message text, and
-            //  reading every message just to build a list would be far
-            //  too slow. Some bases keep the kludges in the header
-            //  instead - there the driver has already handed us the
-            //  charset for nothing, and the list can decode the header
-            //  fields exactly as the reader does. Where it has not, the
-            //  area's own import charset is all we know.
-            msg->charsetlevel = 0;
-            if(*msg->hdrchrs)
-                msg->charsetlevel = LoadCharset(msg->hdrchrs, CFG->xlatlocalset);
-            if(not msg->charsetlevel)
+            if((table == -1) or not CFG->ignorecharset)
                 msg->charsetlevel = LoadCharset(AA->Xlatimport(), CFG->xlatlocalset);
+            else
+                msg->charsetlevel = LoadCharset(table);
         }
-        else
-            msg->charsetlevel = LoadCharset(table);
 
         // Charset translate header fields
         strxmimecpy(msg->realby, msg->realby, msg->charsetlevel, sizeof(INam), true);

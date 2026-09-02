@@ -3953,8 +3953,12 @@ char* ParseInternetAddr(char* __string, char* __name, char* __addr, bool detect_
     //  carries one) came out as mojibake. Sizing the destination by the
     //  length of the input made it worse: a converted name is longer
     //  than what it came from, so the result was also cut short.
-    if(detect_charset)
-        strxmimecpy_local(__name, __name, sizeof(INam));
+    //
+    //  Always, whatever the caller says about detecting the charset:
+    //  the flag once gated only the conversion, never the decoding,
+    //  and making the whole call conditional left the SOUP import
+    //  storing the encoded word itself as the sender's name.
+    strxmimecpy_local(__name, __name, sizeof(INam));
 
     return __name;
 }
