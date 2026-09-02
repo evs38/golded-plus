@@ -743,20 +743,25 @@ std::string g_utf8_truncate(const std::string& s, size_t maxcols)
 }
 
 
-std::string g_utf8_fit(const char* p, size_t cols)
+std::string g_utf8_fit(const char* p, int cols)
 {
-    if(cols == 0)
+    //  A signed width, so that a caller's arithmetic coming out below
+    //  zero - a column position resolved against a screen narrower than
+    //  the layout assumed - asks for nothing rather than, as size_t,
+    //  for more than a string can hold. That threw std::length_error,
+    //  which nothing catches.
+    if(cols <= 0)
         return std::string();
 
     if(p == NULL)
-        return std::string(cols, ' ');
+        return std::string((size_t)cols, ' ');
 
     size_t width = 0;
-    size_t bytes = g_utf8_bytes_for_cols(p, cols, &width);
+    size_t bytes = g_utf8_bytes_for_cols(p, (size_t)cols, &width);
 
     std::string result(p, bytes);
-    if(width < cols)
-        result.append(cols - width, ' ');
+    if(width < (size_t)cols)
+        result.append((size_t)cols - width, ' ');
 
     return result;
 }

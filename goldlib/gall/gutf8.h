@@ -264,7 +264,7 @@ std::string g_utf8_truncate(const std::string& s, size_t maxcols);
 //  bytes - so columns stopped lining up as soon as the text was not
 //  single-byte.
 
-std::string g_utf8_fit(const char* p, size_t cols);
+std::string g_utf8_fit(const char* p, int cols);
 
 
 //  ------------------------------------------------------------------

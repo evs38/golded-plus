@@ -106,10 +106,9 @@ void GMsgHeaderView::Paint()
     ISub buf;
     //  Never negative. The column positions are resolved against
     //  MAXCOL once at startup, so a window narrower than that leaves
-    //  these below zero - and they are counts of columns now, handed to
-    //  g_utf8_fit() whose parameter is a size_t. Minus three arrived
-    //  there as 18446744073709551613 and the header threw
-    //  std::length_error where it used to print a ragged line.
+    //  these below zero. g_utf8_fit() now takes a signed width and
+    //  treats that as nothing to print, but a negative count is still
+    //  no width for the columns below.
     int namewidth = MaxV(0, CFG->disphdrnodeset.pos - CFG->disphdrnameset.pos);
     int nodewidth = MaxV(0, CFG->disphdrdateset.pos - CFG->disphdrnodeset.pos);
     int datewidth = MaxV(0, MinV(width - CFG->disphdrdateset.pos, CFG->disphdrdateset.len));
