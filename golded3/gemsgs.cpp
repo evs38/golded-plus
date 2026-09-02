@@ -1062,7 +1062,7 @@ void GMsg::LinesToText()
     //  Settled before the fields are cut rather than after: the cuts
     //  below need to know whether the charset they are cutting is one
     //  where a cut can fall inside a character.
-    hdrutf8 = strnieql(charset, "UTF-8", 5) or strnieql(charset, "UTF8", 4);
+    hdrutf8 = GRecoder::is_utf8(charset);
 
     strxcpy(realby, XlatStr(realby, _xlat_level, _xlat_table).c_str(), sizeof(realby));
     strxcpy(realto, XlatStr(realto, _xlat_level, _xlat_table).c_str(), sizeof(realto));

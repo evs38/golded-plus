@@ -110,6 +110,12 @@ int Area::LoadMsg(GMsg* msg, uint32_t msgno, int margin, int mode)
 
         if(mode & (GMSG_COPY|GMSG_MOVE))
         {
+            //  The header fields stay as the base holds them, and
+            //  nothing downstream converts them - so the driver that
+            //  writes the copy has to be told here whether a cut may
+            //  fall inside a character. The header's own charset
+            //  kludge is all that is known about them.
+            msg->hdrutf8 = *msg->hdrchrs and GRecoder::is_utf8(msg->hdrchrs);
             if(not ((mode & GMSG_MOVE) and (mode & GMSG_UNS_NOT_RCV)))
                 return true;
             if(not (msg->attr.uns() and not msg->attr.rcv()))

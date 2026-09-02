@@ -394,12 +394,23 @@ inline size_t g_fit_field_len(const char* __src, size_t __max, bool __utf8)
         return _len;
 
     _len = __max;
-    if(__utf8 and _len)
+    if(__utf8)
     {
-        const char* _last = g_utf8_prev(__src, __src + _len);
-        int _need = g_utf8_seqlen((unsigned char)*_last);
-        if((_need > 1) and ((__src + _len - _last) < _need))
-            _len = (size_t)(_last - __src);
+        //  If the first byte dropped continues a character, the cut
+        //  fell inside one; back up to the lead byte and cut there.
+        //  Done by hand rather than through g_utf8_prev(), which only
+        //  steps over continuation bytes when the session itself is
+        //  UTF-8 - and the charset the fields go out in need not be
+        //  the session's: an 8-bit console, or a DOS build, exporting
+        //  UTF-8 through iconv.
+        if(((unsigned char)__src[_len] & 0xC0) == 0x80)
+        {
+            size_t _lead = _len;
+            while(_lead and ((_len - _lead) < 4) and (((unsigned char)__src[_lead] & 0xC0) == 0x80))
+                _lead--;
+            if(((unsigned char)__src[_lead] & 0xC0) != 0x80)
+                _len = _lead;
+        }
     }
     return _len;
 }
