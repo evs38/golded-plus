@@ -1411,9 +1411,9 @@ int GMenuSChecker::Run(CSpellChecker &schecker, const char *word)
     {
         if (!schecker.IsLoaded(langs[finaltag-TAG_LANG-1]->GetLangCode()))
         {
-            int save_chartableno = GetCurrentTable(); // Workaround: internal for LoadCharset() charset table number changed in the schecker.Load()
+            XlatSnap save_xlat = XlatSnapshot(); // schecker.Load() changes the charset conversion in force
             schecker.Load(langs[finaltag-TAG_LANG-1]->GetLangCode(), NULL); // User dictionary will be loaded if was loaded during initial
-            LoadCharset(save_chartableno); // restore value of the default chaset table // workaround: internal for LoadCharset() charset table number changed in the schecker.Load()
+            XlatRestore(save_xlat);
         }
         else
         {

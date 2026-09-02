@@ -923,7 +923,7 @@ void GThreadlist::GenTree(int idx)
         }
         else
         {
-        int table = GetCurrentTable();
+        XlatSnap saved_xlat = XlatSnapshot();
         const char *doscp = get_dos_charset(CFG->xlatlocalset);
         if(doscp[0]) // console charset is known
         {
@@ -938,7 +938,7 @@ void GThreadlist::GenTree(int idx)
         else
             memcpy(graph, graph_ibmpc, sizeof(graph));
 
-        LoadCharset(table);
+        XlatRestore(saved_xlat);
 
 #if defined(__UNIX__) && !defined(__USE_NCURSES__)
         gvid_boxcvt(graph);

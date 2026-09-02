@@ -489,7 +489,7 @@ void CmfMsgs(GMsg* msg, bool torecycle)
         return;
     }
 
-    int xlat_table = GetCurrentTable();
+    XlatSnap xlat_saved = XlatSnapshot();
 
     AL.SetActiveAreaId(OrigArea);
     AreaData* orig_adat = AA->adat;
@@ -741,7 +741,7 @@ void CmfMsgs(GMsg* msg, bool torecycle)
     AA->adat = orig_adat;
     AA->Unlock();
 
-    LoadCharset(xlat_table);
+    XlatRestore(xlat_saved);
 
     if(do_mode == MODE_MARKED)
     {
