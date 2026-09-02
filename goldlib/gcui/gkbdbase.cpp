@@ -1662,6 +1662,48 @@ bool is_oem_key(int keycode)
 
 //  ------------------------------------------------------------------
 
+//  ------------------------------------------------------------------
+//  Windows 9x has no working wide console input: PeekConsoleInputW and
+//  ReadConsoleInputW are stubs there. The record is read through the
+//  ANSI calls instead, and the byte it carries - in the OEM codepage -
+//  is turned into the codepoint the rest of the keyboard layer expects
+//  to find in the wide half of the union.
+
+static void gkbd_oem_to_unicode(INPUT_RECORD& inp, DWORD nread)
+{
+    if(nread and (inp.EventType == KEY_EVENT))
+    {
+        char  c  = inp.Event.KeyEvent.uChar.AsciiChar;
+        WCHAR wc = (unsigned char)c;
+        if(c)
+            MultiByteToWideChar(CP_OEMCP, 0, &c, 1, &wc, 1);
+        inp.Event.KeyEvent.uChar.UnicodeChar = wc;
+    }
+}
+
+
+static BOOL gkbd_peek(INPUT_RECORD& inp, DWORD& nread)
+{
+    if(gkbd_nt)
+        return PeekConsoleInputW(gkbd_hin, &inp, 1, &nread);
+
+    BOOL rc = PeekConsoleInputA(gkbd_hin, &inp, 1, &nread);
+    gkbd_oem_to_unicode(inp, nread);
+    return rc;
+}
+
+
+static BOOL gkbd_read(INPUT_RECORD& inp, DWORD& nread)
+{
+    if(gkbd_nt)
+        return ReadConsoleInputW(gkbd_hin, &inp, 1, &nread);
+
+    BOOL rc = ReadConsoleInputA(gkbd_hin, &inp, 1, &nread);
+    gkbd_oem_to_unicode(inp, nread);
+    return rc;
+}
+
+
 int gkbd_nt2bios(INPUT_RECORD& inp)
 {
 
@@ -2166,7 +2208,7 @@ gkey kbxget_raw(eKeyModes mode)
 
         // Peek at next key
         k = 0;
-        PeekConsoleInputW(gkbd_hin, &inp, 1, &nread);
+        gkbd_peek(inp, nread);
         if(nread)
         {
             if((inp.EventType == KEY_EVENT) and inp.Event.KeyEvent.bKeyDown)
@@ -2182,7 +2224,7 @@ gkey kbxget_raw(eKeyModes mode)
             if ((inp.EventType != MOUSE_EVENT) || (WinVer.dwPlatformId == VER_PLATFORM_WIN32_NT))
             {
                 // Discard other events
-                ReadConsoleInputW(gkbd_hin, &inp, 1, &nread);
+                gkbd_read(inp, nread);
             }
         }
     }
@@ -2196,7 +2238,7 @@ gkey kbxget_raw(eKeyModes mode)
         while(1)
         {
 
-            PeekConsoleInputW(gkbd_hin, &inp, 1, &nread);
+            gkbd_peek(inp, nread);
             if(not nread)
             {
                 WaitForSingleObject(gkbd_hin, 1000);
@@ -2224,10 +2266,12 @@ gkey kbxget_raw(eKeyModes mode)
                         k = (gkey)ascii;
                         break;
                     }
+                    //  An OEM byte; gkbd_nt2bios() reads the wide half.
+                    gkbd_oem_to_unicode(inp, 1);
                 }
                 else
                 {
-                    ReadConsoleInputW(gkbd_hin, &inp, 1, &nread);
+                    gkbd_read(inp, nread);
                 }
 
                 // Fix Win9x anomaly
@@ -2292,7 +2336,7 @@ gkey kbxget_raw(eKeyModes mode)
             else
             {
                 // Discard other events
-                ReadConsoleInputW(gkbd_hin, &inp, 1, &nread);
+                gkbd_read(inp, nread);
             }
         }
     }

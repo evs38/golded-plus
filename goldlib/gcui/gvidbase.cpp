@@ -1059,6 +1059,66 @@ static bool gvid_wt_console()
 }
 
 
+//  ------------------------------------------------------------------
+//  Windows 9x has no working wide console API: WriteConsoleOutputW,
+//  ReadConsoleOutputW and WriteConsoleW are stubs there. The cells
+//  hold UTF-16 all the same, so on 9x they are converted to the OEM
+//  codepage on the way to the console and back from it on the way in.
+//  On NT and everything after it the wide calls are used directly.
+
+static bool gvid_win9x()
+{
+    return WinVer.dwPlatformId != VER_PLATFORM_WIN32_NT;
+}
+
+
+static void gvid_write_cells(const vatch* buf, COORD size, SMALL_RECT* rect)
+{
+    const COORD coord = {0, 0};
+
+    if(not gvid_win9x())
+    {
+        WriteConsoleOutputW(gvid_hout, buf, size, coord, rect);
+        return;
+    }
+
+    int n = (int)size.X * (int)size.Y;
+    CHAR_INFO* oem = (CHAR_INFO*)throw_malloc(n * sizeof(CHAR_INFO));
+    for(int i = 0; i < n; i++)
+    {
+        WCHAR wc = buf[i].Char.UnicodeChar;
+        char  c  = '?';
+        WideCharToMultiByte(CP_OEMCP, 0, &wc, 1, &c, 1, NULL, NULL);
+        oem[i].Char.AsciiChar = c;
+        oem[i].Attributes = buf[i].Attributes;
+    }
+    WriteConsoleOutputA(gvid_hout, oem, size, coord, rect);
+    throw_free(oem);
+}
+
+
+static void gvid_read_cells(vatch* buf, COORD size, SMALL_RECT* rect)
+{
+    const COORD coord = {0, 0};
+
+    if(not gvid_win9x())
+    {
+        ReadConsoleOutputW(gvid_hout, buf, size, coord, rect);
+        return;
+    }
+
+    ReadConsoleOutputA(gvid_hout, buf, size, coord, rect);
+    int n = (int)size.X * (int)size.Y;
+    for(int i = 0; i < n; i++)
+    {
+        char  c  = buf[i].Char.AsciiChar;
+        WCHAR wc = (unsigned char)c;
+        MultiByteToWideChar(CP_OEMCP, 0, &c, 1, &wc, 1);
+        buf[i].Char.UnicodeChar = wc;
+    }
+}
+
+
 static void gvid_wwrite(int row, int col, vattr atr, const WCHAR* w, int n)
 {
     CONSOLE_SCREEN_BUFFER_INFO sb;
@@ -1100,7 +1160,17 @@ static void gvid_wwrite(int row, int col, vattr atr, const WCHAR* w, int n)
     at.Y = (SHORT)row;
     SetConsoleTextAttribute(gvid_hout, (WORD)atr);
     SetConsoleCursorPosition(gvid_hout, at);
-    WriteConsoleW(gvid_hout, w, (DWORD)n, &wrote, NULL);
+    if(gvid_win9x())
+    {
+        //  No wide stream output either; the text goes out as OEM bytes.
+        char* oem = (char*)throw_malloc(2 * n + 2);
+        int on = WideCharToMultiByte(CP_OEMCP, 0, w, n, oem, 2 * n + 2, NULL, NULL);
+        if(on > 0)
+            WriteConsoleA(gvid_hout, oem, (DWORD)on, &wrote, NULL);
+        throw_free(oem);
+    }
+    else
+        WriteConsoleW(gvid_hout, w, (DWORD)n, &wrote, NULL);
 
     //  Writing this way moves the caret and changes the current
     //  attribute, neither of which the cell API did; put both back.
@@ -1180,7 +1250,8 @@ void vputw(int row, int col, vatch chat)
     rect.Left = col;
     rect.Bottom = row+size.Y-1;
     rect.Right = col+size.X-1;
-    WriteConsoleOutputW(gvid_hout, &chat, size, coord, &rect);
+    (void)coord;
+    gvid_write_cells(&chat, size, &rect);
 
 #elif defined(__UNIX__)
 
@@ -1280,7 +1351,8 @@ void vputws(int row, int col, vatch* buf, uint len)
     rect.Bottom = row+size.Y-1;
     rect.Right = col+size.X-1;
     //  The cells hold Unicode already, put there by vcatch().
-    WriteConsoleOutputW(gvid_hout, buf, size, coord, &rect);
+    (void)coord;
+    gvid_write_cells(buf, size, &rect);
 
 #elif defined(__UNIX__)
 
@@ -1988,7 +2060,8 @@ vatch vgetw(int row, int col)
     rect.Left = col;
     rect.Bottom = row+size.Y-1;
     rect.Right = col+size.X-1;
-    ReadConsoleOutput(gvid_hout, &chat, size, coord, &rect);
+    (void)coord;
+    gvid_read_cells(&chat, size, &rect);
 
     return chat;
 
@@ -2622,10 +2695,8 @@ vsavebuf* vsave(int srow, int scol, int erow, int ecol)
         r.Bottom = erow;
         r.Right = ecol;
 
-        if(WinVer.dwPlatformId == VER_PLATFORM_WIN32_NT)
-            ReadConsoleOutputW(gvid_hout, buf, size, coord, &r);
-        else
-            ReadConsoleOutputA(gvid_hout, buf, size, coord, &r);
+        (void)coord;
+        gvid_read_cells(buf, size, &r);
 
 #elif defined(__UNIX__)
 
@@ -2828,10 +2899,8 @@ void vrestore(vsavebuf* sbuf, int srow, int scol, int erow, int ecol)
     r.Bottom = erow;
     r.Right = ecol;
 
-    if(WinVer.dwPlatformId == VER_PLATFORM_WIN32_NT)
-        WriteConsoleOutputW(gvid_hout, buf, size, coord, &r);
-    else
-        WriteConsoleOutputA(gvid_hout, buf, size, coord, &r);
+    (void)coord;
+    gvid_write_cells(buf, size, &r);
 
 #elif defined(__UNIX__)
 
