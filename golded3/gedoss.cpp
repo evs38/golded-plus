@@ -151,6 +151,11 @@ void Cleanup(void)
                 TouchFile(AddPath(CFG->areapath, CFG->semaphore.echoscan));
         }
 
+        //  Under curses the screen layer is created only once the
+        //  configuration has been read, and an exit() before that - a
+        //  missing golded.cfg - arrives here with no screen to put back.
+        if(gvid)
+        {
         // Reset border color
         if (C_BACKB != (BLACK_|_BLACK))
             gvid->setoverscan(gvid->orig.color.overscan);
@@ -163,8 +168,12 @@ void Cleanup(void)
         }
         whelpundef();                     // Disengage the help system
         kbclear();                        // Clear CXL keyboard buffer
+        }
         freonkey();                       // Free all onkeys (macros)
         FreePastebuf();                   // Free the internal editor cut'n'paste buffer
+
+        if(gvid)
+        {
 
 #if !defined(__UNIX__) && !defined(__USE_NCURSES__)
         if(CFG->screenpalette[16])
@@ -192,6 +201,7 @@ void Cleanup(void)
 
         vposset(gvid->orig.cursor.row-1, 0);
         vcurshow();
+        }
     }
     throw_xdelete(BodyView);
     throw_xdelete(HeaderView);
