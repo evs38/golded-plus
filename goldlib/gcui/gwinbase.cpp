@@ -851,7 +851,7 @@ int wputs(const char* str)
             //  One character, which in UTF-8 is more than one byte;
             //  the loop's own q++ accounts for the first of them.
             int used = 1;
-            vchar ch = (vchar)g_utf8_decode(q, q + strlen(q), &used);
+            vchar ch = (vchar)g_utf8_decode(q, &used);
             vputc(crow, ccol++, gwin.active->attr, ch);
             if(used > 1)
                 q += used - 1;
@@ -1867,7 +1867,7 @@ int wwprints(int whandle, int wrow, int wcol, vattr attr, const char* str)
     while(__ccol <= ecol and *__p)
     {
         __chlen = 1;
-        __ch = (vchar)g_utf8_decode(__p, __p + strlen(__p), &__chlen);
+        __ch = (vchar)g_utf8_decode(__p, &__chlen);
         if(__chlen <= 0)
             __chlen = 1;
 
