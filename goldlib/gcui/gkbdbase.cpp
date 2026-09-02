@@ -1967,9 +1967,17 @@ gkey kbxget_raw(eKeyModes mode)
             k = 0x7800 + ((key2 - '1') << 8);
         else if(key2 == '0')
             k = 0x8100;
-        else if(g_isalpha(key2)
-                and (0 <= key2)
-                and (key2 < sizeof(scancode_table)/sizeof(scancode_table[0])))
+        //  Range first, then the ctype call. key2 comes straight from
+        //  curses and may be a key code rather than a character - an
+        //  arrow is 0403, which is 259 - and on Unix g_isalpha() is
+        //  isalpha() itself. NetBSD's ctype aborts the program on an
+        //  argument outside -1..255 rather than reading past its table,
+        //  so an Esc arriving on its own just before an arrow key ended
+        //  the session. Reachable by moving between areas quickly
+        //  enough to split an escape sequence across two reads.
+        else if((0 <= key2)
+                and (key2 < (int)(sizeof(scancode_table)/sizeof(scancode_table[0])))
+                and g_isalpha(key2))
             k = (scancode_table[key2]);
         else if((key2 == '\010') or (key2 == KEY_BACKSPACE) or (key2 == '\177'))
             k = Key_A_BS;

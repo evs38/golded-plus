@@ -454,6 +454,15 @@ ______________________________________________________________________
   GERMAN in the kludge, as the standard asks, and iso646-de in the
   header.
 
+- The program died with "ctype(3) isalpha: invalid input: 259" on
+  NetBSD when the user moved between areas quickly. Under curses an
+  escape sequence can arrive split across two reads, and the key code
+  that follows a lone Esc is then tested as a possible Alt-letter. The
+  test called isalpha() on the code before checking that it was a
+  character at all; an arrow key is 259, and NetBSD's ctype aborts on
+  an argument outside its table rather than reading past it. The range
+  check now comes first.
+
 - Opening a message threw std::length_error and killed the program on
   any screen narrower than the header's own columns. The date column
   sits at a position resolved against MAXCOL once at startup; a window
