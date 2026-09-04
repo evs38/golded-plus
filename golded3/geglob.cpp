@@ -65,19 +65,17 @@ char goldmark = ' ';
 
 //  ------------------------------------------------------------------
 //  What to draw for the mark that says another GoldED+ wrote the
-//  message. It is the squared sign, and which bytes that is depends on
-//  the session rather than on the platform:
+//  message. It is the squared sign, U+00B2, in whatever the session's
+//  charset spells it: the character itself in UTF-8, the byte that
+//  stands for it in a single-byte charset that has one - 0xFD in
+//  CP437, 0x9D in KOI8-R, 0xB2 in Latin-1 - and an ASCII stand-in
+//  where there is none, CP866 among them.
 //
-//    UTF-8       the character itself;
-//    single-byte the CP437 byte for it, 0xFD, where the charset is one
-//                of that family - DOS, OS/2, Windows;
-//    elsewhere   an ASCII stand-in, because in a single-byte unix
-//                session the charset is anyone's guess and 0xFD is a
-//                Cyrillic letter in KOI8-R.
-//
-//  The platform test this replaces said the same thing in a roundabout
-//  way, and said it at compile time, so a UTF-8 session on unix got the
-//  stand-in it no longer needs.
+//  It used to be a byte fixed when the program was compiled: 0xFD
+//  everywhere but unix, which had the stand-in since 2001 because the
+//  X fonts of the day lacked the sign. So a CP866 session drew the
+//  currency sign, which is what 0xFD is there, and a KOI8-R session
+//  on Windows the letter Щ.
 
 std::string goldmark_str()
 {
@@ -87,11 +85,11 @@ std::string goldmark_str()
     if(g_utf8_mode())
         return g_utf8_encode(0x00B2);
 
-#ifdef __UNIX__
+    int byte = g_unicode_to_local(0x00B2);
+    if(byte > 0)
+        return std::string(1, (char)byte);
+
     return std::string(1, '^');
-#else
-    return std::string(1, '\xFD');
-#endif
 }
 
 int startecho = -1;

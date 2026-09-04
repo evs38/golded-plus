@@ -618,6 +618,17 @@ inline vatch vcatch (vchar chr, vattr atr)
     chat.Attributes = WORD(atr);
     return chat;
 }
+//  The same cell from a codepoint gvid_tcpr() has already produced.
+//  The conversion is not idempotent in 8-bit mode: a byte the OEM
+//  table maps below U+0100 - 0xFD is U+00A4 in CP866 - would be taken
+//  for a byte again and come out as the letter at that byte, 'д'.
+inline vatch vcatch_cp (vchar cp, vattr atr)
+{
+    vatch chat;
+    chat.Char.UnicodeChar = (WCHAR)cp;
+    chat.Attributes = WORD(atr);
+    return chat;
+}
 inline vatch vschar (vatch chat, vchar chr)
 {
     chat.Char.UnicodeChar = (WCHAR)gvid_tcpr(chr);

@@ -969,17 +969,17 @@ static int gvid_cellcp(vatch* cells, int at, vchar cp, vattr atr)
 
     if(gvid_utf16(cp, w) > 1)
     {
-        cells[at++] = vcatch((vchar)w[0], atr);
-        cells[at++] = vcatch((vchar)w[1], atr);
+        cells[at++] = vcatch_cp((vchar)w[0], atr);
+        cells[at++] = vcatch_cp((vchar)w[1], atr);
     }
     else if(g_cp_width((uint32_t)cp) == 2)
     {
-        cells[at++] = vcatch(cp, atr | COMMON_LVB_LEADING_BYTE);
-        cells[at++] = vcatch(cp, atr | COMMON_LVB_TRAILING_BYTE);
+        cells[at++] = vcatch_cp(cp, atr | COMMON_LVB_LEADING_BYTE);
+        cells[at++] = vcatch_cp(cp, atr | COMMON_LVB_TRAILING_BYTE);
     }
     else
     {
-        cells[at++] = vcatch(cp, atr);
+        cells[at++] = vcatch_cp(cp, atr);
     }
 
     return at;
@@ -1429,8 +1429,8 @@ void vputc(int row, int col, vattr atr, vchar chr)
                 //  and lays the row out around it, so the characters
                 //  jumped as the cursor crossed an emoji.
                 vatch two[2];
-                two[0] = vcatch((vchar)w[0], atr);
-                two[1] = vcatch((vchar)w[1], atr);
+                two[0] = vcatch_cp((vchar)w[0], atr);
+                two[1] = vcatch_cp((vchar)w[1], atr);
                 vputws(row, col, two, 2);
             }
         }
@@ -1440,13 +1440,13 @@ void vputc(int row, int col, vattr atr, vchar chr)
             //  redrawing the character under the cursor would collapse
             //  it to one cell and shift the rest of the row.
             vatch two[2];
-            two[0] = vcatch(cp, atr | COMMON_LVB_LEADING_BYTE);
-            two[1] = vcatch(cp, atr | COMMON_LVB_TRAILING_BYTE);
+            two[0] = vcatch_cp(cp, atr | COMMON_LVB_LEADING_BYTE);
+            two[1] = vcatch_cp(cp, atr | COMMON_LVB_TRAILING_BYTE);
             vputws(row, col, two, 2);
         }
         else
         {
-            vputw(row, col, vcatch(cp, atr));
+            vputw(row, col, vcatch_cp(cp, atr));
         }
     }
 

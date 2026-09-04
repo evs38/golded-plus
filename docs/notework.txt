@@ -583,6 +583,23 @@ ______________________________________________________________________
   Alt++0431 a Cyrillic б in a UTF-8 session; Windows 9x keeps the old
   path.
 
+- In a single-byte session on Windows, four characters of CP866 drew as
+  other characters: the currency sign as the letter д, the degree sign
+  as a shaded block, the middle dot as a box corner and the no-break
+  space as the letter а. Every byte the console's codepage maps to a
+  codepoint below U+0100 did the same. The byte was turned into its
+  codepoint once, and then, since the cell builder cannot tell a small
+  codepoint from a byte, once more - U+00A4 read as the CP866 byte 0xA4,
+  which is д. The status line's GoldED+ mark, byte 0xFD, was the case
+  everyone saw. Cells built from a codepoint no longer convert it.
+
+- The GoldED+ mark in the status line is the squared sign as the
+  session's charset spells it: 0xFD in CP437, 0x9D in KOI8-R, 0xB2 in
+  Latin-1, the character itself in UTF-8, and a caret where the charset
+  has no such sign, CP866 among them. It was a byte fixed at compile
+  time - 0xFD everywhere but unix - which in CP866 is the currency sign
+  and in KOI8-R the letter Щ.
+
 - The screen follows the terminal when its window is resized. The
   size was read once at startup and never again: the columns the
   configuration gives relative to the right edge were folded into
