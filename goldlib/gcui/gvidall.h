@@ -375,6 +375,13 @@ public:
 
     void resize_screen(int columns, int rows);
 
+    //  Whether the terminal is a different size now than the one held
+    //  in numrows/numcols, and the adoption of that size - the buffers
+    //  are reallocated, MAXROW/MAXCOL follow. Nothing on screen is
+    //  redrawn here.
+    bool size_changed();
+    void refresh_size();
+
 };
 
 extern GVid *gvid;

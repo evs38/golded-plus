@@ -430,6 +430,11 @@ int ShellToDos(const char* command, char* message, vattr cls, int cursor, int pa
         //  shell-out.
         vfreesave(scrnbuf);
         scrnbuf = NULL;
+        //  The terminal may have been resized while the shell had it;
+        //  what was just put back is the old picture, and the owner of
+        //  the screen lays it out again on the next loop.
+        if(gvid->size_changed())
+            gkbd.resize_pending = true;
     }
     else
         vclrscr();

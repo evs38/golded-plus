@@ -3673,6 +3673,11 @@ int IEclass::Start(int __mode, uint* __position, GMsg* __msg)
         do
         {
             _ch = getxchtick();
+            if(_ch == Key_Resize)
+            {
+                Resize();
+                _ch = Key_Tick;
+            }
 //  TO_PORT_TAG: kbxget_raw(KeyMode_Control)
 #if defined(__WIN32__)
             keystatus = kbxget_raw(KeyMode_Control);

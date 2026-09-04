@@ -117,6 +117,38 @@ void IEclass::windowclose()
 
 
 //  ------------------------------------------------------------------
+//  The terminal changed size while editing: rebuild the screen below,
+//  give the editor window the new width and height, and redraw the
+//  text from the first line on screen. The wrap margins the text was
+//  typed with are left as they are.
+
+void IEclass::Resize()
+{
+    windowclose();
+    HeaderView->Destroy();
+
+    ScreenResized(true);
+
+    HeaderView->width = MAXCOL;
+    HeaderView->Create();
+    HeaderView->Use(AA, msgptr);
+    HeaderView->Paint();
+
+    win_maxcol = MAXCOL - 1;
+    win_maxrow = MAXROW - 2;
+    maxcol = win_maxcol - win_mincol - (2*win_hasborder);
+    maxrow = win_maxrow - win_minrow - (2*win_hasborder);
+    if(col > maxcol)
+        col = maxcol;
+    if(row > maxrow)
+        row = maxrow;
+
+    windowopen();
+    refresh(findfirstline(), minrow);
+}
+
+
+//  ------------------------------------------------------------------
 
 void Edit__killpastebuf()
 {

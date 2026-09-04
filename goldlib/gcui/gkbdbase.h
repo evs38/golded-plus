@@ -158,6 +158,10 @@ public:
     Clock  tickpress;      // Tick value at last keypress
     bool   inidle;         // In-idle flag used by tickfunc
     bool   quitall;        // Quit-all flag for menus etc.
+    //  The terminal changed size and the screen has not been laid out
+    //  again since. Raised with every Key_Resize; whoever owns the
+    //  screen clears it once the new size has been applied.
+    bool   resize_pending;
 
     void Init();
     GKbd();

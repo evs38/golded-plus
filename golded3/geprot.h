@@ -99,6 +99,8 @@ void GetAreaconf();
 char* MakeOrigin(GMsg* msg, const char* _origin);
 char* MakeTearline(GMsg* msg, char* buf, size_t size);
 void DoKludges(int mode, GMsg* msg, int kludges = 0);
+bool ScreenResized(bool force = false);
+void ReaderResize();
 void ApplyUcsHeaders(GMsg* msg);
 void DoTearorig(int mode, GMsg* msg);
 int ApplyExportCharset(GMsg* msg);

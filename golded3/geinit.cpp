@@ -396,6 +396,243 @@ static void kbputstr(const char* buf)
 
 
 //  ------------------------------------------------------------------
+//  The screen layout that follows from the terminal's size.
+//
+//  The configuration gives several positions relative to the right edge
+//  as negative numbers, and the original code folded them into absolute
+//  columns in place, once, at startup - which made a later resize
+//  impossible: the relative intent was gone. The raw values are kept
+//  here the first time through and the folding is done from them, so
+//  it can be done again whenever MAXROW/MAXCOL change.
+
+static bool layout_raw_kept = false;
+static int  raw_dispmargin, raw_quotemargin, raw_editquotemargin;
+static int  raw_hdrname_pos, raw_hdrname_len, raw_hdrnode_pos, raw_hdrnode_len, raw_hdrdate_pos, raw_hdrdate_len;
+static int  raw_edithdrname_pos, raw_edithdrname_len, raw_edithdrnode_pos, raw_edithdrnode_len;
+static int  raw_desc_width;
+
+static void ScreenLayoutKeepRaw()
+{
+    if(layout_raw_kept)
+        return;
+    layout_raw_kept = true;
+    raw_dispmargin      = CFG->dispmargin;
+    raw_quotemargin     = CFG->quotemargin;
+    raw_editquotemargin = EDIT->QuoteMargin();
+    raw_hdrname_pos = CFG->disphdrnameset.pos;  raw_hdrname_len = CFG->disphdrnameset.len;
+    raw_hdrnode_pos = CFG->disphdrnodeset.pos;  raw_hdrnode_len = CFG->disphdrnodeset.len;
+    raw_hdrdate_pos = CFG->disphdrdateset.pos;  raw_hdrdate_len = CFG->disphdrdateset.len;
+    raw_edithdrname_pos = EDIT->HdrNamePos();   raw_edithdrname_len = EDIT->HdrNameLen();
+    raw_edithdrnode_pos = EDIT->HdrNodePos();   raw_edithdrnode_len = EDIT->HdrNodeLen();
+    extern int desc_width;
+    raw_desc_width = desc_width;
+}
+
+
+static void ScreenLayoutMargins()
+{
+    ScreenLayoutKeepRaw();
+
+    if(CFG->screenmaxrow >= 10)
+        MAXROW = CFG->screenmaxrow;
+
+    if(CFG->screenmaxcol >= 80)
+        MAXCOL = CFG->screenmaxcol;
+
+    CFG->dispmargin = raw_dispmargin;
+    if(CFG->dispmargin <= 0)
+        CFG->dispmargin += MAXCOL;
+
+    if(CFG->dispmargin > MAXCOL)
+        CFG->dispmargin = MAXCOL;
+
+    CFG->quotemargin = raw_quotemargin;
+    if(CFG->quotemargin <= 0)
+        CFG->quotemargin += MAXCOL;
+
+    EDIT->QuoteMargin(raw_editquotemargin);
+    if(EDIT->QuoteMargin() <= 0)
+        EDIT->QuoteMargin(EDIT->QuoteMargin()+MAXCOL);
+}
+
+
+static void ScreenLayoutHeader()
+{
+    ScreenLayoutKeepRaw();
+
+    CFG->disphdrnameset.pos = raw_hdrname_pos;  CFG->disphdrnameset.len = raw_hdrname_len;
+    CFG->disphdrnodeset.pos = raw_hdrnode_pos;  CFG->disphdrnodeset.len = raw_hdrnode_len;
+    CFG->disphdrdateset.pos = raw_hdrdate_pos;  CFG->disphdrdateset.len = raw_hdrdate_len;
+    EDIT->HdrNamePos(raw_edithdrname_pos);      EDIT->HdrNameLen(raw_edithdrname_len);
+    EDIT->HdrNodePos(raw_edithdrnode_pos);      EDIT->HdrNodeLen(raw_edithdrnode_len);
+
+    // Adjust header item sizes if negative
+    if(CFG->disphdrnameset.pos < 0)    CFG->disphdrnameset.pos += MAXCOL;
+    if(CFG->disphdrnodeset.pos < 0)    CFG->disphdrnodeset.pos += MAXCOL;
+    if(CFG->disphdrdateset.pos < 0)    CFG->disphdrdateset.pos += MAXCOL;
+    if(CFG->disphdrnameset.len < 0)    CFG->disphdrnameset.len += MAXCOL;
+    if(CFG->disphdrnodeset.len < 0)    CFG->disphdrnodeset.len += MAXCOL;
+    if(CFG->disphdrdateset.len < 0)    CFG->disphdrdateset.len += MAXCOL;
+
+    if(EDIT->HdrNamePos() < 0)  EDIT->HdrNamePos(EDIT->HdrNamePos()+MAXCOL);
+    if(EDIT->HdrNameLen() < 0)  EDIT->HdrNameLen(EDIT->HdrNameLen()+MAXCOL);
+    if(EDIT->HdrNodePos() < 0)  EDIT->HdrNodePos(EDIT->HdrNodePos()+MAXCOL);
+    if(EDIT->HdrNodeLen() < 0)  EDIT->HdrNodeLen(EDIT->HdrNodeLen()+MAXCOL);
+}
+
+
+//  The column layout of the area list from AREALISTFORMAT. The width
+//  left for the description is what MAXCOL leaves, so this runs again
+//  after a resize; the description width the configuration gave is
+//  kept raw for that.
+
+static void ArealistLayout()
+{
+    ScreenLayoutKeepRaw();
+
+    extern int desc_width;
+    desc_width = raw_desc_width;
+
+    int spaces = 0;
+    bool area_found = false;
+    bool marked_found = false;
+    bool desc_found = false;
+    bool count_found = false;
+    bool pmark_found = false;
+    bool unread_found = false;
+    bool changed_found = false;
+    bool echoid_found = false;
+    bool groupid_found = false;
+    for(int pass=1; pass<=2; pass++)
+    {
+        if(pass == 2)
+        {
+            if(not area_found)     area_width = 0;
+            if(not marked_found)   marked_width = 0;
+            if(not desc_found)     desc_width = 0;
+            if(not count_found)    count_width = 0;
+            if(not pmark_found)    pmark_width = 0;
+            if(not unread_found)   unread_width = 0;
+            if(not changed_found)  changed_width = 0;
+            if(not echoid_found)   echoid_width = 0;
+            if(not groupid_found)  groupid_width = 0;
+            if(desc_width == -1)
+            {
+                desc_width =
+                    MAXCOL - 2 - spaces - area_width - marked_width -
+                    count_width - pmark_width - unread_width - changed_width -
+                    echoid_width - groupid_width;
+            }
+        }
+        int pos = 0;
+        char* p = CFG->arealistformat;
+        while(*p)
+        {
+            char c = (char)g_toupper(*p);
+            char d = *(++p);
+            int w = atoi(p);
+            while(isdigit(*p))
+                p++;
+            if(pass == 1)
+            {
+                if(g_isalpha(c))
+                {
+                    switch(c)
+                    {
+                    case 'A':
+                        area_found = true;
+                        if(isdigit(d)) area_width = w;
+                        break;
+                    case 'M':
+                        marked_found = true;
+                        if(isdigit(d)) marked_width = w;
+                        break;
+                    case 'D':
+                        desc_found = true;
+                        if(isdigit(d)) desc_width = w;
+                        break;
+                    case 'C':
+                        count_found = true;
+                        if(isdigit(d)) count_width = w;
+                        break;
+                    case 'P':
+                        pmark_found = true;
+                        if(isdigit(d)) pmark_width = w;
+                        break;
+                    case 'U':
+                        unread_found = true;
+                        if(isdigit(d)) unread_width = w;
+                        break;
+                    case 'N':
+                        changed_found = true;
+                        if(isdigit(d)) changed_width = w;
+                        break;
+                    case 'E':
+                        echoid_found = true;
+                        if(isdigit(d)) echoid_width = w;
+                        break;
+                    case 'G':
+                        groupid_found = true;
+                        if(isdigit(d)) groupid_width = w;
+                        break;
+                    }
+                }
+                else
+                {
+                    spaces++;
+                }
+            }
+            else
+            {
+                switch(c)
+                {
+                case 'A':
+                    area_pos = pos;
+                    pos += area_width;
+                    break;
+                case 'M':
+                    marked_pos = pos;
+                    pos += marked_width;
+                    break;
+                case 'D':
+                    desc_pos = pos;
+                    pos += desc_width;
+                    break;
+                case 'C':
+                    count_pos = pos;
+                    pos += count_width;
+                    break;
+                case 'P':
+                    pmark_pos = pos;
+                    pos += pmark_width;
+                    break;
+                case 'U':
+                    unread_pos = pos;
+                    pos += unread_width;
+                    break;
+                case 'N':
+                    changed_pos = pos;
+                    pos += changed_width;
+                    break;
+                case 'E':
+                    echoid_pos = pos;
+                    pos += echoid_width;
+                    break;
+                case 'G':
+                    groupid_pos = pos;
+                    pos += groupid_width;
+                    break;
+                default:
+                    pos++;
+                }
+            }
+        }
+    }
+
+}
+
+
+//  ------------------------------------------------------------------
 
 static void w_back()
 {
@@ -407,6 +644,42 @@ static void w_back()
     wfillch(fillch);
     W_BACK = wopen(0,0,MAXROW-2,MAXCOL-1,5,C_BACKB,C_BACKW|ACSET);
     wfillch((vchar)' ');
+}
+
+
+//  ------------------------------------------------------------------
+//  The terminal changed size: adopt it and lay the screen out again.
+//
+//  Everything that sits on the screen - the two background windows, the
+//  help window's rectangle, the margins and the header columns - is
+//  rebuilt from the new MAXROW/MAXCOL. What the caller had open on top
+//  (the reader's views, a list, the editor) it must close before and
+//  open again after: a window is a saved rectangle of the screen below
+//  it, so the stack can only be rebuilt from the bottom.
+//
+//  Returns whether the size actually differed. 'force' does it anyway,
+//  for a caller that only knows a resize was reported.
+
+bool ScreenResized(bool force)
+{
+    if(not force and not gvid->size_changed())
+    {
+        gkbd.resize_pending = false;
+        return false;
+    }
+
+    gvid->refresh_size();
+    ScreenLayoutMargins();
+    ScreenLayoutHeader();
+    ArealistLayout();
+    inforow = (MAXROW-1)/2;
+
+    wcloseall();
+    w_back();
+    whelpwin(0, 0, MAXROW-2, MAXCOL-1, W_BHELP, NO);
+
+    gkbd.resize_pending = false;
+    return true;
 }
 
 
@@ -1028,23 +1301,7 @@ void Initialize(int argc, char* argv[])
 
     vcurhide();
 
-    if(CFG->screenmaxrow >= 10)
-        MAXROW = CFG->screenmaxrow;
-
-    if(CFG->screenmaxcol >= 80)
-        MAXCOL = CFG->screenmaxcol;
-
-    if(CFG->dispmargin <= 0)
-        CFG->dispmargin += MAXCOL;
-
-    if(CFG->dispmargin > MAXCOL)
-        CFG->dispmargin = MAXCOL;
-
-    if(CFG->quotemargin <= 0)
-        CFG->quotemargin += MAXCOL;
-
-    if(EDIT->QuoteMargin() <= 0)
-        EDIT->QuoteMargin(EDIT->QuoteMargin()+MAXCOL);
+    ScreenLayoutMargins();
 
 #ifdef __MSDOS__
     if(CFG->switches.get(screenusebios))
@@ -1138,18 +1395,7 @@ void Initialize(int argc, char* argv[])
     if(cmdlinetimeout != -1)
         CFG->timeout = cmdlinetimeout;
 
-    // Adjust header item sizes if negative
-    if(CFG->disphdrnameset.pos < 0)    CFG->disphdrnameset.pos += MAXCOL;
-    if(CFG->disphdrnodeset.pos < 0)    CFG->disphdrnodeset.pos += MAXCOL;
-    if(CFG->disphdrdateset.pos < 0)    CFG->disphdrdateset.pos += MAXCOL;
-    if(CFG->disphdrnameset.len < 0)    CFG->disphdrnameset.len += MAXCOL;
-    if(CFG->disphdrnodeset.len < 0)    CFG->disphdrnodeset.len += MAXCOL;
-    if(CFG->disphdrdateset.len < 0)    CFG->disphdrdateset.len += MAXCOL;
-
-    if(EDIT->HdrNamePos() < 0)  EDIT->HdrNamePos(EDIT->HdrNamePos()+MAXCOL);
-    if(EDIT->HdrNameLen() < 0)  EDIT->HdrNameLen(EDIT->HdrNameLen()+MAXCOL);
-    if(EDIT->HdrNodePos() < 0)  EDIT->HdrNodePos(EDIT->HdrNodePos()+MAXCOL);
-    if(EDIT->HdrNodeLen() < 0)  EDIT->HdrNodeLen(EDIT->HdrNodeLen()+MAXCOL);
+    ScreenLayoutHeader();
 
     // Set default marks names
     AL.SetDefaultMarks();
@@ -1198,141 +1444,7 @@ void Initialize(int argc, char* argv[])
     if(areaswithgroupid and CFG->switches.get(arealistgroupid))
         groupid_width = arealistnumgrps ? 3 : 1;
 
-    int spaces = 0;
-    bool area_found = false;
-    bool marked_found = false;
-    bool desc_found = false;
-    bool count_found = false;
-    bool pmark_found = false;
-    bool unread_found = false;
-    bool changed_found = false;
-    bool echoid_found = false;
-    bool groupid_found = false;
-    for(int pass=1; pass<=2; pass++)
-    {
-        if(pass == 2)
-        {
-            if(not area_found)     area_width = 0;
-            if(not marked_found)   marked_width = 0;
-            if(not desc_found)     desc_width = 0;
-            if(not count_found)    count_width = 0;
-            if(not pmark_found)    pmark_width = 0;
-            if(not unread_found)   unread_width = 0;
-            if(not changed_found)  changed_width = 0;
-            if(not echoid_found)   echoid_width = 0;
-            if(not groupid_found)  groupid_width = 0;
-            if(desc_width == -1)
-            {
-                desc_width =
-                    MAXCOL - 2 - spaces - area_width - marked_width -
-                    count_width - pmark_width - unread_width - changed_width -
-                    echoid_width - groupid_width;
-            }
-        }
-        int pos = 0;
-        char* p = CFG->arealistformat;
-        while(*p)
-        {
-            char c = (char)g_toupper(*p);
-            char d = *(++p);
-            int w = atoi(p);
-            while(isdigit(*p))
-                p++;
-            if(pass == 1)
-            {
-                if(g_isalpha(c))
-                {
-                    switch(c)
-                    {
-                    case 'A':
-                        area_found = true;
-                        if(isdigit(d)) area_width = w;
-                        break;
-                    case 'M':
-                        marked_found = true;
-                        if(isdigit(d)) marked_width = w;
-                        break;
-                    case 'D':
-                        desc_found = true;
-                        if(isdigit(d)) desc_width = w;
-                        break;
-                    case 'C':
-                        count_found = true;
-                        if(isdigit(d)) count_width = w;
-                        break;
-                    case 'P':
-                        pmark_found = true;
-                        if(isdigit(d)) pmark_width = w;
-                        break;
-                    case 'U':
-                        unread_found = true;
-                        if(isdigit(d)) unread_width = w;
-                        break;
-                    case 'N':
-                        changed_found = true;
-                        if(isdigit(d)) changed_width = w;
-                        break;
-                    case 'E':
-                        echoid_found = true;
-                        if(isdigit(d)) echoid_width = w;
-                        break;
-                    case 'G':
-                        groupid_found = true;
-                        if(isdigit(d)) groupid_width = w;
-                        break;
-                    }
-                }
-                else
-                {
-                    spaces++;
-                }
-            }
-            else
-            {
-                switch(c)
-                {
-                case 'A':
-                    area_pos = pos;
-                    pos += area_width;
-                    break;
-                case 'M':
-                    marked_pos = pos;
-                    pos += marked_width;
-                    break;
-                case 'D':
-                    desc_pos = pos;
-                    pos += desc_width;
-                    break;
-                case 'C':
-                    count_pos = pos;
-                    pos += count_width;
-                    break;
-                case 'P':
-                    pmark_pos = pos;
-                    pos += pmark_width;
-                    break;
-                case 'U':
-                    unread_pos = pos;
-                    pos += unread_width;
-                    break;
-                case 'N':
-                    changed_pos = pos;
-                    pos += changed_width;
-                    break;
-                case 'E':
-                    echoid_pos = pos;
-                    pos += echoid_width;
-                    break;
-                case 'G':
-                    groupid_pos = pos;
-                    pos += groupid_width;
-                    break;
-                default:
-                    pos++;
-                }
-            }
-        }
-    }
+    ArealistLayout();
 
     update_statuslines();
     ReadEcholists();            // Read the Confmail compatible echotag lists

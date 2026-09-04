@@ -427,7 +427,8 @@ const gkey KK_FileUndefine         = 0xFFE2;
 const gkey KK_ListUndefine         = 0xFFE3;
 const gkey KK_NodeUndefine         = 0xFFE4;
 const gkey KK_ReadUndefine         = 0xFFE5;
-const gkey KK_ZzzzLast             = 0xFFE6;
+const gkey KK_ReadScreenResize     = 0xFFE6;  // internal: the terminal changed size
+const gkey KK_ZzzzLast             = 0xFFE7;
 
 
 //  ------------------------------------------------------------------

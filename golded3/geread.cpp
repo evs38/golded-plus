@@ -58,6 +58,42 @@ void GoNextMsg();
 
 //  ------------------------------------------------------------------
 
+//  ------------------------------------------------------------------
+//  Where the reader was scrolled to when a resize interrupted it, so
+//  the reload that follows can go back there; -1 for the top.
+
+static int reader_resize_topline = -1;
+static bool reader_views_open = false;
+
+
+//  Lay the reader out again after the terminal changed size: the two
+//  views are closed, the screen below them rebuilt for the new size,
+//  and the views opened again to the new width and height. The message
+//  is reloaded by the loop this is called from, to be wrapped at the
+//  new width.
+
+void ReaderResize()
+{
+    bool had_views = reader_views_open;
+    if(had_views)
+    {
+        HeaderView->Destroy();
+        BodyView->Destroy();
+    }
+
+    ScreenResized(true);
+
+    if(had_views)
+    {
+        HeaderView->width  = MAXCOL;
+        HeaderView->Create();
+        BodyView->width    = MAXCOL;
+        BodyView->height   = MAXROW - 6 - 1;
+        BodyView->Create();
+    }
+}
+
+
 gkey ReaderGetKey()
 {
 
@@ -69,6 +105,10 @@ gkey ReaderGetKey()
             CheckTick(KK_ReadQuitNow);
     }
     while(keycode == Key_Tick);
+    if(keycode == Key_Resize)
+    {
+        return KK_ReadScreenResize;
+    }
     if(keycode < KK_Commands)
     {
         keycode = key_tolower(keycode);
@@ -237,6 +277,7 @@ void Reader()
         BodyView->scrollbar_color = C_READPB;
         BodyView->highlight_color = C_READH;
         BodyView->Create();
+        reader_views_open = true;
 
         do
         {
@@ -274,11 +315,19 @@ void Reader()
             do
             {
 
+                //  A resize reported while a list or a menu was up, or by
+                //  the reader itself: lay the screen out again before
+                //  the message is loaded, since it is wrapped to the
+                //  width the screen has.
+                if(gkbd.resize_pending)
+                    ReaderResize();
+
                 // Set the default help for this window
                 whelpcat(H_Reader);
 
                 if(not AA->attr().hex())
-                    reader_topline = 0;
+                    reader_topline = (reader_resize_topline >= 0) ? reader_resize_topline : 0;
+                reader_resize_topline = -1;
 
                 if(AA->Msgn.Count() and not AA->lastread())
                     AA->set_lastread(1);
@@ -861,6 +910,19 @@ void Reader()
                         case KK_ReadMessageList:
                             MessageBrowse();
                             reader_msglistfirst = false;
+                            //  Cut short by a resize: reopen it once the
+                            //  screen is laid out again.
+                            if(gkbd.resize_pending)
+                            {
+                                kbput(KK_ReadMessageList);
+                                reader_resize_topline = BodyView->UpperLine();
+                                reader_keyok = false;
+                            }
+                            break;
+
+                        case KK_ReadScreenResize:
+                            reader_resize_topline = BodyView->UpperLine();
+                            reader_keyok = false;
                             break;
 
                         case KK_ReadThreadtree:
@@ -990,6 +1052,11 @@ void Reader()
 
                         case KK_ReadNewArea:
                             NewArea();
+                            if(gkbd.resize_pending)
+                            {
+                                kbput(KK_ReadNewArea);
+                                reader_keyok = false;
+                            }
                             break;
 
                         case KK_ReadTouchNetscan:
@@ -1150,6 +1217,7 @@ void Reader()
 
         HeaderView->Destroy();
         BodyView->Destroy();
+        reader_views_open = false;
     }
 
     msg->Reset();

@@ -363,7 +363,9 @@ void GKbd::Init()
                           OPEN_EXISTING, 0, NULL);
     GetConsoleMode(gkbd_hin, &gkbd_kbdmode);
     if(gkbd_kbdmode & KBD_TEXTMODE)
-        SetConsoleMode(gkbd_hin, gkbd_kbdmode & ~KBD_TEXTMODE);
+        //  Window events stay on: WINDOW_BUFFER_SIZE_EVENT is how the
+        //  console says it was resized.
+        SetConsoleMode(gkbd_hin, (gkbd_kbdmode & ~KBD_TEXTMODE) | ENABLE_WINDOW_INPUT);
 
 #elif defined(__UNIX__)
 
@@ -390,6 +392,7 @@ GKbd::GKbd()
     tickfunc = NULL;
     inidle = 0;
     quitall = NO;
+    resize_pending = false;
 
     // Detect enhanced keyboard by checking bit 4 at 0x00000496
 #if defined(__USE_NCURSES__)
@@ -1034,7 +1037,7 @@ int gkbd_curstable[] =
     -1,        //  KEY_SUSPEND
     -1,        //  KEY_UNDO
     -1,        //  KEY_MOUSE
-    -1,        //  KEY_RESIZE
+    Key_Resize, // KEY_RESIZE - curses has already called resizeterm()
     -1,	     //  KEY_EVENT
     // Gap for future curses versions
     -1,	     //
@@ -2088,7 +2091,11 @@ gkey kbxget_raw(eKeyModes mode)
     else if((key >= KEY_MIN)
             and (key <= KEY_MIN+sizeof(gkbd_curstable)/sizeof(int))
             and (0 <= gkbd_curstable[key - KEY_MIN]))
+    {
         k = (gkbd_curstable[key - KEY_MIN]);
+        if(k == Key_Resize)
+            gkbd.resize_pending = true;
+    }
     else if(key == '\015')
         k = Key_Ent;
     else if(key == '\011')
@@ -2257,6 +2264,11 @@ gkey kbxget_raw(eKeyModes mode)
         gkbd_peek(inp, nread);
         if(nread)
         {
+            if(inp.EventType == WINDOW_BUFFER_SIZE_EVENT)
+            {
+                gkbd.resize_pending = true;
+                return Key_Resize;
+            }
             if(gkbd_nt and gkbd_alt_composed(inp))
             {
                 //  Left in the queue for the read below; only the
@@ -2299,6 +2311,13 @@ gkey kbxget_raw(eKeyModes mode)
                 continue;
             }
 
+            if(inp.EventType == WINDOW_BUFFER_SIZE_EVENT)
+            {
+                gkbd_read(inp, nread);
+                gkbd.resize_pending = true;
+                k = Key_Resize;
+                break;
+            }
             if(gkbd_nt and gkbd_alt_composed(inp))
             {
                 gkbd_read(inp, nread);

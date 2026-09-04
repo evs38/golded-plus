@@ -591,6 +591,17 @@ int gwinpick::run_picker()
         gmou.HideCursor();
 #endif
 
+        //  The terminal changed size: the list's geometry was fixed by
+        //  whoever opened it, so this returns as if abandoned and leaves
+        //  gkbd.resize_pending raised for the caller to lay the screen
+        //  out again and, if it wants, open the list once more.
+        if(key == Key_Resize)
+        {
+            aborted = true;
+            keyok = false;
+            continue;
+        }
+
         keyok = default_handle_key();
 
         if (replylinkfloat && (h_offset != new_hoffset))

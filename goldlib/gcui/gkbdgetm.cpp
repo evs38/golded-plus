@@ -29,6 +29,7 @@
 #include <gkbdbase.h>
 #include <gmemdbg.h>
 #include <gwinall.h>
+#include <gvidall.h>
 #include <gutlmtsk.h>
 #ifdef GOLD_MOUSE
     #include <gmoubase.h>
@@ -256,6 +257,15 @@ gkey getxch(int __tick)
                         gkbd.inidle = true;
                         (*gkbd.tickfunc)();
                         gkbd.inidle = false;
+                    }
+                    //  A resize the input layer did not report - a curses
+                    //  that does not send KEY_RESIZE, a console event that
+                    //  went by while nobody read - is caught here by
+                    //  comparing what the screen says with what we hold.
+                    if(gvid and not gkbd.resize_pending and gvid->size_changed())
+                    {
+                        gkbd.resize_pending = true;
+                        kbput(Key_Resize);
                     }
                     if(__tick)
                         kbput(Key_Tick);

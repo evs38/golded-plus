@@ -1199,6 +1199,21 @@ void GVid::restore_cursor()
 
 //  ------------------------------------------------------------------
 
+bool GVid::size_changed()
+{
+    GVidInfo now;
+    detectinfo(&now);
+    return (now.screen.rows != numrows) or (now.screen.columns != numcols);
+}
+
+
+void GVid::refresh_size()
+{
+    detectinfo(&curr);
+    resize_screen(curr.screen.columns, curr.screen.rows);
+}
+
+
 void GVid::resize_screen(int columns, int rows)
 {
 

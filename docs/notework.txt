@@ -583,6 +583,24 @@ ______________________________________________________________________
   Alt++0431 a Cyrillic б in a UTF-8 session; Windows 9x keeps the old
   path.
 
+- The screen follows the terminal when its window is resized. The
+  size was read once at startup and never again: the columns the
+  configuration gives relative to the right edge were folded into
+  absolute ones in place, every window kept the rectangle it was opened
+  with, and curses' KEY_RESIZE was in the key table as "unsupported"
+  while the Windows console had the window events switched off. Now a
+  resize - KEY_RESIZE under curses, WINDOW_BUFFER_SIZE_EVENT on
+  Windows, and as a fallback the size compared on every timer tick -
+  reaches the reader as a command of its own: the screen is laid out
+  again from the raw configuration values, the background, status line
+  and help rectangle are rebuilt, the reader's views reopened to the
+  new width and height and the message reloaded to wrap at it, keeping
+  its place. A message list or the area list open at the time closes
+  and reopens at the new size; the internal editor redraws itself in
+  the new window with the text as it was typed - the wrap margins it
+  was typed with are not changed. A resize that happens while an
+  external program has the terminal is noticed when it returns.
+
 - Opening a message threw std::length_error and killed the program on
   any screen narrower than the header's own columns. The date column
   sits at a position resolved against MAXCOL once at startup; a window

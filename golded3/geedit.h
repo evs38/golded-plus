@@ -366,6 +366,7 @@ protected:
     void  clreol          (int __col=-1, int __row=-1);
     void  cursoroff       ();
     void  cursoron        ();
+    void  Resize          ();
     void  deleteline      (bool zapquotesbelow = false);
     vattr dispchar        (vchar __ch, vattr attr = DEFATTR);
     void  dispins         ();
