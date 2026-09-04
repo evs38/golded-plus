@@ -498,6 +498,17 @@ ______________________________________________________________________
   for the text and could split a UTF-8 character; the stored copy is
   now as wide as the line itself.
 
++ NODELISTLASTWINS <yes/no> (no), read by GoldNODE. With several
+  nodelists carrying the same address - a full nodelist and a regional
+  segment, a nodelist and its pointlist - every entry went into the
+  index, and GoldED+, finding more than one, opened the nodelist
+  browser instead of filling in the name. With this on, the entry from
+  the nodelist named last in the configuration is kept and the others
+  are dropped; a USERLIST entry wins over any nodelist. Addresses are
+  compared, not names, and the later entry wins - the two ways this
+  differs from GoldNODE's -D option, which drops only an exact
+  repetition and keeps the earlier one.
+
 - Opening a message threw std::length_error and killed the program on
   any screen narrower than the header's own columns. The date column
   sits at a position resolved against MAXCOL once at startup; a window

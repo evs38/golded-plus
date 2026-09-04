@@ -151,6 +151,7 @@ static int    sh_mod = SH_DENYWR;
 static bool   fidouser = false;
 static Path   fidouserlst;
 static bool   ignoredups = false;
+static bool   lastwins = false;    // NODELISTLASTWINS
 static size_t dups = 0;
 static bool   quiet = false;
 
@@ -1046,6 +1047,58 @@ static void read_nodelists()
         geidxlist::iterator curr, prev;
         std::map<long, dword, std::less<long> > namepos;
 
+        //  NODELISTLASTWINS: where several nodelists carry the same
+        //  address, the one named last in the configuration is taken
+        //  as the truth and the others' entries are dropped. The
+        //  nodelist's ordinal is the top byte of pos, so the records
+        //  already know where they came from; a userlist is 0xFF and
+        //  so wins over any nodelist. Entries of equal rank - two
+        //  userlists, a node listed twice in one file - are all kept,
+        //  as before.
+        //
+        //  Done here, before either index is written: the two index
+        //  files are derived from this one list, and the reader infers
+        //  their record size from the ratio of their lengths.
+        if(lastwins)
+        {
+            if(not quiet) std::cout << NL << "* Resolving duplicate addresses " << std::flush;
+#if defined(GOLD_LIST_SORT_NO_PRED)
+            sort_type = sort_by_address;
+            nodeidx.sort();
+#else
+            nodeidx.sort(cmp_anlsts);
+#endif
+            geidxlist::iterator run = nodeidx.begin();
+            while(run != nodeidx.end())
+            {
+                //  The run of records with this address, and the best
+                //  rank among them.
+                geidxlist::iterator stop = run;
+                dword best = 0;
+                while((stop != nodeidx.end())
+                      and ((*stop).addr.zone  == (*run).addr.zone)
+                      and ((*stop).addr.net   == (*run).addr.net)
+                      and ((*stop).addr.node  == (*run).addr.node)
+                      and ((*stop).addr.point == (*run).addr.point))
+                {
+                    dword rank = ((dword)(*stop).pos >> 24) & 0xFF;
+                    if(rank > best)
+                        best = rank;
+                    ++stop;
+                }
+                while(run != stop)
+                {
+                    if(((((dword)(*run).pos >> 24) & 0xFF) < best))
+                    {
+                        run = nodeidx.erase(run);
+                        ++dups;
+                    }
+                    else
+                        ++run;
+                }
+            }
+        }
+
         // Sort by name
         if(not quiet) std::cout << NL << "* Sorting by name " << std::flush;
 #if defined(GOLD_LIST_SORT_NO_PRED)
@@ -1560,6 +1613,9 @@ static int parse_config(const char *__configfile, Addr& zoneaddr)
                             sh_mod = atoi(value);
                         else
                             sh_mod = GetYesno(value) ? SH_DENYNO : SH_COMPAT;
+                        break;
+                    case CRC_NODELISTLASTWINS:
+                        lastwins = make_bool(GetYesno(value));
                         break;
                     case CRC_INCLUDE:
                         strschg_environ(value, top_buf-value);

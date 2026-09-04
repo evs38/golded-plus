@@ -902,6 +902,10 @@ SwitchN:
     case CRC_NODELIST         :
         CfgNodelist         ();
         break;
+    case CRC_NODELISTLASTWINS :
+        //  GoldNODE's keyword, in the configuration the two share;
+        //  accepted here so that it is not reported as unknown.
+        break;
     case CRC_NODEPATH         :
         CfgNodepath         ();
         break;

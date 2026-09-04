@@ -12062,6 +12062,28 @@ EDITCOMPLETION "/WfW"  "Windows for Workgroups"]]></eg>
     </div2>
     <div2>
       <head>
+        NODELISTLASTWINS &lt;yes/no&gt;
+      </head>
+      <p>
+  (no)
+      </p>
+      <p>
+    Read by GoldNODE. When several nodelists carry the same address,
+    the entry from the nodelist named LAST in the configuration is
+    kept and the others are dropped from the index, so that a lookup
+    finds one node and not a choice of several. Entries from a
+    USERLIST always win over any nodelist. A pointlist lists its boss
+    node too, so a pointlist placed after the nodelist replaces the
+    boss's entry with its own copy; order the NODELIST lines
+    accordingly.
+      </p>
+      <p>
+    Unlike the -D option, this compares addresses only - the names may
+    differ - and keeps the last, not the first.
+      </p>
+    </div2>
+    <div2>
+      <head>
         NODELISTWARN &lt;yes/no&gt;
       </head>
       <p>

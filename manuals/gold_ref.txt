@@ -3606,6 +3606,21 @@ Here is the complete keyword list:
     option with GoldNODE.
 
 
+NODELISTLASTWINS <yes/no>  (no)
+
+    Read by GoldNODE. When several nodelists carry the same address,
+    the entry from the nodelist named LAST in the configuration is
+    kept and the others are dropped from the index, so that a lookup
+    finds one node and not a choice of several. Entries from a
+    USERLIST always win over any nodelist. A pointlist lists its boss
+    node too, so a pointlist placed after the nodelist replaces the
+    boss's entry with its own copy; order the NODELIST lines
+    accordingly.
+
+    Unlike the -D option, this compares addresses only - the names may
+    differ - and keeps the last, not the first.
+
+
 NODELISTWARN <yes/no>  (yes)
 
     If set to YES, GoldED will warn you during startup if one or more
