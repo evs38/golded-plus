@@ -369,9 +369,14 @@ int SMBArea::load_hdr(gmsg* __msg, smbmsg_t *smsg)
     __msg->link.next_set(smsgp->hdr.thread_next);
     __msg->link.first_set(smsgp->hdr.thread_first);
 
-    strxcpy(__msg->by, (char *)smsgp->from, 36);
-    strxcpy(__msg->to, (char *)smsgp->to, 36);
-    strxcpy(__msg->re, (char *)smsgp->subj, 72);
+    //  The base's fields have no fixed width, so the message's buffers
+    //  are the limit, and a cut there falls between characters.
+    strxcpy(__msg->by, (char *)smsgp->from, sizeof(__msg->by));
+    strxcpy(__msg->to, (char *)smsgp->to, sizeof(__msg->to));
+    strxcpy(__msg->re, (char *)smsgp->subj, sizeof(__msg->re));
+    __msg->by[g_fit_field_len(__msg->by, sizeof(__msg->by) - 1, true)] = NUL;
+    __msg->to[g_fit_field_len(__msg->to, sizeof(__msg->to) - 1, true)] = NUL;
+    __msg->re[g_fit_field_len(__msg->re, sizeof(__msg->re) - 1, true)] = NUL;
 
     if(smsgp->from_net.type == NET_FIDO)
     {
