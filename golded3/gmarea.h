@@ -352,6 +352,7 @@ struct AreaData
         usesoftcrxlat = false;
         writeucsheaders = false;
         largeheadertobase = false;
+        xlatutfautodetect = NO;
         usetzutc = false;
         inittwit = false;
         viewhidden = false;
@@ -464,6 +465,7 @@ struct AreaData
     bool     usesoftcrxlat;
     bool     writeucsheaders;
     bool     largeheadertobase;
+    int      xlatutfautodetect;
     bool     usetzutc;
     IAdr     whoto;
     Path     wtpl;
@@ -1050,6 +1052,11 @@ public:
     bool   Largeheadertobase() const
     {
         return adat->largeheadertobase;
+    }
+    //  NO, YES or ALWAYS (override) - see XLATUTFAUTODETECT.
+    int    Xlatutfautodetect() const
+    {
+        return adat->xlatutfautodetect;
     }
     //  The widths the header fields are cut to on the way into this
     //  area: FTS-0001's, or the base's own with LARGEHEADERTOBASE. A

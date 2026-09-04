@@ -2512,8 +2512,12 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
     //  save path, for instance, converts on the way out and then parses
     //  the result back into lines, which must not convert again.
     GRecoder* _recoder = NULL;
-    //  Where the charset in force was decided, for the log.
+    //  Where the charset in force was decided, for the log - and, by
+    //  the pointer, whether it was recognised from the text.
+    static const char* const _utfdetected_src = "autodetected UTF-8";
     const char* _chssrc = "area default";
+    const int  _utfdetect = getvalue ? AA->Xlatutfautodetect() : NO;
+    bool _utfdetected = false;
     uint n;
     char ch, chln = 0, dochar;
     Line* line;
@@ -2598,7 +2602,21 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
         // Set default conversion table for area
         if(getvalue)
         {
-            if(not strieql(AA->Xlatimport(), CFG->xlatlocalset))
+            //  XLATUTFAUTODETECT: a text that is UTF-8 by the look of it
+            //  is taken for UTF-8 before the area's default is assumed.
+            //  With "yes" a charset kludge below still overrides this;
+            //  with "override" the kludges are ignored. A charset the
+            //  user fixed by hand beats both.
+            if((_utfdetect != NO) and not CFG->ignorecharset and g_utf8_looks_utf8(ptr))
+            {
+                int _chslev = LoadCharset("UTF-8", CFG->xlatlocalset);
+                if(_chslev)
+                {
+                    adopt_charset(msg, level, _recoder, _chslev, "UTF-8 4", _chssrc, _utfdetected_src);
+                    _utfdetected = true;
+                }
+            }
+            if(not _utfdetected and not strieql(AA->Xlatimport(), CFG->xlatlocalset))
             {
                 int _chslev = LoadCharset(AA->Xlatimport(), CFG->xlatlocalset);
                 adopt_charset(msg, level, _recoder, _chslev, AA->Xlatimport(), _chssrc, "area default");
@@ -2715,6 +2733,13 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
                                 kludgetype = RFC_X_CHAR_ESC;
                             else if(strieql(kludge, "UCSFROM") or strieql(kludge, "UCSTO") or strieql(kludge, "UCSSUBJ"))
                                 kludgetype = FSC_UCSFROM;
+                            //  "override": the text is UTF-8 whatever the
+                            //  kludge says, so the charset kludges are not
+                            //  acted on. Everything else on the line is.
+                            if(_utfdetected and (_utfdetect == ALWAYS) and
+                               ((kludgetype == FSC_I51) or (kludgetype == FSC_CHARSET) or (kludgetype == FSC_CODEPAGE) or
+                                (kludgetype == RFC_CONTENT_TYPE) or (kludgetype == RFC_X_CHARSET)))
+                                kludgetype = -1;
                             *ptr = endchar;
                             if(*ptr != ' ')
                                 ptr++;
@@ -3329,6 +3354,8 @@ chardo:
             //  and ordinal - and the line says where the charset came
             //  from, which is what tells a wrong kludge from a wrong
             //  XLATIMPORT.
+            msg->chrsdetected = (_chssrc == _utfdetected_src);
+
             if(_recoder and _recoder->substitutes())
             {
                 LOG.printf("! %s #%u: %u character(s) not convertible from %s (%s) to %s, replaced by '?'",

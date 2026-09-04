@@ -5168,6 +5168,32 @@ Here is the complete keyword list:
         ENDGROUP
 
 
+XLATUTFAUTODETECT <yes/override/no>  (no)
+
+    Recognise a message written in UTF-8 that does not say so. A text
+    is taken for UTF-8 when every byte above 0x7F belongs to a
+    well-formed UTF-8 sequence, there is at least one such sequence,
+    and every character so encoded is one a message might plausibly
+    contain - a letter of a living script, a common punctuation mark or
+    symbol. Plain ASCII says nothing either way and is left to the
+    area's XLATIMPORT.
+
+    YES labels a message without a charset kludge as UTF-8 when its
+    text is recognised as such, and treats it so; a CHRS, CHARSET,
+    CODEPAGE, I51 or Content-Type charset in the message still takes
+    precedence. OVERRIDE (ALWAYS) labels a recognised message as UTF-8
+    even when its kludge says otherwise. NO disables the recognition.
+    A charset chosen by hand (IGNORECHARSET, the charset menu) beats
+    both.
+
+    The message list, which does not read the text, applies the same
+    test to the From, To and Subject fields. An answer written with
+    XLATREPLYORIGINAL goes out in UTF-8, as it would for a message that
+    had declared it.
+
+    Can be used in a Random System group.
+
+
 XLATLOCALSET <charsetid>
 
     Use this keyword to specify the actual physical charset in effect

@@ -1354,6 +1354,9 @@ SwitchX:
     case CRC_XLATREPLYORIGINAL:
         CfgXlatreplyoriginal();
         break;
+    case CRC_XLATUTFAUTODETECT:
+        CfgXlatutfautodetect();
+        break;
     case CRC_XLATAREASET      :
         CfgXlatareaset      ();
         break;

@@ -796,6 +796,63 @@ bool g_utf8_valid(const char* p, size_t nbytes)
 }
 
 
+//  ------------------------------------------------------------------
+//  The scripts and symbol blocks a Fidonet message is expected to be
+//  written in. Measured against a base of a hundred thousand messages:
+//  the CP866 texts that happened to form well-formed UTF-8 decoded to
+//  Tai Le and Arabic presentation forms, and nothing genuine did.
+
+static bool g_utf8_plausible_cp(uint32_t cp)
+{
+    static const uint32_t ranges[][2] =
+    {
+        { 0x0080, 0x02FF },   // Latin-1 Supplement .. IPA, spacing modifiers
+        { 0x0370, 0x052F },   // Greek, Cyrillic and its supplements
+        { 0x0530, 0x058F },   // Armenian
+        { 0x0590, 0x06FF },   // Hebrew, Arabic
+        { 0x1E00, 0x1FFF },   // Latin Extended Additional, Greek Extended
+        { 0x2000, 0x206F },   // General Punctuation
+        { 0x20A0, 0x20CF },   // Currency
+        { 0x2100, 0x23FF },   // Letterlike, arrows, mathematical, technical
+        { 0x2500, 0x27BF },   // Box drawing, blocks, shapes, symbols, dingbats
+        { 0x3000, 0x9FFF },   // CJK punctuation, kana, CJK ideographs
+        { 0xAC00, 0xD7AF },   // Hangul
+        { 0xFE30, 0xFE4F },   // CJK compatibility forms
+        { 0xFF00, 0xFFEF },   // Halfwidth and fullwidth forms
+        { 0x1F000, 0x1FAFF }, // Emoji and pictographs
+    };
+    for(size_t n = 0; n < sizeof(ranges)/sizeof(ranges[0]); n++)
+        if((cp >= ranges[n][0]) and (cp <= ranges[n][1]))
+            return true;
+    return false;
+}
+
+
+bool g_utf8_looks_utf8(const char* p)
+{
+    if(p == NULL)
+        return false;
+
+    bool multi = false;
+    while(*p)
+    {
+        if(not ((unsigned char)*p & 0x80))
+        {
+            p++;
+            continue;
+        }
+        int  used = 1;
+        bool ok   = false;
+        uint32_t cp = g_utf8_decode_raw(p, NULL, &used, &ok);
+        if(not ok or not g_utf8_plausible_cp(cp))
+            return false;
+        multi = true;
+        p += used ? used : 1;
+    }
+    return multi;
+}
+
+
 bool g_utf8_valid(const char* p)
 {
     return p ? g_utf8_valid(p, strlen(p)) : true;

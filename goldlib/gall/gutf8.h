@@ -275,6 +275,16 @@ std::string g_utf8_fit(const char* p, int cols);
 bool g_utf8_valid(const char* p);
 bool g_utf8_valid(const char* p, size_t nbytes);
 
+//  Whether a text nobody labelled is, by the look of it, UTF-8: every
+//  byte above 0x7F is part of a well-formed sequence, there is at least
+//  one such sequence, and every character so encoded is one a message
+//  might plausibly contain - a letter of a living script, a common
+//  punctuation or symbol. The last test is what keeps a stray three
+//  lower-case CP866 letters, which do form a well-formed sequence now
+//  and then, from passing as an exotic character. Pure ASCII is not
+//  UTF-8 for this purpose: it says nothing either way.
+bool g_utf8_looks_utf8(const char* p);
+
 
 //  ------------------------------------------------------------------
 //  Case-fold for matching: upper-case every character whose upper-case

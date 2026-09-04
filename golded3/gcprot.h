@@ -381,6 +381,7 @@
     void CfgUsesoftcrxlat    ();
     void CfgWriteucsheaders  ();
     void CfgLargeheadertobase();
+    void CfgXlatutfautodetect();
     void CfgUsetzutc         ();
     void CfgUudecodepath     ();
     void CfgViewhidden       ();

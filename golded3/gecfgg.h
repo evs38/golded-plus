@@ -489,6 +489,7 @@ public:
     bool        usesoftcrxlat;
     bool        writeucsheaders;
     bool        largeheadertobase;
+    int         xlatutfautodetect;
     bool        usestylies;
     bool        usetzutc;
     Path        uudecodepath;

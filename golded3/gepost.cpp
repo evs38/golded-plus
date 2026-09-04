@@ -382,6 +382,15 @@ static bool OriginalCharset(GMsg* msg, char* out, size_t size)
             p++;
     }
 
+    //  Nothing declared, but XLATUTFAUTODETECT recognised the text as
+    //  UTF-8: that is the charset of the original as surely as a
+    //  kludge would have made it.
+    if(msg->chrsdetected and *msg->charset)
+    {
+        strxcpy(out, msg->charset, size);
+        return true;
+    }
+
     return false;
 }
 

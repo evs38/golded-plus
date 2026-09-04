@@ -889,6 +889,7 @@ CfgGed::CfgGed()
     usesoftcrxlat = false;
     writeucsheaders = false;
     largeheadertobase = false;
+    xlatutfautodetect = NO;
     usestylies = true;
     usetzutc = true;
     viewhidden = false;

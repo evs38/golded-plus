@@ -478,6 +478,12 @@ public:
     INam        ucsto;
     ISub        ucsre;
 
+    //  True when the charset in 'charset' was not declared by the
+    //  message but recognised from its text - so an answer "in the
+    //  charset of the original" can follow it, which it does not do for
+    //  a charset merely assumed from the area.
+    bool        chrsdetected;
+
     int32_t        txtstart;         // Text starting position or record
     int32_t        txtlength;        // Text length or number of records
     uint        txtblocks;        // Number of msg text blocks
@@ -522,6 +528,7 @@ public:
         hdrchrs[0] = 0;
         hdrutf8 = false;
         ucsby[0] = ucsto[0] = ucsre[0] = 0;
+        chrsdetected = false;
         memset(&jam, 0, sizeof(jam));
         memset(&pcboard, 0, sizeof(pcboard));
         memset(&wildcat, 0, sizeof(wildcat));
@@ -661,6 +668,7 @@ public:
         hdrchrs[0] = 0;
         hdrutf8 = false;
         ucsby[0] = ucsto[0] = ucsre[0] = 0;
+        chrsdetected = false;
         txtstart = 0;
         txtlength = 0;
         txtblocks = 0;

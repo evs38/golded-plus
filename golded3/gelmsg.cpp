@@ -67,8 +67,23 @@ int Area::LoadHdr(GMsg* msg, uint32_t msgno, bool enable_recode)
         //  ignores the kludges then, and the list has to agree with
         //  it. That is decided on the option alone - with a recoder in
         //  force there is no table, so its index says nothing.
+        //
+        //  XLATUTFAUTODETECT looks at the fields themselves, since the
+        //  text is not read here: all three well-formed UTF-8 and at
+        //  least one of them not plain ASCII. With "override" that
+        //  beats a header charset too, as it does in the reader.
         msg->charsetlevel = 0;
-        if(*msg->hdrchrs and not CFG->ignorecharset)
+        int _detect = CFG->ignorecharset ? NO : AA->Xlatutfautodetect();
+        if((_detect != NO) and ((_detect == ALWAYS) or (*msg->hdrchrs == NUL)))
+        {
+            if(g_utf8_valid(msg->by) and g_utf8_valid(msg->to) and g_utf8_valid(msg->re) and
+               (g_utf8_looks_utf8(msg->by) or g_utf8_looks_utf8(msg->to) or g_utf8_looks_utf8(msg->re)))
+            {
+                msg->charsetlevel = LoadCharset("UTF-8", CFG->xlatlocalset);
+                msg->chrsdetected = (msg->charsetlevel != 0);
+            }
+        }
+        if(not msg->charsetlevel and *msg->hdrchrs and not CFG->ignorecharset)
             msg->charsetlevel = LoadCharset(msg->hdrchrs, CFG->xlatlocalset);
         if(not msg->charsetlevel)
         {

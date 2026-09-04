@@ -552,6 +552,24 @@ ______________________________________________________________________
   bytes on load, through whatever character stood there; the cut is
   now the message's own buffers and falls between characters.
 
++ XLATUTFAUTODETECT <yes/override/no> (no): recognise a message
+  written in UTF-8 that does not say so, for the day such mail turns
+  up in an echo whose XLATIMPORT is something else. A text is taken
+  for UTF-8 when every byte above 0x7F belongs to a well-formed
+  sequence, there is at least one, and every character so encoded is
+  one a message might plausibly contain - a letter of a living script,
+  a common punctuation mark or symbol. The last test matters: measured
+  against a base of a hundred thousand messages, three lower-case
+  CP866 letters form a well-formed sequence now and then, and what
+  they decode to is Tai Le or an Arabic presentation form, which no
+  Fidonet message is written in. With YES a charset kludge in the
+  message still wins; with OVERRIDE the recognised UTF-8 wins over the
+  kludge; a charset fixed by hand wins over both. The message list
+  applies the same test to the header fields, since it does not read
+  the text, and an answer written with XLATREPLYORIGINAL goes out in
+  UTF-8 as it would for a message that had declared it. Can be set per
+  group.
+
 - Opening a message threw std::length_error and killed the program on
   any screen narrower than the header's own columns. The date column
   sits at a position resolved against MAXCOL once at startup; a window

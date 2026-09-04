@@ -780,6 +780,21 @@ void CfgXlatreplyoriginal()
 }
 
 //  ------------------------------------------------------------------
+//  XLATUTFAUTODETECT <yes/override/no>: NO, YES, or ALWAYS for
+//  "override". GetYesno() would read "override" as OFF - it goes by the
+//  first letter - so that word is recognised first; "always" is
+//  accepted too.
+
+void CfgXlatutfautodetect()
+{
+    int v = strieql(val, "override") ? ALWAYS : GetYesno(val);
+    if(cfgingroup)
+        CFG->grp.AddItm(GRP_XLATUTFAUTODETECT, v);
+    else
+        CFG->xlatutfautodetect = v;
+}
+
+//  ------------------------------------------------------------------
 
 void CfgXlatexport()
 {
