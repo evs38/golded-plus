@@ -296,7 +296,7 @@ static void disp_item(_item_t *witem,int bar)
 
             // Build menu line buffer
 
-            *ptr++ = vcatch(ch,chattr);
+            *ptr++ = vcatchc(ch,chattr);
         }
 
         // Display complete buffer

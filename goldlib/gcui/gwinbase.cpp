@@ -1750,7 +1750,7 @@ static void update_buffers(vatch* pcurr, int shadow)
 
     // put current string character and attribute into found window's buffer
 
-    *pcurr = vcatch(__ch, __gattr);
+    *pcurr = vcatchc(__ch, __gattr);
 
     // if window's shadow is what's blocking, check to see
     // if it is the highest shadow.  If it is, display the
@@ -1875,7 +1875,7 @@ int wwprints(int whandle, int wrow, int wcol, vattr attr, const char* str)
         // see if output window is hidden.  if so, then there
         // is no need to check for blocking windows/shadows
         if(hidden)
-            *(calc_window(found)) = vcatch(__ch, attr);
+            *(calc_window(found)) = vcatchc(__ch, attr);
         else
         {
 

@@ -577,15 +577,28 @@ static bool SwitchLanguage(word crc, char* str)
     switch (crc)
     {
     case CRC_ST_EDITSTATUS:
+    {
+        //  What is checked is the conversion specifiers, which are
+        //  ASCII. The regex runs in the C library's locale, and to a
+        //  UTF-8 one the bytes of a single-byte translation are not
+        //  text: the Russian string failed the match at every start of
+        //  a KOI8-R session on a UTF-8 terminal, and the warning's
+        //  ten-second wait swallowed the first keys. Match the format
+        //  with the text taken out of it.
+        std::string ascii;
+        for(const char* p = str; *p; p++)
+            ascii += ((unsigned char)*p < 0x80) ? *p : 'x';
+
         gregex reg;
         reg.compile("^.*%[0-9-]*[dioux].*%[0-9-]*[dioux].*%[0-9-]*[dioux].*%[-0-9\\.]*s", gregex::icase);
-        if (!reg.match(str))
+        if (!reg.match(ascii.c_str()))
         {
             STD_PRINTNL("ST_EDITSTATUS has wrong format. Read NOTEWORK.TXT for details or announce author if this error is false positive (first try to set true locale). Your format string is \"" << str << "\", should be 3 numbers and one string.");
             SayBibi();
             waitkeyt(10000);
         }
         break;
+    }
     }
 
     lptr = (LangCrc*)bsearch(&lkey, LangCrcs, sizeof(LangCrcs)/sizeof(LangCrc), sizeof(LangCrc), (StdCmpCP)CmpLangCrc);

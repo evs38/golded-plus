@@ -600,6 +600,23 @@ ______________________________________________________________________
   time - 0xFD everywhere but unix - which in CP866 is the currency sign
   and in KOI8-R the letter Щ.
 
+- In a single-byte session on a UTF-8 terminal, the items of every menu
+  - and the cross-references in the help, which are menu items - drew
+  as Latin-1 letters: "Да" came out as "äÁ". Menu items and text written
+  into a covered window are built into cells directly, and the cell
+  builder of the wide curses screen took the byte for a codepoint, so
+  the KOI8-R byte for Д became U+00E4. In a KOI8-R locale the byte went
+  out unchanged and nothing showed; the machine where it was noticed
+  had a UTF-8 locale and a KOI8-R session. Those cells are built from
+  the translated character now, the way every other text is drawn.
+
+- Starting a KOI8-R session on a UTF-8 terminal with the Russian
+  language file printed "ST_EDITSTATUS has wrong format" and waited
+  ten seconds, eating the first keys. The check runs a regex over the
+  string in the C library's locale, to which single-byte Cyrillic is
+  not text. The format is matched with the text taken out of it now;
+  the specifiers it looks for are ASCII.
+
 - The screen follows the terminal when its window is resized. The
   size was read once at startup and never again: the columns the
   configuration gives relative to the right edge were folded into

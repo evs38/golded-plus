@@ -543,6 +543,14 @@ inline vattr vgattr (vatch chat)
 //  gvid_acs_box() in gvidbase.cpp.
 bool gvid_acs_box(vchar chr, wchar_t* key);
 
+//  A cell from a character of the text, the way vputc() would draw it:
+//  in an 8-bit session the character is a byte of the local charset
+//  and is translated for the screen first. vcatch() below takes what
+//  it is given for a codepoint, which is right for one that has been
+//  translated already and wrong for a byte - a KOI8-R byte in a cell
+//  built that way drew as the Latin-1 letter at the same value.
+vatch vcatchc(vchar chr, vattr atr);
+
 inline vatch vcatch (vchar chr, vattr atr)
 {
     vatch   chat;
