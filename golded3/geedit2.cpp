@@ -117,10 +117,145 @@ void IEclass::windowclose()
 
 
 //  ------------------------------------------------------------------
+//  The wrap margins follow the configuration, which follows the
+//  screen width; taken from it when the editor starts and again when
+//  the screen changes size.
+
+void IEclass::setmargins()
+{
+    if(AA->isinternet() and (CFG->soupexportmargin <= CFG->dispmargin))
+        margintext = CFG->soupexportmargin;
+    else
+        margintext = CFG->dispmargin;
+
+    marginquotes = EDIT->QuoteMargin() + 1; // Add one for CR
+    if(marginquotes > margintext)
+        marginquotes = margintext;
+}
+
+
+//  ------------------------------------------------------------------
+//  Wrap the whole text again at the margins now in force. First every
+//  line that runs on into the next one is joined to it, the way Delete
+//  at its end joins them, so that each paragraph is one line; then
+//  the paragraphs are wrapped the way typing wraps them, from the last
+//  one up, so that what lies below a paragraph already fits by the
+//  time it is wrapped and wrapit() never runs on past it. A line that
+//  ends in a paragraph mark keeps it, quoted lines keep their quote
+//  strings, control lines are not touched. The cursor follows its
+//  character, and its row on the screen follows the lines that vanish
+//  or appear above it. Undo takes all of it back as one step.
+
+void IEclass::rewrap()
+{
+    Line* _first = findfirstline();
+    if(_first == NULL)
+        return;
+
+    const uint _control = GLINE_KLUDGE|GLINE_TEAR|GLINE_ORIG|GLINE_TAGL;
+
+    // Undo puts the cursor back where it was. The item it starts from
+    // must name a line that outlives the joins, and the cursor's own
+    // line may not: the head of its paragraph does.
+    pcol = col;
+    prow = thisrow;
+
+    Line* _home = currline;
+    while(_home->prev
+          and not _home->prev->txt.empty()
+          and (_home->prev->txt[_home->prev->txt.length()-1] != '\n')
+          and not (_home->type & (GLINE_QUOT|_control)))
+        _home = _home->prev;
+    Undo->PushItem(EDIT_UNDO_VOID, _home, col);
+
+    Line* _line;
+
+    // Join
+    bool _above = true;
+    for(_line = _first; _line; _line = _line->next)
+    {
+        if(_line == currline)
+            _above = false;
+
+        while(not _line->txt.empty()
+              and (_line->txt[_line->txt.length()-1] != '\n')
+              and _line->next
+              and not (_line->next->type & (GLINE_QUOT|_control)))
+        {
+            Line* _nextline = _line->next;
+            uint _joinat = _line->txt.length();
+
+            _line->txt += _nextline->txt;
+            Undo->PushItem(EDIT_UNDO_CUT_TEXT|BATCH_MODE, _line, _joinat);
+
+            if(currline == _nextline)
+            {
+                // The cursor's line moved up into this one
+                currline = _line;
+                col += _joinat;
+                _above = false;
+                if(row > minrow)
+                    row--;
+            }
+            else if(_above)
+            {
+                // A line above the cursor is gone
+                if(row > minrow)
+                    row--;
+            }
+
+            _line->next = _nextline->next;
+            if(_line->next)
+                _line->next->prev = _line;
+            Undo->PushItem(EDIT_UNDO_DEL_LINE|BATCH_MODE, _nextline);
+        }
+
+        setlinetype(_line);
+    }
+
+    // Wrap, from the bottom up
+    Line* _last = currline;
+    while(_last->next)
+        _last = _last->next;
+
+    _above = false;
+    for(_line = _last; _line; _line = _line->prev)
+    {
+        if(_line->type & _control)
+            continue;
+
+        if(_line == currline)
+        {
+            uint _row = 0;
+            wrapit(&currline, &col, &_row, false);
+            row += _row;
+            _above = true;
+        }
+        else
+        {
+            Line* _head = _line;
+            Line* _end = _line->next;
+            uint _col = 0;
+            uint _row = 0xFFFF0000U;
+            wrapit(&_head, &_col, &_row, false);
+            if(_above)
+            {
+                // Lines appeared above the cursor
+                for(Line* l = _line->next; l != _end; l = l->next)
+                    row++;
+            }
+        }
+    }
+
+    getthisrow(currline);
+}
+
+
+//  ------------------------------------------------------------------
 //  The terminal changed size while editing: rebuild the screen below,
-//  give the editor window the new width and height, and redraw the
-//  text from the first line on screen. The wrap margins the text was
-//  typed with are left as they are.
+//  give the editor window the new width and height, wrap the text
+//  again when the margins moved with the width, and redraw it around
+//  the cursor.
 
 void IEclass::Resize()
 {
@@ -138,13 +273,21 @@ void IEclass::Resize()
     win_maxrow = MAXROW - 2;
     maxcol = win_maxcol - win_mincol - (2*win_hasborder);
     maxrow = win_maxrow - win_minrow - (2*win_hasborder);
-    if(col > maxcol)
-        col = maxcol;
+
+    int _oldtext = margintext;
+    int _oldquotes = marginquotes;
+    setmargins();
+    if((margintext != _oldtext) or (marginquotes != _oldquotes))
+        rewrap();
+
+    if(dispcol() > maxcol)
+        col = byteoff(currline, maxcol);
     if(row > maxrow)
         row = maxrow;
 
     windowopen();
-    refresh(findfirstline(), minrow);
+    refresh(findtopline(), minrow);
+    gotorowcol(dispcol(), row);
 }
 
 

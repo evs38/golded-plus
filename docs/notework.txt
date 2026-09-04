@@ -596,9 +596,12 @@ ______________________________________________________________________
   and help rectangle are rebuilt, the reader's views reopened to the
   new width and height and the message reloaded to wrap at it, keeping
   its place. A message list or the area list open at the time closes
-  and reopens at the new size; the internal editor redraws itself in
-  the new window with the text as it was typed - the wrap margins it
-  was typed with are not changed. A resize that happens while an
+  and reopens at the new size; the internal editor takes the wrap
+  margins that follow the new width and wraps its text again at them:
+  lines that ran on into the next are joined and the paragraph wrapped
+  the way typing wraps it, paragraph marks, quote strings and control
+  lines left alone, the cursor staying on its character. Undo takes
+  the whole of it back as one step. A resize that happens while an
   external program has the terminal is noticed when it returns.
 
 - Opening a message threw std::length_error and killed the program on

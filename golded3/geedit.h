@@ -367,6 +367,8 @@ protected:
     void  cursoroff       ();
     void  cursoron        ();
     void  Resize          ();
+    void  setmargins      ();
+    void  rewrap          ();
     void  deleteline      (bool zapquotesbelow = false);
     vattr dispchar        (vchar __ch, vattr attr = DEFATTR);
     void  dispins         ();

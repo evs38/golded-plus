@@ -3574,14 +3574,7 @@ int IEclass::Start(int __mode, uint* __position, GMsg* __msg)
     }
 #endif
 
-    if(AA->isinternet() and (CFG->soupexportmargin <= CFG->dispmargin))
-        margintext = CFG->soupexportmargin;
-    else
-        margintext = CFG->dispmargin;
-
-    marginquotes = EDIT->QuoteMargin() + 1; // Add one for CR
-    if(marginquotes > margintext)
-        marginquotes = margintext;
+    setmargins();
 
     if(currline == NULL)
     {
