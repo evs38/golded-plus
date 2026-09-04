@@ -2363,14 +2363,22 @@ int cmp_quotes(char* q1, char* q2)
 //  below, which is how three of them came to be indented to a block
 //  they are not in.
 
+//  '__source' records where the charset came from - the area default,
+//  a CHRS kludge, a Content-Type header - so that a message the
+//  conversion could not fully handle can be logged with that fact:
+//  201 unconvertible characters under a declared US-ASCII mean a wrong
+//  kludge, the same under an area default mean a wrong XLATIMPORT.
+
 static void adopt_charset(GMsg* __msg, int& __level, GRecoder*& __recoder,
-                          int __chslev, const char* __chsbuf)
+                          int __chslev, const char* __chsbuf,
+                          const char*& __where, const char* __source)
 {
     __level = __msg->charsetlevel = __chslev;
     __recoder = CharRecoder;
     if(__recoder)
         __recoder->clear_substitutes();
     strxcpy(__msg->charset, __chsbuf, sizeof(__msg->charset));
+    __where = __source;
 }
 
 
@@ -2453,6 +2461,8 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
     //  save path, for instance, converts on the way out and then parses
     //  the result back into lines, which must not convert again.
     GRecoder* _recoder = NULL;
+    //  Where the charset in force was decided, for the log.
+    const char* _chssrc = "area default";
     uint n;
     char ch, chln = 0, dochar;
     Line* line;
@@ -2540,7 +2550,7 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
             if(not strieql(AA->Xlatimport(), CFG->xlatlocalset))
             {
                 int _chslev = LoadCharset(AA->Xlatimport(), CFG->xlatlocalset);
-                adopt_charset(msg, level, _recoder, _chslev, AA->Xlatimport());
+                adopt_charset(msg, level, _recoder, _chslev, AA->Xlatimport(), _chssrc, "area default");
             }
         }
 
@@ -2667,15 +2677,17 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
                                 msg->i51 = true;
                                 // Convert FSC-0051.003 to FSC-0054.003
                                 g_charset_kludge_value(GCHS_I51, "", chsbuf, sizeof(chsbuf));
+                                const char* _kludgesrc = "I51 kludge";
                                 chslev = LoadCharset(chsbuf, CFG->xlatlocalset);
                                 if(not chslev)
                                 {
                                     strxcpy(chsbuf, AA->Xlatimport(), sizeof(chsbuf));
+                                    _kludgesrc = "area default, I51 kludge unknown";
                                     chslev = LoadCharset(chsbuf, CFG->xlatlocalset);
                                 }
                                 if(chslev)
                                 {
-                                    adopt_charset(msg, level, _recoder, chslev, chsbuf);
+                                    adopt_charset(msg, level, _recoder, chslev, chsbuf, _chssrc, _kludgesrc);
                                 }
                             }
                             else if((kludgetype == FSC_CHARSET) or (kludgetype == FSC_CODEPAGE))
@@ -2683,15 +2695,17 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
                                 qpencoded = IsQuotedPrintable(ptr);
                                 g_charset_kludge_value((kludgetype == FSC_CODEPAGE) ? GCHS_CODEPAGE : GCHS_PLAIN,
                                                        ptr, chsbuf, sizeof(chsbuf));
+                                const char* _kludgesrc = "CHRS kludge";
                                 chslev = LoadCharset(chsbuf, CFG->xlatlocalset);
                                 if(not chslev)
                                 {
                                     strxcpy(chsbuf, AA->Xlatimport(), sizeof(chsbuf));
+                                    _kludgesrc = "area default, CHRS kludge unknown";
                                     chslev = LoadCharset(chsbuf, CFG->xlatlocalset);
                                 }
                                 if(chslev)
                                 {
-                                    adopt_charset(msg, level, _recoder, chslev, chsbuf);
+                                    adopt_charset(msg, level, _recoder, chslev, chsbuf, _chssrc, _kludgesrc);
                                 }
                                 if(*msg->charset == NUL)
                                     strcpy(msg->charset, chsbuf);
@@ -2725,15 +2739,17 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
                                     // Only set from RFC charset if not already set by CHRS/CHARSET kludge
                                     if (*msg->charset == NUL)
                                     {
+                                        const char* _kludgesrc = "Content-Type";
                                         chslev = LoadCharset(chsbuf, CFG->xlatlocalset);
                                         if(not chslev)
                                         {
                                            strxcpy(chsbuf, AA->Xlatimport(), sizeof(chsbuf));
+                                            _kludgesrc = "area default, Content-Type unknown";
                                            chslev = LoadCharset(chsbuf, CFG->xlatlocalset);
                                         }
                                         if(chslev)
                                         {
-                                            adopt_charset(msg, level, _recoder, chslev, chsbuf);
+                                            adopt_charset(msg, level, _recoder, chslev, chsbuf, _chssrc, _kludgesrc);
                                         }
                                         if(*msg->charset == NUL)
                                             strcpy(msg->charset, chsbuf);
@@ -2762,7 +2778,7 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
                                     }
                                     if(chslev)
                                     {
-                                        adopt_charset(msg, level, _recoder, chslev, chsbuf);
+                                        adopt_charset(msg, level, _recoder, chslev, chsbuf, _chssrc, _chssrc);
                                     }
                                 }
                             }
@@ -2771,15 +2787,17 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
                                 if(not gotmime)
                                 {
                                     g_charset_kludge_value(GCHS_XCHARSET, ptr, chsbuf, sizeof(chsbuf));
+                                    const char* _kludgesrc = "X-Charset";
                                     chslev = LoadCharset(chsbuf, CFG->xlatlocalset);
                                     if(not chslev)
                                     {
                                         strxcpy(chsbuf, AA->Xlatimport(), sizeof(chsbuf));
+                                        _kludgesrc = "area default, X-Charset unknown";
                                         chslev = LoadCharset(chsbuf, CFG->xlatlocalset);
                                     }
                                     if(chslev)
                                     {
-                                        adopt_charset(msg, level, _recoder, chslev, chsbuf);
+                                        adopt_charset(msg, level, _recoder, chslev, chsbuf, _chssrc, _kludgesrc);
                                     }
                                 }
                             }
@@ -3244,11 +3262,17 @@ chardo:
             //  trace in the log that a message had bytes its declared
             //  charset does not explain - a wrong kludge, or a
             //  truncated sequence.
+            //
+            //  The message is named the way the reader shows it - by area
+            //  and ordinal - and the line says where the charset came
+            //  from, which is what tells a wrong kludge from a wrong
+            //  XLATIMPORT.
             if(_recoder and _recoder->substitutes())
             {
-                LOG.printf("! %u character(s) of message %u could not be converted from %s to %s and were replaced by '?'",
-                           (uint)_recoder->substitutes(), (uint)msg->msgno,
-                           _recoder->from(), _recoder->to());
+                LOG.printf("! %s #%u: %u character(s) not convertible from %s (%s) to %s, replaced by '?'",
+                           AA->echoid(), (uint)AA->Msgn.ToReln(msg->msgno),
+                           (uint)_recoder->substitutes(),
+                           _recoder->from(), _chssrc, _recoder->to());
                 _recoder->clear_substitutes();
             }
 

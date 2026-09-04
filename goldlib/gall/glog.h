@@ -77,7 +77,10 @@ public:
 
     int status;
 
-    char storeline[GLOG_STORELINES][79];
+    //  As wide as the line itself: the stored copy used to be cut at
+    //  78 bytes, which with the timestamp in front left about 66 for
+    //  the message and could split a UTF-8 character at the end.
+    char storeline[GLOG_STORELINES][256];
     int  storelines;
 
     glog();

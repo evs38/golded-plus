@@ -487,6 +487,17 @@ ______________________________________________________________________
   calls as before, on 9x the ANSI calls with the cells converted to
   and from the OEM codepage on the way.
 
+- The log line about characters a conversion could not express now
+  names the message the way the reader does - area and ordinal - and
+  says where the charset it converted from was decided: a CHRS kludge,
+  a Content-Type header, or the area's XLATIMPORT. Two hundred
+  unconvertible characters under a declared US-ASCII point at a wrong
+  kludge in someone else's software; the same under an area default
+  point at the configuration. The lines echoed to the console at exit
+  were also cut at 78 bytes, timestamp included, which left about 66
+  for the text and could split a UTF-8 character; the stored copy is
+  now as wide as the line itself.
+
 - Opening a message threw std::length_error and killed the program on
   any screen narrower than the header's own columns. The date column
   sits at a position resolved against MAXCOL once at startup; a window

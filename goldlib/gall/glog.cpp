@@ -188,7 +188,7 @@ void glog::printf(const char* format, ...)
     if(storelines != -1)
     {
         if(storelines < GLOG_STORELINES)
-            strxcpy(storeline[storelines], logbuf, 79);
+            strxcpy(storeline[storelines], logbuf, sizeof(storeline[0]));
         storelines++;
     }
 }
