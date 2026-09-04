@@ -534,6 +534,24 @@ ______________________________________________________________________
   any other area, and with the option off, the FTS-0001 limits of 35
   and 71 characters remain. Can be set per group.
 
++ LARGEHEADERTOBASE <yes/no> (no): cut From, To and Subject to what
+  the message base can hold rather than to the FTS-0001 widths - JAM
+  keeps 100 bytes in each, Squish 36, 36 and 72, WildCat 70, AdeptXBBS
+  59, 59 and 69, PCBoard 120, 120 and 60, Synchronet has no limit; the
+  *.MSG, Hudson, Goldbase and Ezycom bases hold the standard widths
+  anyway. Each driver now states its widths, and the header editor
+  limits a field to them counted in the bytes of the export charset,
+  converting what is typed as it is typed - 100 bytes of JAM are 50
+  Cyrillic letters or 100 Latin ones. The cut on saving still falls
+  between characters, and WRITEUCSHEADERS measures against the same
+  widths. The packed message a tosser builds is defined with the
+  FTS-0001 widths, so this is common practice rather than the
+  standard; the reference manual says so. Can be set per group.
+
+  Reading a Synchronet base cut the three fields at 36, 36 and 72
+  bytes on load, through whatever character stood there; the cut is
+  now the message's own buffers and falls between characters.
+
 - Opening a message threw std::length_error and killed the program on
   any screen narrower than the header's own columns. The date column
   sits at a position resolved against MAXCOL once at startup; a window

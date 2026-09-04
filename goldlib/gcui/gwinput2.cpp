@@ -113,10 +113,10 @@ void gwinput::after()
 
 //  ------------------------------------------------------------------
 
-void gwinput::add_field(int idnum, int wrow, int wcol, int field_width, std::string& dest, int dest_size, int cvt, int mode, int maxchars)
+void gwinput::add_field(int idnum, int wrow, int wcol, int field_width, std::string& dest, int dest_size, int cvt, int mode, int maxchars, int maxbytes, GRecoder* rec)
 {
 
-    field* fld = new field(this, idnum, wrow, wcol, field_width, dest, dest_size, cvt, mode, maxchars);
+    field* fld = new field(this, idnum, wrow, wcol, field_width, dest, dest_size, cvt, mode, maxchars, maxbytes, rec);
     throw_new(fld);
     if(current)
     {
@@ -212,6 +212,7 @@ void gwinput::reload_all()
         current->convert();
         current->buf_end_pos = strlen(current->buf);
         current->fit_max_chars();
+        current->fit_max_bytes();
         current->draw();
     }
     while(next());
@@ -834,7 +835,7 @@ bool gwinput::handle_key(gkey key)
 
 //  ------------------------------------------------------------------
 
-gwinput::field::field(gwinput* iform, int idnum, int wrow, int wcol, int field_width, std::string& dest, int dest_size, int cvt, int mode, int maxchars)
+gwinput::field::field(gwinput* iform, int idnum, int wrow, int wcol, int field_width, std::string& dest, int dest_size, int cvt, int mode, int maxchars, int maxbytes, GRecoder* rec)
     : destination(dest)
 {
     prev = next = NULL;
@@ -848,6 +849,8 @@ gwinput::field::field(gwinput* iform, int idnum, int wrow, int wcol, int field_w
     max_column = wcol + max_pos;
     buf_len = dest_size - 1;
     max_chars = maxchars;
+    max_bytes = maxbytes;
+    bytes_recoder = rec;
     buf = new char[dest_size];
     throw_new(buf);
     conversion = cvt;
@@ -866,6 +869,7 @@ gwinput::field::field(gwinput* iform, int idnum, int wrow, int wcol, int field_w
     convert();
     buf_end_pos = strlen(buf);
     fit_max_chars();
+    fit_max_bytes();
 }
 
 
@@ -965,6 +969,7 @@ void gwinput::field::restore()
     //  fit, or the field is full and refuses every keystroke.
     buf_end_pos = strlen(buf);
     fit_max_chars();
+    fit_max_bytes();
     activate();
 }
 
@@ -995,6 +1000,32 @@ void gwinput::field::move_cursor()
 //  codepoints rather than in clusters: the count has to bound the byte
 //  length for the buffer behind it to be sized at all, and a cluster
 //  can be any number of codepoints long.
+
+size_t gwinput::field::bytes_out(const char* s, size_t n) const
+{
+    if(bytes_recoder and bytes_recoder->is_open() and not bytes_recoder->is_identity())
+        return bytes_recoder->convert(s, n).length();
+    return n;
+}
+
+
+void gwinput::field::fit_max_bytes()
+{
+    if(max_bytes <= 0)
+        return;
+
+    //  Drop characters from the end until what is held converts to no
+    //  more than the limit.
+    while(buf_end_pos and (bytes_out(buf, buf_end_pos) > (size_t)max_bytes))
+    {
+        const char* p = g_utf8_prev(buf, buf + buf_end_pos);
+        buf_end_pos = (int)(p - buf);
+        buf[buf_end_pos] = NUL;
+    }
+    if(buf_pos > buf_end_pos)
+        buf_pos = buf_end_pos;
+}
+
 
 void gwinput::field::fit_max_chars()
 {
@@ -1448,6 +1479,17 @@ bool gwinput::field::put_char(const char* chars, int len, bool insert)
 
         if(buf_end_pos - old + now > buf_len)
             return false;
+
+        //  The same, measured in the bytes of the charset the field
+        //  will be stored in.
+        if(max_bytes and (now > old or insert))
+        {
+            std::string trial(buf, buf_pos);
+            trial.append(text);
+            trial.append(buf + buf_pos + old, buf_end_pos - buf_pos - old);
+            if(bytes_out(trial.data(), trial.length()) > (size_t)max_bytes)
+                return false;
+        }
 
         //  Replacing a character leaves the count alone; typing past the
         //  end of what is held adds one, and that one has to fit.

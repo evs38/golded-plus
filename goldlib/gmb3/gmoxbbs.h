@@ -190,6 +190,15 @@ struct XbbsWide
 class XbbsArea : public gmo_area
 {
 
+public:
+
+    void hdr_field_limits(size_t& __by, size_t& __to, size_t& __re) const
+    {
+        __by = 59;
+        __to = 59;
+        __re = 69;
+    }
+
 protected:
 
     XbbsWide* wide;

@@ -180,6 +180,15 @@ struct WCatWide
 class WCatArea : public gmo_area
 {
 
+public:
+
+    void hdr_field_limits(size_t& __by, size_t& __to, size_t& __re) const
+    {
+        __by = 70;
+        __to = 70;
+        __re = 70;
+    }
+
 protected:
 
     WCatWide* wide;

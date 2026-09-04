@@ -198,6 +198,7 @@ void Area::InitData()
     adat->username.addr = adat->aka.addr;
     adat->usesoftcrxlat = CFG->usesoftcrxlat;
     adat->writeucsheaders = CFG->writeucsheaders;
+    adat->largeheadertobase = CFG->largeheadertobase;
     adat->usetzutc = CFG->usetzutc;
     adat->viewhidden = CFG->viewhidden;
     adat->viewkludge = CFG->viewkludge;
@@ -488,6 +489,7 @@ void Area::RandomizeData(int mode)
 
         CFG->grp.GetItm(GRP_USESOFTCRXLAT, adat->usesoftcrxlat);
         CFG->grp.GetItm(GRP_WRITEUCSHEADERS, adat->writeucsheaders);
+        CFG->grp.GetItm(GRP_LARGEHEADERTOBASE, adat->largeheadertobase);
         CFG->grp.GetItm(GRP_USETZUTC, adat->usetzutc);
 
         if(not mode)

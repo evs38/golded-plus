@@ -888,6 +888,7 @@ CfgGed::CfgGed()
     usernameno = 0;
     usesoftcrxlat = false;
     writeucsheaders = false;
+    largeheadertobase = false;
     usestylies = true;
     usetzutc = true;
     viewhidden = false;

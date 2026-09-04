@@ -823,6 +823,9 @@ SwitchK:
 SwitchL:
     switch(crc)
     {
+    case CRC_LARGEHEADERTOBASE:
+        CfgLargeheadertobase();
+        break;
     case CRC_LATINTOLOCAL     :
         CfgLatintolocal     ();
         break;

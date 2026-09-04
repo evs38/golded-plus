@@ -380,6 +380,7 @@
     void CfgUsername         ();
     void CfgUsesoftcrxlat    ();
     void CfgWriteucsheaders  ();
+    void CfgLargeheadertobase();
     void CfgUsetzutc         ();
     void CfgUudecodepath     ();
     void CfgViewhidden       ();

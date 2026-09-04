@@ -172,6 +172,15 @@ struct PcbWide
 class PcbArea : public gmo_area
 {
 
+public:
+
+    void hdr_field_limits(size_t& __by, size_t& __to, size_t& __re) const
+    {
+        __by = 120;
+        __to = 120;
+        __re = 60;
+    }
+
 protected:
 
     PcbWide* wide;

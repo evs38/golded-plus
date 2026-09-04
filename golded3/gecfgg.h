@@ -488,6 +488,7 @@ public:
     int         usernameno;
     bool        usesoftcrxlat;
     bool        writeucsheaders;
+    bool        largeheadertobase;
     bool        usestylies;
     bool        usetzutc;
     Path        uudecodepath;

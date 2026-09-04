@@ -40,6 +40,15 @@
 class SMBArea : public gmo_area
 {
 
+public:
+
+    void hdr_field_limits(size_t& __by, size_t& __to, size_t& __re) const
+    {
+        __by = 0;
+        __to = 0;
+        __re = 0;
+    }
+
 protected:
 
     smb_t *data;

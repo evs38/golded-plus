@@ -3310,6 +3310,27 @@ Here is the complete keyword list:
     "^aCHARSET" kludge when appropriate.
 
 
+LARGEHEADERTOBASE <yes/no>  (no)
+
+    FTS-0001 gives the header fields of a message 36 bytes for each
+    name and 72 for the subject, a terminator included, and that is
+    what GoldED cuts them to on the way into any FTN message base,
+    whatever the base itself can hold. With this on, the cut is the
+    base's own: JAM stores 100 bytes in each of the three fields,
+    Squish 36, 36 and 72 without a terminator, WildCat 70, AdeptXBBS
+    59, 59 and 69, PCBoard 120, 120 and 60, Synchronet has no limit,
+    and the *.MSG, Hudson, Goldbase and Ezycom bases have the standard
+    widths anyway. The header editor then limits each field to what
+    the base holds, counted in the bytes of the export charset, and a
+    cut still falls between characters.
+
+    The packed message a tosser builds from the base is defined with
+    the FTS-0001 widths; how a longer field travels depends on the
+    tossers on the way. Common practice, not the standard.
+
+    Can be used in a Random System group.
+
+
 LOADLANGUAGE <file>
 
     If defined, this keyword will load a language definition file.

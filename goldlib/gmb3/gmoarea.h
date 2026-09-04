@@ -272,6 +272,19 @@ public:
         return false;
     }
 
+    //  How many bytes each header field can hold in this base - the two
+    //  names and the subject - or 0 for a field with no fixed width.
+    //  FTS-0001's 36, 36 and 72 with a terminator in each is the
+    //  default; a base that gives its fields more room says so here.
+    //  Only consulted when the configuration asks to use that room:
+    //  the packed message every tosser builds from the base still has
+    //  the FTS-0001 widths.
+    virtual void hdr_field_limits(size_t& __by, size_t& __to, size_t& __re) const
+    {
+        __by = __to = 35;
+        __re = 71;
+    }
+
 
     //  ----------------------------------------------------------------
     //  Determine area type

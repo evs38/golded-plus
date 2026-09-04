@@ -266,6 +266,15 @@ template <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, 
 class _HudsArea : public gmo_area
 {
 
+public:
+
+    void hdr_field_limits(size_t& __by, size_t& __to, size_t& __re) const
+    {
+        __by = 35;
+        __to = 35;
+        __re = 72;
+    }
+
     // <class msgn_t, class rec_t, class attr_t, class board_t, class last_t, int __HUDSON>
     typedef _HudsWide<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON> HudsWide;
 

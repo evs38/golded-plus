@@ -478,21 +478,39 @@ int EditHeaderinfo(int mode, GMsgHeaderView &view, bool doedithdr)
         int name_chars = AA->isinternet() ? 0 : 35;
         int subj_chars = AA->isinternet() ? 0 : 71;
 
+        //  With LARGEHEADERTOBASE the limit is the base's own, and it
+        //  is one in bytes of the charset the message will be stored
+        //  in - JAM's 100 bytes are 50 Cyrillic letters or 100 Latin
+        //  ones - so the field counts what it holds through the export
+        //  conversion as it is typed.
+        int from_bytes = 0, to_bytes = 0, subj_bytes = 0;
+        GRecoder* export_rec = NULL;
+        if(not AA->isinternet() and AA->Largeheadertobase())
+        {
+            size_t _by, _to, _re;
+            AA->HeaderFieldLimits(_by, _to, _re);
+            name_chars = subj_chars = 0;
+            from_bytes = (int)_by;
+            to_bytes   = (int)_to;
+            subj_bytes = (int)_re;
+            export_rec = &g_from_local(AreaXlatexport(AA));
+        }
+
         //  Nor is an area that writes the FSP-1030 header kludges: what
         //  the base's field cannot hold goes whole into UCSFROM, UCSTO
         //  and UCSSUBJ, so the fields may be as long as their buffers.
         //  Only when the message goes out in UTF-8 - the kludges are
         //  written only then.
         if(AA->Writeucsheaders() and GRecoder::is_utf8(AreaXlatexport(AA)))
-            name_chars = subj_chars = 0;
+            name_chars = subj_chars = from_bytes = to_bytes = subj_bytes = 0;
 
         int entry = gwinput::entry_conditional;
 
-        hedit.add_field(GMsgHeaderEdit::id_from_name, 2, from_name_pos, from_name_len, from_name, sizeof(INam), name_cvt, entry, name_chars);
+        hedit.add_field(GMsgHeaderEdit::id_from_name, 2, from_name_pos, from_name_len, from_name, sizeof(INam), name_cvt, entry, name_chars, from_bytes, export_rec);
         hedit.add_field(GMsgHeaderEdit::id_from_addr, 2, from_addr_pos, from_addr_len, from_addr, sizeof(IAdr), addr_cvt);
-        hedit.add_field(GMsgHeaderEdit::id_to_name,   3,   to_name_pos,   to_name_len,   to_name, sizeof(INam), name_cvt, entry, name_chars);
+        hedit.add_field(GMsgHeaderEdit::id_to_name,   3,   to_name_pos,   to_name_len,   to_name, sizeof(INam), name_cvt, entry, name_chars, to_bytes, export_rec);
         hedit.add_field(GMsgHeaderEdit::id_to_addr,   3,   to_addr_pos,   to_addr_len,   to_addr, sizeof(IAdr), addr_cvt);
-        hedit.add_field(GMsgHeaderEdit::id_subject,   4,   subject_pos,   subject_len,   subject, sizeof(ISub), subj_cvt, entry, subj_chars);
+        hedit.add_field(GMsgHeaderEdit::id_subject,   4,   subject_pos,   subject_len,   subject, sizeof(ISub), subj_cvt, entry, subj_chars, subj_bytes, export_rec);
 
         hedit.start_id = GMsgHeaderEdit::id_to_name;
         switch(mode)

@@ -188,6 +188,15 @@ struct EzycWide
 class EzycomArea : public gmo_area
 {
 
+public:
+
+    void hdr_field_limits(size_t& __by, size_t& __to, size_t& __re) const
+    {
+        __by = EZYC_MAXNAME-1;
+        __to = EZYC_MAXNAME-1;
+        __re = EZYC_MAXSUBJ-1;
+    }
+
 protected:
 
     EzycWide* wide;

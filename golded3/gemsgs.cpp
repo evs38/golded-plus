@@ -1043,11 +1043,18 @@ void GMsg::FitFtnHeader()
     if(AA->isinternet())
         return;
 
-    by[fit_hdr_len(by, 35)] = NUL;
-    to[fit_hdr_len(to, 35)] = NUL;
+    //  FTS-0001's widths, or the base's own with LARGEHEADERTOBASE;
+    //  a width of 0 is a field with no fixed width, left as it is.
+    size_t _by, _to, _re;
+    AA->HeaderFieldLimits(_by, _to, _re);
 
-    if(not (attr.frq() or attr.att() or attr.urq()))
-        re[fit_hdr_len(re, 71)] = NUL;
+    if(_by)
+        by[fit_hdr_len(by, _by)] = NUL;
+    if(_to)
+        to[fit_hdr_len(to, _to)] = NUL;
+
+    if(_re and not (attr.frq() or attr.att() or attr.urq()))
+        re[fit_hdr_len(re, _re)] = NUL;
 }
 
 

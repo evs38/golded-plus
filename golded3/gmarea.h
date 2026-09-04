@@ -351,6 +351,7 @@ struct AreaData
         usearea = false;
         usesoftcrxlat = false;
         writeucsheaders = false;
+        largeheadertobase = false;
         usetzutc = false;
         inittwit = false;
         viewhidden = false;
@@ -462,6 +463,7 @@ struct AreaData
     Node     username;
     bool     usesoftcrxlat;
     bool     writeucsheaders;
+    bool     largeheadertobase;
     bool     usetzutc;
     IAdr     whoto;
     Path     wtpl;
@@ -1044,6 +1046,23 @@ public:
     bool   Writeucsheaders() const
     {
         return adat->writeucsheaders;
+    }
+    bool   Largeheadertobase() const
+    {
+        return adat->largeheadertobase;
+    }
+    //  The widths the header fields are cut to on the way into this
+    //  area: FTS-0001's, or the base's own with LARGEHEADERTOBASE. A
+    //  width of 0 is a field with no fixed width.
+    void   HeaderFieldLimits(size_t& by, size_t& to, size_t& re) const
+    {
+        if(adat->largeheadertobase)
+            area->hdr_field_limits(by, to, re);
+        else
+        {
+            by = to = 35;
+            re = 71;
+        }
     }
     bool   Viewhidden() const
     {

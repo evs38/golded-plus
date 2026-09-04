@@ -568,6 +568,17 @@ void CfgWriteucsheaders()
 
 //  ------------------------------------------------------------------
 
+void CfgLargeheadertobase()
+{
+    bool flag = make_bool(GetYesno(val));
+    if (cfgingroup)
+        CFG->grp.AddItm(GRP_LARGEHEADERTOBASE, flag);
+    else
+        CFG->largeheadertobase = flag;
+}
+
+//  ------------------------------------------------------------------
+
 void CfgUsetzutc()
 {
 

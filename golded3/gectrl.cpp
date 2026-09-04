@@ -323,7 +323,7 @@ const char* get_informative_string(void)
 
 static Line* AddUcsKludge(Line* line, const char* tag, const char* value, size_t limit)
 {
-    if(*value == NUL)
+    if((*value == NUL) or (limit == 0))
         return line;
 
     GRecoder& rec = g_from_local("UTF-8");
@@ -514,10 +514,12 @@ void DoKludges(int mode, GMsg* msg, int kludges)
         // fields, for the ones the base's own fields cannot hold whole.
         if(AA->Writeucsheaders() and not AA->isinternet() and GRecoder::is_utf8(msg->charset))
         {
-            line = AddUcsKludge(line, "UCSFROM", msg->by, 35);
-            line = AddUcsKludge(line, "UCSTO",   msg->to, 35);
+            size_t _by, _to, _re;
+            AA->HeaderFieldLimits(_by, _to, _re);
+            line = AddUcsKludge(line, "UCSFROM", msg->by, _by);
+            line = AddUcsKludge(line, "UCSTO",   msg->to, _to);
             if(not (msg->attr.frq() or msg->attr.att() or msg->attr.urq()))
-                line = AddUcsKludge(line, "UCSSUBJ", msg->re, 71);
+                line = AddUcsKludge(line, "UCSSUBJ", msg->re, _re);
         }
 
         // The TZUTC kludge for timezone info

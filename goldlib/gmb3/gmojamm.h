@@ -279,6 +279,15 @@ struct JamWide
 class JamArea : public gmo_area
 {
 
+public:
+
+    void hdr_field_limits(size_t& __by, size_t& __to, size_t& __re) const
+    {
+        __by = JAMSUB_SENDERNAME_LEN;
+        __to = JAMSUB_RECEIVERNAME_LEN;
+        __re = JAMSUB_SUBJECT_LEN;
+    }
+
 protected:
 
     JamData* data;

@@ -33,6 +33,7 @@
 //  ------------------------------------------------------------------
 
 #include <gwindow.h>
+#include <grecode.h>
 
 
 //  ------------------------------------------------------------------
@@ -66,6 +67,13 @@ public:
         //  characters here, so the same name fits whatever charset
         //  the message finally goes out in. Zero is no limit.
         int max_chars;
+        //  A limit in bytes as the text will be once converted to
+        //  another charset - the field of a message base holds so many
+        //  bytes of the message's charset, which is neither the
+        //  session's bytes nor its characters. Zero is no limit; a
+        //  NULL recoder, or an identity one, counts the bytes as held.
+        int max_bytes;
+        GRecoder* bytes_recoder;
 
         std::string& destination;
 
@@ -79,7 +87,7 @@ public:
         field* prev;
         field* next;
 
-        field(gwinput* iform, int idnum, int wrow, int wcol, int field_width, std::string& dest, int dest_size, int cvt, int mode, int maxchars);
+        field(gwinput* iform, int idnum, int wrow, int wcol, int field_width, std::string& dest, int dest_size, int cvt, int mode, int maxchars, int maxbytes, GRecoder* rec);
         ~field();
 
         bool visible();
@@ -109,6 +117,9 @@ public:
         }
         //  Cut what is held back to max_chars characters.
         void fit_max_chars();
+        //  ... and to max_bytes bytes of the target charset.
+        void fit_max_bytes();
+        size_t bytes_out(const char* s, size_t n) const;
         bool home();
         bool end();
 
@@ -189,7 +200,7 @@ public:
 
     void setup(vattr i_attr, vattr a_attr, vattr e_attr, vchar fill, bool fill_acs);
 
-    void add_field(int idnum, int wrow, int wcol, int field_width, std::string& dest, int dest_size, int cvt=gwinput::cvt_none, int mode=gwinput::entry_conditional, int maxchars=0);
+    void add_field(int idnum, int wrow, int wcol, int field_width, std::string& dest, int dest_size, int cvt=gwinput::cvt_none, int mode=gwinput::entry_conditional, int maxchars=0, int maxbytes=0, GRecoder* rec=NULL);
 
     bool first(int id=0);
     bool next();

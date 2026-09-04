@@ -267,6 +267,15 @@ struct SqshWide
 class SquishArea : public gmo_area
 {
 
+public:
+
+    void hdr_field_limits(size_t& __by, size_t& __to, size_t& __re) const
+    {
+        __by = 36;
+        __to = 36;
+        __re = 72;
+    }
+
 protected:
 
     SqshWide* wide;
