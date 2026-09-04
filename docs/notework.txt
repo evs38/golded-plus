@@ -628,6 +628,11 @@ ______________________________________________________________________
   was cut there, and a cross reference to it, spelled in full, found
   nothing. The field holds thirty characters of four bytes now.
 
+- GOLDHELP and GOLDLANG, the keywords that name the help and the
+  language file and are documented in advanced.cfg, were "unknown
+  keyword": their handlers have been in the source since the first
+  import, but nothing ever called them. They are dispatched now.
+
 - The screen follows the terminal when its window is resized. The
   size was read once at startup and never again: the columns the
   configuration gives relative to the right edge were folded into

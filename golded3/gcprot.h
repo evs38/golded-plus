@@ -196,6 +196,8 @@
     void CfgGoldbasepath     ();
     void CfgGoldbasesyspath  ();
     void CfgGoldbaseuserno   ();
+    void CfgGoldhelp         ();
+    void CfgGoldlang         ();
     void CfgGoldpath         ();
     void CfgGroup            ();
     void CfgHighlightunread  ();

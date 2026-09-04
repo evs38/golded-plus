@@ -705,6 +705,15 @@ SwitchG:
     case CRC_GOLDBASEUSERNO   :
         CfgGoldbaseuserno   ();
         break;
+    //  Both handlers have been here since the first import, and their
+    //  keywords documented in advanced.cfg, but neither was ever
+    //  dispatched: GOLDHELP and GOLDLANG were "unknown keyword".
+    case CRC_GOLDHELP         :
+        CfgGoldhelp         ();
+        break;
+    case CRC_GOLDLANG         :
+        CfgGoldlang         ();
+        break;
     case CRC_GOLDPATH         :
         CfgGoldpath         ();
         break;
