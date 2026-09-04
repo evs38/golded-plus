@@ -570,6 +570,19 @@ ______________________________________________________________________
   UTF-8 as it would for a message that had declared it. Can be set per
   group.
 
+- Alt+numpad on Windows types the character again, and in Unicode. The
+  console composes the character itself - from the decimal digits typed
+  while Alt is held, or, where the EnableHexNumpad registry value
+  allows it, from hexadecimal ones after numpad '+' - and hands it over
+  on the release of Alt, as the character of that key-up event. GoldED+
+  took it instead from a cooked console read, which returns one byte of
+  the console codepage: right for a DOS codepage, and '?' or nothing
+  for anything a UTF-8 session can hold. The key-up event is read now,
+  a surrogate pair from two of them, and the character goes into the
+  message the way a typed one does. Alt+0133 gives the ij ligature and
+  Alt++0431 a Cyrillic б in a UTF-8 session; Windows 9x keeps the old
+  path.
+
 - Opening a message threw std::length_error and killed the program on
   any screen narrower than the header's own columns. The date column
   sits at a position resolved against MAXCOL once at startup; a window

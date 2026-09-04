@@ -1809,10 +1809,56 @@ bool is_numpad_key(const INPUT_RECORD& inp)
         case VK_NUMPAD7:
         case VK_NUMPAD8:
         case VK_NUMPAD9:
+        case VK_ADD:            // Alt+'+' opens a hexadecimal entry
             return true;
         }
     }
     return false;
+}
+
+
+//  ------------------------------------------------------------------
+//  Alt+numpad: the console composes the character itself - from the
+//  decimal digits typed while Alt is held, or from hexadecimal ones
+//  after numpad '+' where the EnableHexNumpad registry value allows it
+//  - and hands it over on the release of Alt, as the character of that
+//  key-up event. An astral character comes as two such events carrying
+//  a surrogate pair. This is the one key-up event that means a
+//  character was typed.
+
+static bool gkbd_alt_composed(const INPUT_RECORD& inp)
+{
+    return (inp.EventType == KEY_EVENT) and not inp.Event.KeyEvent.bKeyDown
+           and (inp.Event.KeyEvent.wVirtualKeyCode == VK_MENU)
+           and (inp.Event.KeyEvent.uChar.UnicodeChar != 0);
+}
+
+
+//  Take the composed character out of that event - and the low half
+//  of a surrogate pair out of the next - and put it in the side channel
+//  the way a typed character goes there. Returns the key value that
+//  stands for it, or 0 for nothing.
+
+static gkey gkbd_take_composed(INPUT_RECORD& inp)
+{
+    uint32_t cp = inp.Event.KeyEvent.uChar.UnicodeChar;
+    if((cp >= 0xD800) and (cp <= 0xDBFF))
+    {
+        INPUT_RECORD low;
+        DWORD n = 0;
+        gkbd_peek(low, n);
+        if(n and gkbd_alt_composed(low)
+           and (low.Event.KeyEvent.uChar.UnicodeChar >= 0xDC00)
+           and (low.Event.KeyEvent.uChar.UnicodeChar <= 0xDFFF))
+        {
+            gkbd_read(low, n);
+            cp = 0x10000 + ((cp - 0xD800) << 10) + (low.Event.KeyEvent.uChar.UnicodeChar - 0xDC00);
+        }
+    }
+    gkbd_setlastcp(cp);
+    int len = 0;
+    const char* chars = gkbd_lastchars(&len);
+    return len ? (gkey)(unsigned char)chars[0] : (gkey)(cp & 0xFF);
 }
 
 
@@ -2211,6 +2257,14 @@ gkey kbxget_raw(eKeyModes mode)
         gkbd_peek(inp, nread);
         if(nread)
         {
+            if(gkbd_nt and gkbd_alt_composed(inp))
+            {
+                //  Left in the queue for the read below; only the
+                //  side channel is set, as the read will set it again.
+                k = gkbd_take_composed(inp);
+                if(k)
+                    return k;
+            }
             if((inp.EventType == KEY_EVENT) and inp.Event.KeyEvent.bKeyDown)
             {
                 int kc = gkbd_nt2bios(inp);
@@ -2245,6 +2299,15 @@ gkey kbxget_raw(eKeyModes mode)
                 continue;
             }
 
+            if(gkbd_nt and gkbd_alt_composed(inp))
+            {
+                gkbd_read(inp, nread);
+                k = gkbd_take_composed(inp);
+                if(k)
+                    break;
+                continue;
+            }
+
             if((inp.EventType == KEY_EVENT) and inp.Event.KeyEvent.bKeyDown)
             {
                 bool alt_pressed = make_bool(CKS & (LEFT_ALT_PRESSED|RIGHT_ALT_PRESSED));
@@ -2254,8 +2317,20 @@ gkey kbxget_raw(eKeyModes mode)
 
                 k = 0;
 
+                if(alt_pressed and gkbd_nt and is_numpad_key(inp))
+                {
+                    //  A digit of an Alt+numpad entry, or the '+' that
+                    //  opens a hexadecimal one. The character it builds
+                    //  arrives with the release of Alt, handled above;
+                    //  the digit itself is nothing. The cooked read that
+                    //  used to compose the character here returned it as
+                    //  one byte of the console codepage, which cannot
+                    //  carry what a UTF-8 session types.
+                    gkbd_read(inp, nread);
+                    continue;
+                }
                 if(alt_pressed)
-                    special_key = is_numpad_key(inp); // Alt-<numpad key>
+                    special_key = is_numpad_key(inp); // Alt-<numpad key> on Win9x: the cooked read composes
                 else if(not gkbd_nt and not (CKS & ENHANCED_KEY) and not (VKC == VK_CLEAR) and (ascii and not ctrl_pressed) and not (iscntrl(ascii) and shift_pressed))
                     special_key = true; // It is alphanumeric key under Win9x
                 if(special_key)
