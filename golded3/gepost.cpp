@@ -1468,7 +1468,15 @@ void MakeMsg(int mode, GMsg* omsg, bool ignore_replyto)
                     }
                     else
                         CreateFileAddr(msg);
-                    msg->TextToLines(CFG->dispmargin-1);
+                    //  Without taking values or recoding the header:
+                    //  the text is the template's or the editor's, and
+                    //  the header fields were typed a moment ago, all in
+                    //  the local charset. Parsing them as text from the
+                    //  message base ran the fields through XLATIMPORT's
+                    //  conversion a second time - a UTF-8 session with
+                    //  a CP866 import charset stored every Cyrillic name
+                    //  double-encoded.
+                    msg->TextToLines(CFG->dispmargin-1, false);
                     status = MODE_SAVE;
                 }
             }
