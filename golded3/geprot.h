@@ -99,6 +99,7 @@ void GetAreaconf();
 char* MakeOrigin(GMsg* msg, const char* _origin);
 char* MakeTearline(GMsg* msg, char* buf, size_t size);
 void DoKludges(int mode, GMsg* msg, int kludges = 0);
+void ApplyUcsHeaders(GMsg* msg);
 void DoTearorig(int mode, GMsg* msg);
 int ApplyExportCharset(GMsg* msg);
 void GetRandom(int mode, GMsg* msg);

@@ -477,6 +477,15 @@ int EditHeaderinfo(int mode, GMsgHeaderView &view, bool doedithdr)
         //  limit, and the field keeps whatever it holds.
         int name_chars = AA->isinternet() ? 0 : 35;
         int subj_chars = AA->isinternet() ? 0 : 71;
+
+        //  Nor is an area that writes the FSP-1030 header kludges: what
+        //  the base's field cannot hold goes whole into UCSFROM, UCSTO
+        //  and UCSSUBJ, so the fields may be as long as their buffers.
+        //  Only when the message goes out in UTF-8 - the kludges are
+        //  written only then.
+        if(AA->Writeucsheaders() and GRecoder::is_utf8(AreaXlatexport(AA)))
+            name_chars = subj_chars = 0;
+
         int entry = gwinput::entry_conditional;
 
         hedit.add_field(GMsgHeaderEdit::id_from_name, 2, from_name_pos, from_name_len, from_name, sizeof(INam), name_cvt, entry, name_chars);

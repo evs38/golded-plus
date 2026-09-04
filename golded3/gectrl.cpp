@@ -312,6 +312,35 @@ const char* get_informative_string(void)
 
 //  ------------------------------------------------------------------
 
+//  ------------------------------------------------------------------
+//  One FSP-1030 header kludge, written only when the field will not
+//  fit the base's own field whole: measured in the bytes it will have
+//  in UTF-8, which is what the message goes out in when these are
+//  written at all. The value is written in UTF-8 here and now: a line
+//  that carries a kludge class is copied out by LinesToText() as it
+//  stands, without the conversion the text goes through, so it has to
+//  be in the message's charset already.
+
+static Line* AddUcsKludge(Line* line, const char* tag, const char* value, size_t limit)
+{
+    if(*value == NUL)
+        return line;
+
+    GRecoder& rec = g_from_local("UTF-8");
+    std::string utf8 = (rec.is_open() and not rec.is_identity()) ? rec.convert(value) : std::string(value);
+    if(utf8.length() <= limit)
+        return line;
+
+    std::string kludge = "\001";
+    kludge += tag;
+    kludge += ": ";
+    kludge += utf8;
+    line = AddKludge(line, kludge.c_str());
+    line->kludge = GKLUD_UCS;
+    return line;
+}
+
+
 void DoKludges(int mode, GMsg* msg, int kludges)
 {
 
@@ -332,7 +361,7 @@ void DoKludges(int mode, GMsg* msg, int kludges)
     // Strip all the kludges we insert ourselves
 
     if(kludges == 0)
-        kludges = (GKLUD_RFC|GKLUD_FWD|GKLUD_INTL|GKLUD_FMPT|GKLUD_TOPT|GKLUD_FLAGS|GKLUD_AREA|GKLUD_MSGID|GKLUD_REPLY|GKLUD_PID|GKLUD_CHARSET|GKLUD_KNOWN|GKLUD_PATH|GKLUD_SEENBY);
+        kludges = (GKLUD_RFC|GKLUD_FWD|GKLUD_INTL|GKLUD_FMPT|GKLUD_TOPT|GKLUD_FLAGS|GKLUD_AREA|GKLUD_MSGID|GKLUD_REPLY|GKLUD_PID|GKLUD_CHARSET|GKLUD_KNOWN|GKLUD_PATH|GKLUD_SEENBY|GKLUD_UCS);
 
     while(line)
     {
@@ -479,6 +508,16 @@ void DoKludges(int mode, GMsg* msg, int kludges)
                 line = AddKludge(line, buf);
                 line->kludge = GKLUD_CHARSET;
             }
+        }
+
+        // The UCSFROM/UCSTO/UCSSUBJ kludges of FSP-1030: the full header
+        // fields, for the ones the base's own fields cannot hold whole.
+        if(AA->Writeucsheaders() and not AA->isinternet() and GRecoder::is_utf8(msg->charset))
+        {
+            line = AddUcsKludge(line, "UCSFROM", msg->by, 35);
+            line = AddUcsKludge(line, "UCSTO",   msg->to, 35);
+            if(not (msg->attr.frq() or msg->attr.att() or msg->attr.urq()))
+                line = AddUcsKludge(line, "UCSSUBJ", msg->re, 71);
         }
 
         // The TZUTC kludge for timezone info

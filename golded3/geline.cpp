@@ -119,6 +119,9 @@ enum
     FSC_SPLIT,
     FSC_SPTH,
     FSC_TID,
+    FSC_UCSFROM,
+    FSC_UCSSUBJ,
+    FSC_UCSTO,
     FSC_ZZZZ
 };
 
@@ -294,6 +297,9 @@ static const Kludges fsc_list[] =
     { "SPLIT", FSC_SPLIT, KCRQ_CASE  },
     { "SPTH", FSC_SPTH, KCRQ_CASE  },
     { "TID", FSC_TID, KCRQ_CASE  },
+    { "UCSFROM", FSC_UCSFROM, KCRQ_CASE  },
+    { "UCSSUBJ", FSC_UCSSUBJ, KCRQ_CASE  },
+    { "UCSTO", FSC_UCSTO, KCRQ_CASE  },
     { "", FSC_ZZZZ, KCRQ_NONE  },
 };
 
@@ -1234,6 +1240,17 @@ static int HandleKludges(GMsg* msg, Line* line, int kludgenum, const char* ptr, 
     case FSC_I51:
         line->kludge = GKLUD_CHARSET;
         msg->i51 = true;
+        return true;
+
+    case FSC_UCSFROM:
+    case FSC_UCSTO:
+    case FSC_UCSSUBJ:
+        //  The value is taken from the raw text by the line parser, not
+        //  here: what arrives here has been through the message's own
+        //  charset conversion, and these fields are UTF-8 whatever the
+        //  message is. Only the class is set, so that a saved message
+        //  drops the ones it came with and writes its own.
+        line->kludge = GKLUD_UCS;
         return true;
 
     case FSC_MSGTO:
@@ -2363,6 +2380,40 @@ int cmp_quotes(char* q1, char* q2)
 //  below, which is how three of them came to be indented to a block
 //  they are not in.
 
+//  ------------------------------------------------------------------
+//  Put the FSP-1030 header fields in place of the base's own, where
+//  the message carries them. They are UTF-8 by definition and the
+//  fields they replace are already in the local charset, so this is
+//  one conversion from UTF-8, independent of the message's charset.
+//  A subject that is a file list (FRQ/ATT/URQ) is left alone, as
+//  everywhere else.
+
+void ApplyUcsHeaders(GMsg* msg)
+{
+    if(not (*msg->ucsby or *msg->ucsto or *msg->ucsre))
+        return;
+
+    GRecoder& rec = g_to_local("UTF-8");
+    const bool conv = rec.is_open() and not rec.is_identity();
+
+    if(*msg->ucsby)
+    {
+        std::string s = conv ? rec.convert(msg->ucsby) : std::string(msg->ucsby);
+        strxcpy_utf8(msg->by, s.c_str(), sizeof(msg->by));
+    }
+    if(*msg->ucsto)
+    {
+        std::string s = conv ? rec.convert(msg->ucsto) : std::string(msg->ucsto);
+        strxcpy_utf8(msg->to, s.c_str(), sizeof(msg->to));
+    }
+    if(*msg->ucsre and not (msg->attr.frq() or msg->attr.att() or msg->attr.urq()))
+    {
+        std::string s = conv ? rec.convert(msg->ucsre) : std::string(msg->ucsre);
+        strxcpy_utf8(msg->re, s.c_str(), sizeof(msg->re));
+    }
+}
+
+
 //  '__source' records where the charset came from - the area default,
 //  a CHRS kludge, a Content-Type header - so that a message the
 //  conversion could not fully handle can be logged with that fact:
@@ -2662,6 +2713,8 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
                                 kludgetype = RFC_X_CHARSET;
                             else if(strieql(kludge, "X-Char-Esc"))
                                 kludgetype = RFC_X_CHAR_ESC;
+                            else if(strieql(kludge, "UCSFROM") or strieql(kludge, "UCSTO") or strieql(kludge, "UCSSUBJ"))
+                                kludgetype = FSC_UCSFROM;
                             *ptr = endchar;
                             if(*ptr != ' ')
                                 ptr++;
@@ -2805,6 +2858,13 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
                             {
                                 if(not gotmime)
                                     msg->charsetencoding |= GCHENC_MNE;
+                            }
+                            else if(kludgetype == FSC_UCSFROM)
+                            {
+                                //  From the raw text, before any
+                                //  conversion: the value is UTF-8 by
+                                //  FSP-1030, whatever the message is.
+                                msg->set_ucs_from_kludge(tptr);
                             }
                             if(keptr)
                                 *keptr = endchar;
@@ -3252,6 +3312,8 @@ chardo:
                 strxmimecpy(msg->to, msg->to, level, sizeof(INam), true);
                 if(not (msg->attr.frq() or msg->attr.att() or msg->attr.urq()))
                     strxmimecpy(msg->re, msg->re, level, sizeof(ISub), true);
+
+                ApplyUcsHeaders(msg);
 
                 XlatRestore(hdr_saved);
             }

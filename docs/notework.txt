@@ -509,6 +509,31 @@ ______________________________________________________________________
   differs from GoldNODE's -D option, which drops only an exact
   repetition and keeps the earlier one.
 
+- A message written in a UTF-8 session whose area imports another
+  charset was stored with its From, To and Subject double-encoded: once
+  the header editor was done, the new message was parsed the way a
+  message read from the base is, and the fields - typed a moment ago
+  in the session's own charset - went through the XLATIMPORT conversion
+  as if they had come from an old CP866 message. The parse no longer
+  takes values or recodes the header there.
+
++ The FSP-1030 header kludges UCSFROM, UCSTO and UCSSUBJ are read
+  wherever a header is shown: a message that carries them has their
+  contents in the message list, the header, the thread tree and the
+  reader, and an answer is addressed with them. They are taken from
+  the header kludges by the JAM, Squish and *.MSG drivers - so the list
+  has them without reading the text - and from the text by the reader.
+  The values are UTF-8 by definition and are converted to the session's
+  charset on their own, independently of the message's charset.
+
++ WRITEUCSHEADERS <yes/no> (no): when a message goes out in UTF-8 and a
+  From, To or Subject does not fit the field the base gives it, the
+  whole field is also written as the matching kludge. The field is
+  still cut on a character boundary. With the option on, the header
+  editor takes fields of any length in an area that exports UTF-8; in
+  any other area, and with the option off, the FTS-0001 limits of 35
+  and 71 characters remain. Can be set per group.
+
 - Opening a message threw std::length_error and killed the program on
   any screen narrower than the header's own columns. The date column
   sits at a position resolved against MAXCOL once at startup; a window

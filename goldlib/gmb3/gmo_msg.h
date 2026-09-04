@@ -116,6 +116,7 @@ const uint GKLUD_REPLYTO   = 0x1000;
 const uint GKLUD_REPLYADDR = 0x2000;
 const uint GKLUD_KNOWN     = 0x4000;
 const uint GKLUD_RFC       = 0x8000;
+const uint GKLUD_UCS       = 0x10000;  // UCSFROM/UCSTO/UCSSUBJ, FSP-1030
 
 
 //  ------------------------------------------------------------------
@@ -467,6 +468,16 @@ public:
     //  place that knows what charset they are now in.
     bool        hdrutf8;
 
+    //  The full header fields of FSP-1030, when the message carries
+    //  them: ^AUCSFROM, ^AUCSTO and ^AUCSSUBJ hold in UTF-8 what did not
+    //  fit the base's own fields. Taken from the header kludges by the
+    //  drivers that have them there, and from the text by the reader;
+    //  empty otherwise. In UTF-8 as found - the conversion to the
+    //  local charset is done where the fields are put to use.
+    INam        ucsby;
+    INam        ucsto;
+    ISub        ucsre;
+
     int32_t        txtstart;         // Text starting position or record
     int32_t        txtlength;        // Text length or number of records
     uint        txtblocks;        // Number of msg text blocks
@@ -510,6 +521,7 @@ public:
         pid[0] = 0;
         hdrchrs[0] = 0;
         hdrutf8 = false;
+        ucsby[0] = ucsto[0] = ucsre[0] = 0;
         memset(&jam, 0, sizeof(jam));
         memset(&pcboard, 0, sizeof(pcboard));
         memset(&wildcat, 0, sizeof(wildcat));
@@ -560,6 +572,57 @@ public:
         return __dst;
     }
 
+    //  One of the FSP-1030 header fields, from the value of its kludge.
+    //  The value ends where a kludge value ends - CR, LF, NUL or the
+    //  Ctrl-A of the next one - and is cut, if it must be, between
+    //  characters: it is UTF-8 by definition.
+    void set_ucs_field(char* __dst, size_t __size, const char* __val)
+    {
+        while((*__val == ' ') or (*__val == '\t'))
+            __val++;
+        size_t _n = 0;
+        while(__val[_n] and (__val[_n] != '\r') and (__val[_n] != '\n') and (__val[_n] != '\001') and (_n < __size - 1))
+            _n++;
+        memcpy(__dst, __val, _n);
+        __dst[_n] = NUL;
+        __dst[g_fit_field_len(__dst, __size - 1, true)] = NUL;
+    }
+
+    //  Recognise a UCSFROM/UCSTO/UCSSUBJ kludge line and take its value.
+    //  The Ctrl-A may or may not still be in front. Returns false for
+    //  any other line.
+    bool set_ucs_from_kludge(const char* __p)
+    {
+        if(*__p == '\001')
+            __p++;
+        char*  _dst;
+        size_t _size;
+        if(strnieql(__p, "UCSFROM", 7))
+        {
+            __p += 7;
+            _dst = ucsby;
+            _size = sizeof(ucsby);
+        }
+        else if(strnieql(__p, "UCSTO", 5))
+        {
+            __p += 5;
+            _dst = ucsto;
+            _size = sizeof(ucsto);
+        }
+        else if(strnieql(__p, "UCSSUBJ", 7))
+        {
+            __p += 7;
+            _dst = ucsre;
+            _size = sizeof(ucsre);
+        }
+        else
+            return false;
+        if(*__p != ':')
+            return false;
+        set_ucs_field(_dst, _size, __p + 1);
+        return true;
+    }
+
     void set_hdrchrs_from_kludge(const char* __p)
     {
         //  Through the same recogniser the text scanner uses, so the
@@ -597,6 +660,7 @@ public:
         pid[0] = 0;
         hdrchrs[0] = 0;
         hdrutf8 = false;
+        ucsby[0] = ucsto[0] = ucsre[0] = 0;
         txtstart = 0;
         txtlength = 0;
         txtblocks = 0;

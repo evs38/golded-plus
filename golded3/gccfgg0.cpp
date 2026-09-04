@@ -1313,6 +1313,9 @@ SwitchW:
     case CRC_WHOTO            :
         CfgWhoto            ();
         break;
+    case CRC_WRITEUCSHEADERS  :
+        CfgWriteucsheaders  ();
+        break;
     case CRC_WILDCATUSERNO    :
         CfgWildcatuserno    ();
         break;

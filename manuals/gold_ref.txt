@@ -4998,6 +4998,23 @@ Here is the complete keyword list:
     Defines the lastread set used in the WildCat! 4.x message base.
 
 
+WRITEUCSHEADERS <yes/no>  (no)
+
+    When a message goes out in UTF-8 and its From, To or Subject does
+    not fit the field the message base gives it - FTS-0001 allows 35
+    bytes for each name and 71 for the subject - the whole field is
+    also written as a UCSFROM, UCSTO or UCSSUBJ kludge, as FSP-1030
+    describes. The field itself is cut on a character boundary, as
+    always. With this on, the header editor no longer limits the length
+    of these fields in an area that exports UTF-8.
+
+    Reading the kludges does not depend on this option: a message that
+    carries them shows their contents in the message list, the header
+    and the reader, and a reply is addressed with them.
+
+    Can be used in a Random System group.
+
+
 XLATCHARSET <importid> <exportid> <file>
 
     This keyword defines character set translation table files.

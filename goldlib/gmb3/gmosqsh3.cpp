@@ -115,6 +115,7 @@ int SquishArea::load_message(int __mode, gmsg* __msg, SqshHdr& __hdr)
                 if(*_p == CTRL_A)
                 {
                     __msg->set_hdrchrs_from_kludge(_p);
+                    __msg->set_ucs_from_kludge(_p);
                     _p++;
                 }
                 while(*_p and (*_p != CTRL_A))

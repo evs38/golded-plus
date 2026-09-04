@@ -557,6 +557,17 @@ void CfgUsesoftcrxlat()
 
 //  ------------------------------------------------------------------
 
+void CfgWriteucsheaders()
+{
+    bool flag = make_bool(GetYesno(val));
+    if (cfgingroup)
+        CFG->grp.AddItm(GRP_WRITEUCSHEADERS, flag);
+    else
+        CFG->writeucsheaders = flag;
+}
+
+//  ------------------------------------------------------------------
+
 void CfgUsetzutc()
 {
 

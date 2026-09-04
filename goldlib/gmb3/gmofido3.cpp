@@ -162,6 +162,7 @@ int FidoArea::load_message(int __mode, gmsg* __msg, FidoHdr& __hdr)
             for(char* _p = _top; *_p == CTRL_A; )
             {
                 __msg->set_hdrchrs_from_kludge(_p);
+                __msg->set_ucs_from_kludge(_p);
                 while(*_p and (*_p != CR) and (*_p != LF))
                     _p++;
                 while((*_p == CR) or (*_p == LF))

@@ -14163,6 +14163,31 @@ EDITCOMPLETION "/WfW"  "Windows for Workgroups"]]></eg>
       </head>
       <p></p>
     </div2>
+    <div2 id=WRITEUCSHEADERS>
+      <head>
+        WRITEUCSHEADERS &lt;yes/no&gt;
+      </head>
+      <p>
+  (no)
+      </p>
+      <p>
+    When a message goes out in UTF-8 and its From, To or Subject does
+    not fit the field the message base gives it - FTS-0001 allows 35
+    bytes for each name and 71 for the subject - the whole field is
+    also written as a UCSFROM, UCSTO or UCSSUBJ kludge, as FSP-1030
+    describes. The field itself is cut on a character boundary, as
+    always. With this on, the header editor no longer limits the length
+    of these fields in an area that exports UTF-8.
+      </p>
+      <p>
+    Reading the kludges does not depend on this option: a message that
+    carries them shows their contents in the message list, the header
+    and the reader, and a reply is addressed with them.
+      </p>
+      <p>
+    Can be used in a Random System group.
+      </p>
+    </div2>
     <div2 id=XLATCHARSET>
       <head>
         XLATCHARSET &lt;importid&gt; &lt;exportid&gt; &lt;file&gt;

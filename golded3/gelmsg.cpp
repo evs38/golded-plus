@@ -86,6 +86,10 @@ int Area::LoadHdr(GMsg* msg, uint32_t msgno, bool enable_recode)
 
         if(not (msg->attr.frq() or msg->attr.att() or msg->attr.urq()))
             strxmimecpy(msg->re, msg->re, msg->charsetlevel, sizeof(ISub), true);
+
+        //  The FSP-1030 fields, where the driver found them in the
+        //  header: the list shows the same name the reader will.
+        ApplyUcsHeaders(msg);
     }
     return retval;
 }

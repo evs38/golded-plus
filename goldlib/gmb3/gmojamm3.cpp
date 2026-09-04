@@ -308,6 +308,7 @@ add_intl_topt_fmpt:
             //  message list can decode the subject without opening the
             //  .jdt file for every single message.
             __msg->set_hdrchrs_from_kludge(_buf);
+            __msg->set_ucs_from_kludge(_buf);
         }
             // Not processed
         break;

@@ -350,6 +350,7 @@ struct AreaData
         templatematch = false;
         usearea = false;
         usesoftcrxlat = false;
+        writeucsheaders = false;
         usetzutc = false;
         inittwit = false;
         viewhidden = false;
@@ -460,6 +461,7 @@ struct AreaData
     int      usefwd;
     Node     username;
     bool     usesoftcrxlat;
+    bool     writeucsheaders;
     bool     usetzutc;
     IAdr     whoto;
     Path     wtpl;
@@ -1038,6 +1040,10 @@ public:
     bool   Usetzutc() const
     {
         return adat->usetzutc;
+    }
+    bool   Writeucsheaders() const
+    {
+        return adat->writeucsheaders;
     }
     bool   Viewhidden() const
     {

@@ -379,6 +379,7 @@
     void CfgUserlistfile     ();
     void CfgUsername         ();
     void CfgUsesoftcrxlat    ();
+    void CfgWriteucsheaders  ();
     void CfgUsetzutc         ();
     void CfgUudecodepath     ();
     void CfgViewhidden       ();

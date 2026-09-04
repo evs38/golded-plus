@@ -487,6 +487,7 @@ public:
     std::vector<Node> username;
     int         usernameno;
     bool        usesoftcrxlat;
+    bool        writeucsheaders;
     bool        usestylies;
     bool        usetzutc;
     Path        uudecodepath;
