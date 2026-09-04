@@ -617,6 +617,17 @@ ______________________________________________________________________
   not text. The format is matched with the text taken out of it now;
   the specifiers it looks for are ASCII.
 
+- The compiled help, goldhelp.ged, is in the charset of the session,
+  but it was built again only when goldhelp.cfg was newer, so a UTF-8
+  session after a KOI8-R one, or the other way round, showed the help
+  in the wrong charset - replacement characters throughout. The file
+  now names its charset on its first line and is built again when the
+  session's differs; a file left by an earlier GoldED+, naming none, is
+  built once. The index kept a category name in thirty bytes, which in
+  UTF-8 is fifteen Cyrillic letters: the title of a Russian help page
+  was cut there, and a cross reference to it, spelled in full, found
+  nothing. The field holds thirty characters of four bytes now.
+
 - The screen follows the terminal when its window is resized. The
   size was read once at startup and never again: the columns the
   configuration gives relative to the right edge were folded into

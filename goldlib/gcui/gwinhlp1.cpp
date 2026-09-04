@@ -315,7 +315,7 @@ static void disp_cat()
         if((wrow > whelp.erow-1) or pagebreak or end)
         {
             const char* _help = " Help ";
-            char _title[80];
+            char _title[sizeof(recd.category)+4];
             sprintf(_title, " %s ", recd.category);
             wtitle(NULL, TTOP, whelp.winattr);
             wtitle(_title, TLEFT, whelp.winattr);

@@ -39,7 +39,29 @@ int ReadHelpCfg(int force)
     int   counter;
     int   comment;
 
-    if ((force > 1) or (FiletimeCmp(CFG->helpcfg.fn, CFG->helpged) > 0))
+    //  The compiled help is in the charset of the session - see
+    //  XlatCfgLine() below - so one built for a KOI8-R session is
+    //  wrong for a UTF-8 one, and a newer goldhelp.cfg is not the only
+    //  reason to build it again. Its first line names the charset it
+    //  was built for; another charset, or none, as in a file left by
+    //  an earlier GoldED+, means building it once more.
+    bool stale = false;
+    {
+        gfile gfp(AddPath(CFG->goldpath, CFG->helpged), "rb", CFG->sharemode);
+        if (gfp.isopen())
+        {
+            char line[128];
+            if (gfp.Fgets(line, sizeof(line)))
+            {
+                strtrim(line);
+                stale = not (strnieql(line, "*I ", 3) and strieql(line+3, CFG->xlatlocalset));
+            }
+            else
+                stale = true;
+        }
+    }
+
+    if ((force > 1) or stale or (FiletimeCmp(CFG->helpcfg.fn, CFG->helpged) > 0))
     {
         gfile ifp(AddPath(CFG->goldpath, CFG->helpcfg.fn), "rb", CFG->sharemode);
         if (ifp.isopen())
@@ -67,11 +89,14 @@ int ReadHelpCfg(int force)
 
                 HlpL = (Hlpr*)throw_calloc(count+2, sizeof(Hlpr));
 
+                char header[64];
+                gsprintf(PRINTF_DECLARE_BUFFER(header), "*I %s\r\n", CFG->xlatlocalset);
+
                 ifp.Rewind();
-                ofp.Fputs("*I\r\n");
+                ofp.Fputs(header);
                 ofp.Fwrite(HlpL, count+1, sizeof(Hlpr));
                 ofp.Fputs("\r\n\r\n");
-                offset += 4 + ((count+1)*sizeof(Hlpr)) + 4;
+                offset += strlen(header) + ((count+1)*sizeof(Hlpr)) + 4;
 
                 counter = 0;
                 comment = YES;
@@ -103,7 +128,7 @@ int ReadHelpCfg(int force)
                 HlpL[counter].offset = -1L;
 
                 ofp.FseekSet(0);
-                ofp.Fputs("*I\r\n");
+                ofp.Fputs(header);
                 ofp.Fwrite(HlpL, count+1, sizeof(Hlpr));
 
                 throw_free(HlpL);

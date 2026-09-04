@@ -95,7 +95,11 @@ public:
 typedef struct _hlpidx_t
 {
     word help;
-    char category[30];
+    //  A category name of up to 30 characters, which in the charset of
+    //  the session may take four bytes each. Thirty bytes cut a
+    //  Russian title in UTF-8 after fifteen letters, and a cross
+    //  reference to it, spelled in full in the text, found nothing.
+    char category[120];
     long offset;
 } Hlpr;
 
