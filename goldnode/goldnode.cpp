@@ -1090,7 +1090,11 @@ static void read_nodelists()
                 {
                     if(((((dword)(*run).pos >> 24) & 0xFF) < best))
                     {
-                        run = nodeidx.erase(run);
+                        //  Step first, erase after: Borland C++ 5.02's
+                        //  list::erase() returns nothing.
+                        geidxlist::iterator victim = run;
+                        ++run;
+                        nodeidx.erase(victim);
                         ++dups;
                     }
                     else
