@@ -646,6 +646,12 @@ ______________________________________________________________________
   compiled by rc in one command, as before, unless a cross build names
   its wrc in GOLD_OS2WRC.
 
+- XLATCONFIGSET placed after a line whose value is not ASCII - an
+  INCLUDEd aliasru.cfg, say - left that line as it was read, in the
+  session's charset, and the city names came out as mojibake with
+  nothing to say why. GoldED+ now says why, in the log and on the
+  console: which file and line was read before the charset was named.
+
 - The screen follows the terminal when its window is resized. The
   size was read once at startup and never again: the columns the
   configuration gives relative to the right edge were folded into

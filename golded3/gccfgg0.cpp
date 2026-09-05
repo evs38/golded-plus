@@ -1495,6 +1495,12 @@ static int do_if(char* val)
 //  Compile a GoldED text config file
 // Return 1 if success, return 0 if error
 
+//  The first configuration line whose value had text above ASCII while
+//  no XLATCONFIGSET was in force - see the warning in ReadCfg().
+static bool cfg_late_text = false;
+static Path cfg_late_file;
+static int  cfg_late_line = 0;
+
 int ReadCfg(const char* cfgfile, int ignoreunknown)
 {
     const word CRC_APP      = 0x08B5;
@@ -1593,6 +1599,37 @@ int ReadCfg(const char* cfgfile, int ignoreunknown)
                         std::string _out = _rec.convert(val, strlen(val));
                         if(_out.length() < (size_t)((buf + sizeof(buf)) - val))
                             memcpy(val, _out.c_str(), _out.length() + 1);
+                    }
+                }
+
+                //  A value with text above ASCII, read while no
+                //  XLATCONFIGSET was in force, was taken to be in the
+                //  session's charset. Should XLATCONFIGSET follow and
+                //  name another, that value stands unconverted - and
+                //  the symptom, an included file of city names in
+                //  mojibake, points nowhere near its cause. Say so.
+                if((*CFG->xlatconfigset == NUL) and not cfg_late_text)
+                {
+                    for(const char* p = val; *p; p++)
+                    {
+                        if((unsigned char)*p >= 0x80)
+                        {
+                            cfg_late_text = true;
+                            strxcpy(cfg_late_file, cfg, sizeof(Path));
+                            cfg_late_line = line;
+                            break;
+                        }
+                    }
+                }
+                if((crc == CRC_XLATCONFIGSET) and cfg_late_text)
+                {
+                    char _cs[17];
+                    strupr(strxcpy(_cs, val, sizeof(_cs)));
+                    if(not strieql(_cs, CFG->xlatlocalset))
+                    {
+                        const char* _local = *CFG->xlatlocalset ? CFG->xlatlocalset : "the local charset";
+                        LOG.printf("! XLATCONFIGSET %s comes after %s line %i, whose value is not ASCII and was read as %s. Put XLATCONFIGSET before it.", _cs, cfg_late_file, cfg_late_line, _local);
+                        STD_PRINTNL("! XLATCONFIGSET " << _cs << " comes after " << cfg_late_file << " line " << cfg_late_line << ", whose value is not ASCII and was read as " << _local << ". Put XLATCONFIGSET before it.");
                     }
                 }
 
