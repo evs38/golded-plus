@@ -652,6 +652,27 @@ ______________________________________________________________________
   nothing to say why. GoldED+ now says why, in the log and on the
   console: which file and line was read before the charset was named.
 
+- XLATCHARSETALIAS reaches the recoder. It used to reach only the old
+  table files, which the recoder never falls back to for a name it
+  knows, so the recoder decided "IBMPC" by itself - the machine's DOS
+  codepage, CP866 on a Russian system - and an echo whose IBMPC
+  messages are CP437 read as Cyrillic garbage with no way to say so.
+  The aliases the configuration declares now come first, and inside a
+  GROUP they hold for that group's areas only:
+
+    GROUP R20
+      MEMBER            R20*
+      XLATCHARSETALIAS  CP437 IBMPC
+    ENDGROUP
+
+  Mind the samples this line was copied from: advanced.cfg and
+  advanced.rus both carried "XLATCHARSETALIAS CP437 IBMPC", inert
+  before because no table was configured, and it now does exactly what
+  it says. A configuration that kept it on a CP866 system reads every
+  IBMPC message as CP437 until the line is taken out. The samples are
+  corrected: advanced.cfg leaves IBMPC alone, advanced.rus makes it
+  CP866.
+
 - The screen follows the terminal when its window is resized. The
   size was read once at startup and never again: the columns the
   configuration gives relative to the right edge were folded into

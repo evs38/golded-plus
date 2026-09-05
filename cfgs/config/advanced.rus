@@ -1751,12 +1751,14 @@ XlatCharSet CP866       VT100       866_VT1.chs
 XlatCharSet CP850       ASCII       850_ASC.chs
 
 // Этим можно определить алиасы для названий кодировок.
-// Работает только для таблиц импорта.
+// Их слушают и таблицы импорта, и рекодер; внутри GROUP - только для областей группы.
 ;XLATCHARSETALIAS "charset" "alias1" "alias2"...
 // Часто встречающиеся ошибки и разные варианты написания
-XLATCHARSETALIAS CP437 IBMPC
-;XLATCHARSETALIAS CP866 CP-866 +7FIDO +7_FIDO FIDO7 FIDO_7 IBMPC
-XLATCHARSETALIAS CP866 CP-866 +7FIDO +7_FIDO FIDO7 FIDO_7 RUS
+// IBMPC здесь означает CP866: в русских сетях под этим именем ходят
+// сообщения в CP866, и рекодер теперь слушает алиасы так же, как
+// таблицы. У кого IBMPC значит другое - см. пример с GROUP в advanced.cfg.
+;XLATCHARSETALIAS CP437 IBMPC
+XLATCHARSETALIAS CP866 CP-866 +7FIDO +7_FIDO FIDO7 FIDO_7 RUS IBMPC
 XLATCHARSETALIAS KOI8-R KOI8R KOI KOI8 GOST CP20866
 XLATCHARSETALIAS KOI8-U KOI8U KOU KOI-U CP21866
 XLATCHARSETALIAS ISO8859-1 ISO-8859-1 ISO_8859-1 CP28591 ISO-1 LATIN-1

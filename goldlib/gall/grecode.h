@@ -234,6 +234,14 @@ private:
 //  the same pair of charsets, so handing out a shared instance saves
 //  reopening iconv thousands of times.
 //
+//  Charset names the configuration declares to mean another - what
+//  XLATCHARSETALIAS says. canonical() consults them before its own
+//  rules, so "IBMPC" can be pinned to CP437 where the messages saying
+//  it are CP437, whatever codepage the machine runs. The table is
+//  replaced whole, since an area's group may carry aliases of its own.
+void g_charset_alias_clear();
+void g_charset_alias_add(const char* alias, const char* name);
+
 //  The returned reference stays valid until g_recoder_flush().
 
 GRecoder& g_recoder(const char* from, const char* to);

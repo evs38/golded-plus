@@ -395,6 +395,7 @@
     void CfgWritetemplate    ();
     void CfgXlatcharset      ();
     void CfgXlatcharsetalias ();
+    void CfgXlatcharsetaliasEndgroup();
     void CfgXlatescset       ();
     void CfgXlatexport       ();
     void CfgXlatimport       ();

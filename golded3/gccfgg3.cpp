@@ -401,6 +401,7 @@ void CfgEncodeemailheaders()
 void CfgEndgroup()
 {
 
+    CfgXlatcharsetaliasEndgroup();
     cfgingroup = false;
 }
 

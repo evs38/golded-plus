@@ -525,6 +525,7 @@ char* strtmp(const char* str);
 vattr quotecolor(const char* line);
 bool  doinvalidate(std::string& text, const std::string& find, const std::string& replace, bool is_tearline = false);
 void XlatCfgLine(char* line, size_t size);
+void LoadCharsetAliases(const char* groupaliases);
 void PrepareAreaUsernames(const char* importcs);
 bool find(const std::vector<const char *> &vec, const char *str);
 bool find(const std::vector<std::string> &vec, const std::string &str);

@@ -721,6 +721,22 @@ void CfgXlatcharset()
 
 //  ------------------------------------------------------------------
 
+//  Inside a GROUP the aliases are the group's, for its areas only,
+//  and are kept as one item of "ALIAS=CHARSET" words - one item, not
+//  one per line, because GetItm() on a type with several items picks
+//  one at random, which is right for origins and wrong here. The
+//  words are gathered while the group is read and stored at ENDGROUP.
+static std::string cfg_group_aliases;
+
+void CfgXlatcharsetaliasEndgroup()
+{
+    if(not cfg_group_aliases.empty())
+    {
+        CFG->grp.AddItm(GRP_XLATCHARSETALIAS, cfg_group_aliases);
+        cfg_group_aliases.erase();
+    }
+}
+
 void CfgXlatcharsetalias()
 {
     char* key;
@@ -733,7 +749,15 @@ void CfgXlatcharsetalias()
 
     while (key[0] != 0)
     {
-        CFG->xlatcharsetalias[strupr(key)] = dstCharset;
+        if(cfgingroup)
+        {
+            cfg_group_aliases += strupr(key);
+            cfg_group_aliases += '=';
+            cfg_group_aliases += dstCharset;
+            cfg_group_aliases += ' ';
+        }
+        else
+            CFG->xlatcharsetalias[strupr(key)] = dstCharset;
         getkeyval(&key, &val);
     }
 }

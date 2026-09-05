@@ -240,15 +240,53 @@ void Area::InitData()
             found = CFG->grp.SetGrp(echoid());
     }
 
+    std::string _aliases;
     if(found)
     {
         CFG->grp.GetItm(GRP_XLATREPLYORIGINAL, adat->xlatreplyoriginal);
         CFG->grp.GetItm(GRP_XLATEXPORT, adat->xlatexport, sizeof(adat->xlatexport));
         CFG->grp.GetItm(GRP_XLATIMPORT, adat->xlatimport, sizeof(adat->xlatimport));
+        CFG->grp.GetItm(GRP_XLATCHARSETALIAS, _aliases);
     }
+    LoadCharsetAliases(_aliases.c_str());
 
     if(adat->loadlanguage && *adat->loadlanguage)
         LoadLanguage(adat->loadlanguage);
+}
+
+
+//  ------------------------------------------------------------------
+//  Hand the recoder the charset aliases in force: the global ones from
+//  XLATCHARSETALIAS, and over them the words "ALIAS=CHARSET" of the
+//  current area's group, if it has any.
+
+void LoadCharsetAliases(const char* groupaliases)
+{
+    g_charset_alias_clear();
+
+    std::map<std::string, std::string, std::less<std::string> >::iterator it = CFG->xlatcharsetalias.begin();
+    std::map<std::string, std::string, std::less<std::string> >::iterator end = CFG->xlatcharsetalias.end();
+    for(; it != end; ++it)
+        g_charset_alias_add((*it).first.c_str(), (*it).second.c_str());
+
+    if(groupaliases)
+    {
+        const char* p = groupaliases;
+        while(*p)
+        {
+            while(*p == ' ') p++;
+            const char* eq = strchr(p, '=');
+            const char* sp = strchr(p, ' ');
+            if(eq == NULL or (sp and eq > sp))
+                break;
+            std::string alias(p, (size_t)(eq - p));
+            std::string name(eq + 1, sp ? (size_t)(sp - eq - 1) : strlen(eq + 1));
+            g_charset_alias_add(alias.c_str(), name.c_str());
+            if(sp == NULL)
+                break;
+            p = sp;
+        }
+    }
 }
 
 

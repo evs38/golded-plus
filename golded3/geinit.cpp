@@ -1199,6 +1199,10 @@ void Initialize(int argc, char* argv[])
     gsprintf(PRINTF_DECLARE_BUFFER(buf), "%s %s (%s %s)", __gver_longpid__, __gver_ver__, __gver_date__, __gver_time__);
     LOG.open(CFG->logfile, buf, __gver_shortlogname__, CFG->logformat);
 
+    // The charset aliases the configuration declared, for the
+    // recoder; an area's group adds its own when the area is entered.
+    LoadCharsetAliases(NULL);
+
     // Read/compile various configs
     compiled |= ReadLangCfg();
     compiled |= make_bool(ReadKeysCfg());

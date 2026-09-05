@@ -225,11 +225,46 @@ static std::string charset_bare(const char* name)
 }
 
 
+//  The aliases the configuration declares - see grecode.h.
+
+typedef std::map<std::string, std::string, std::less<std::string> > AliasMap;
+static AliasMap* user_aliases = NULL;
+
+void g_charset_alias_clear()
+{
+    if(user_aliases)
+        user_aliases->clear();
+}
+
+void g_charset_alias_add(const char* alias, const char* name)
+{
+    std::string a = charset_bare(alias);
+    std::string n = charset_bare(name);
+    if(a.empty() or n.empty())
+        return;
+    if(user_aliases == NULL)
+        user_aliases = new AliasMap;
+    (*user_aliases)[a] = n;
+}
+
+
 std::string GRecoder::canonical(const char* name)
 {
     std::string s = charset_bare(name);
     if(s.empty())
         return s;
+
+    //  What the configuration says a name means comes first: the
+    //  recoder used to decide "IBMPC" by itself, from the machine's
+    //  codepage, and an XLATCHARSETALIAS saying otherwise reached
+    //  only the old table files, which the recoder never falls back
+    //  to for a name it knows.
+    if(user_aliases)
+    {
+        AliasMap::iterator it = user_aliases->find(s);
+        if(it != user_aliases->end())
+            s = (*it).second;
+    }
 
     //  IBMPC has always meant "the PC's own codepage", not CP437 in
     //  particular: a Russian message announcing CHRS: IBMPC 2 is
