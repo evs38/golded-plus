@@ -729,23 +729,6 @@ chtype gvid_tcpr(vchar chr)
 #endif
 
 //  ------------------------------------------------------------------
-//  A cell from a character of the text - see gvidall.h. Only the wide
-//  curses screen keeps codepoints in its cells and so has to translate
-//  a byte of an 8-bit session; everywhere else a cell holds what
-//  vcatch() makes of the character, and this is that.
-
-vatch vcatchc(vchar chr, vattr atr)
-{
-#if defined(__USE_WIDE_NCURSES__)
-    return vcatch(gvid_tcpr((vchar)g_local_to_unicode_wide(chr)), atr);
-#else
-    return vcatch(chr, atr);
-#endif
-}
-
-
-
-//  ------------------------------------------------------------------
 //  Emitting characters through curses.
 //
 //  gvid_addcp() puts a single character; gvid_addstr() puts a string,
@@ -934,6 +917,23 @@ static void gvid_addstr(const char* str, int attr, uint width, bool boxcvt)
 //  ------------------------------------------------------------------
 
 #endif // defined(__USE_NCURSES__)
+
+
+//  ------------------------------------------------------------------
+//  A cell from a character of the text - see gvidall.h. Only the wide
+//  curses screen keeps codepoints in its cells and so has to translate
+//  a byte of an 8-bit session; everywhere else a cell holds what
+//  vcatch() makes of the character, and this is that. Outside the
+//  curses block: the windows call it on every screen.
+
+vatch vcatchc(vchar chr, vattr atr)
+{
+#if defined(__USE_WIDE_NCURSES__)
+    return vcatch(gvid_tcpr((vchar)g_local_to_unicode_wide(chr)), atr);
+#else
+    return vcatch(chr, atr);
+#endif
+}
 
 
 //  ------------------------------------------------------------------
