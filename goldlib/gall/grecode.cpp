@@ -1553,8 +1553,35 @@ const char* g_detect_console_charset()
     UINT cp = GetConsoleOutputCP();
     if(cp == 0)
         cp = GetOEMCP();
+
+    //  On NT the screen is written and the keyboard read through the
+    //  wide console API, so the console's codepage decides nothing
+    //  about what the program can show: a Unicode build starts in
+    //  UTF-8 there whatever chcp says, the way it does on a UTF-8
+    //  terminal elsewhere. The codepage still says what the machine's
+    //  Fido software speaks - XLATIMPORT, XLATEXPORT and an undeclared
+    //  configuration default to it. Windows 9x has no working wide
+    //  API and keeps the codepage, as does an 8-bit build.
+    bool wide = false;
+#ifdef GOLD_UTF8
+    {
+        OSVERSIONINFO v;
+        memset(&v, 0, sizeof(v));
+        v.dwOSVersionInfoSize = sizeof(v);
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable: 4996)  // GetVersionEx is deprecated since Win8.1 SDK
+#endif
+        if(GetVersionEx(&v) and (v.dwPlatformId == VER_PLATFORM_WIN32_NT))
+            wide = true;
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
+    }
+#endif
+
     char buf[16];
-    if(cp == 65001)
+    if(wide or (cp == 65001))
         detected = "UTF-8";
     else
     {

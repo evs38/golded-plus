@@ -673,6 +673,20 @@ ______________________________________________________________________
   corrected: advanced.cfg leaves IBMPC alone, advanced.rus makes it
   CP866.
 
+- On Windows NT and later a Unicode build starts in UTF-8 whatever the
+  console's codepage is. The screen is written and the keyboard read
+  through the wide console API there, so the codepage decided nothing
+  about what could be shown - yet the session followed it, and without
+  XLATLOCALSET every Russian Windows ran the 8-bit screen, CP866, as
+  the old GoldED+ did, unless chcp 65001 was typed first. The codepage
+  keeps its real meaning: XLATIMPORT and XLATEXPORT default to it, and
+  so does an undeclared configuration on Windows, since golded.cfg and
+  the files beside it have been in the DOS codepage since the DOS
+  days - which is why a configuration in CP866 needs no XLATCONFIGSET
+  to be read right in the UTF-8 session. Windows 9x and the 8-bit
+  build keep the codepage as their session charset; XLATLOCALSET
+  names one explicitly, as before.
+
 - The screen follows the terminal when its window is resized. The
   size was read once at startup and never again: the columns the
   configuration gives relative to the right edge were folded into

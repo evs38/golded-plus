@@ -27,6 +27,7 @@
 #include <golded.h>
 #include <gccfgg.h>
 #include <gcprot.h>
+#include <gcharset.h>
 
 
 //  ------------------------------------------------------------------
@@ -1516,6 +1517,21 @@ int ReadCfg(const char* cfgfile, int ignoreunknown)
     char* cfgname;
     word crc;
     int cfgignore=NO, line=0;
+
+#if defined(__WIN32__)
+    //  A configuration written on a Windows machine and not declared
+    //  otherwise is in the machine's DOS codepage - what golded.cfg,
+    //  aliasru.cfg and the rest have been in since the DOS days. The
+    //  session may be UTF-8 now, so the default has to be said rather
+    //  than assumed equal to it. On unix the configuration is in the
+    //  locale's charset, which the session already is.
+    if((inuse == 0) and (*CFG->xlatconfigset == NUL))
+    {
+        const char* dcs = get_dos_charset("");
+        if(dcs and *dcs)
+            strupr(strxcpy(CFG->xlatconfigset, dcs, sizeof(CFG->xlatconfigset)));
+    }
+#endif
 
     if (cfgfile == NULL)
     {
