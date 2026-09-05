@@ -638,6 +638,14 @@ ______________________________________________________________________
   machine kept for the old toolchains still has 3.4 - stopped at the
   include. Such a compiler gets the instruction spelled out.
 
+- The makefiles ran a shell where the upstream ones never had: a
+  $(shell uname) before any platform was chosen, to tell Haiku apart,
+  and a shell script in the OS/2 resource step, to pick between rc and
+  wrc. The EMX tools on OS/2 have no bash, and the build did not start.
+  Haiku is told apart by its system directory; the OS/2 icon is
+  compiled by rc in one command, as before, unless a cross build names
+  its wrc in GOLD_OS2WRC.
+
 - The screen follows the terminal when its window is resized. The
   size was read once at startup and never again: the columns the
   configuration gives relative to the right edge were folded into

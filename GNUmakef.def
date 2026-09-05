@@ -10,8 +10,11 @@
 #  had a Watcom tag for.
 GOLD_WATCOM_PLATFORMS=wcn wco wcx wcl
 
-GOLD_HOST_OS := $(shell uname -s 2>/dev/null)
-ifeq ($(GOLD_HOST_OS),Haiku)
+#  Haiku is told apart by its system directory rather than by asking
+#  uname: a $(shell) at this point needs a shell before any platform
+#  block has said which one, and the OS/2 build with the EMX tools has
+#  none to offer - the upstream makefiles never ran a shell here.
+ifneq ($(wildcard /boot/system),)
     GOLD_HAIKU=1
 endif
 

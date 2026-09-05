@@ -75,24 +75,21 @@ ifeq ($(PLATFORM),emx)
 #  headers are, since the .rc includes <os2.h>, and the compiler is
 #  asked for that the way liblocal.a is looked for elsewhere.
 #
-#  Where neither is on PATH the step is skipped with a note. Nothing
-#  is lost but the icon.
-GOLD_OS2RC=$(shell command -v rc 2>/dev/null)
-GOLD_OS2WRC=$(shell command -v wrc 2>/dev/null)
-GOLD_OS2WRCINC=$(shell $(CC) -print-sysroot 2>/dev/null)/include
+#  The cross build names its wrc in GOLD_OS2WRC on the make command
+#  line; a native build, where nothing is named, calls rc exactly as
+#  it always did, in one command that needs no shell - the EMX make
+#  has none to run one with. Neither program is looked for with
+#  $(shell), for the same reason.
+ifdef GOLD_OS2WRC
+GOLD_OS2WRCINC?=$(shell $(CC) -print-sysroot 2>/dev/null)/include
 $(FOBJPATH)/%.res: %.rc
 	@echo creating resources
-	@if [ -n "$(GOLD_OS2RC)" ] ; then					\
-		$(GOLD_OS2RC) $(subst -I,-i ,$(INCS)) -x1 -r $< ;		\
-		touch $@ ;							\
-	elif [ -n "$(GOLD_OS2WRC)" ] ; then					\
-		$(GOLD_OS2WRC) -bt=os2 -q -r -fo=$@ -i=$(GOLD_OS2WRCINC)	\
-			$(if $(GOLD_OS2TK_INC),-i=$(GOLD_OS2TK_INC))		\
-			$(subst -I,-i=,$(INCS)) $< ;				\
-	else									\
-		echo "  no resource compiler on this host - icon left out" ;	\
-		touch $@ ;							\
-	fi
+	@$(GOLD_OS2WRC) -bt=os2 -q -r -fo=$@ -i=$(GOLD_OS2WRCINC) $(if $(GOLD_OS2TK_INC),-i=$(GOLD_OS2TK_INC)) $(subst -I,-i=,$(INCS)) $<
+else
+$(FOBJPATH)/%.res: %.rc
+	@echo creating resources
+	@rc $(subst -I,-i ,$(INCS)) -x1 -r $<
+endif
 endif
 
 SOURCES=

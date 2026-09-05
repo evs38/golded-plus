@@ -24,17 +24,20 @@ $(TOP)/$(BIN)/$(SHORTTARGET)$(PLATFORM)$(EXEEXT): $(OBJS) $(FGLIBS) $(ADDS)
 	@$(CXX) $(LNKFLAGS) -o $@ $(FOBJPATH)/*$(OBJEXT) $(ADDS) $(LIBS) -L$(FLIBPATH)
 	@echo done
 ifeq ($(PLATFORM),emx)
+ifdef GOLD_OS2WRC
 #  A .res is not something the linker reads, so the icon is bound onto
 #  the executable here, once it exists. Only wrc is asked to do it:
 #  that is the resource compiler the cross toolchain ships and it has
 #  been tried, while a native build is left exactly as it always
-#  behaved. Programs without a .rc of their own - goldnode, rddt -
-#  have no .res and fall straight through.
+#  behaved - and, with nothing named, runs no shell here either, which
+#  the EMX make has none of. Programs without a .rc of their own -
+#  goldnode, rddt - have no .res and fall straight through.
 	@res=`ls $(FOBJPATH)/*.res 2>/dev/null | head -1` ;			\
-	if [ -n "$(GOLD_OS2WRC)" ] && [ -s "$$res" ] ; then			\
+	if [ -s "$$res" ] ; then						\
 		echo -n "Binding resources..." ;				\
 		$(GOLD_OS2WRC) -bt=os2 -q "$$res" $@ && echo done ;		\
 	fi
+endif
 endif
 
 $(FGLIBS): $(GLIBS)
