@@ -687,6 +687,14 @@ ______________________________________________________________________
   build keep the codepage as their session charset; XLATLOCALSET
   names one explicitly, as before.
 
+- A configuration line that is well-formed UTF-8 is read as UTF-8
+  whatever XLATCONFIGSET declares. A file saved by a UTF-8 editor beside
+  a CP866 or KOI8-R golded.cfg - a list of origins was the case - came
+  out as the letters its bytes spell in the declared charset, "п▓я▀ п╡
+  п╬п©п╟я│п╫п╬я│я┌п╦" for "Вы в опасности"; the test is the one the
+  reader applies to a message, and a single-byte text does not pass it
+  by accident.
+
 - The screen follows the terminal when its window is resized. The
   size was read once at startup and never again: the columns the
   configuration gives relative to the right edge were folded into

@@ -1003,10 +1003,20 @@ void XlatCfgLine(char* line, size_t size)
     if((line == NULL) or (*line == NUL))
         return;
 
-    if((*CFG->xlatconfigset == NUL) or strieql(CFG->xlatconfigset, CFG->xlatlocalset))
+    const char* from = *CFG->xlatconfigset ? CFG->xlatconfigset : CFG->xlatlocalset;
+
+    //  A line that is well-formed UTF-8 with a multibyte character in
+    //  it is UTF-8, whatever the configuration was declared to be: a
+    //  file saved by a UTF-8 editor beside a CP866 golded.cfg, or the
+    //  other way round. The same test the reader applies to messages;
+    //  a single-byte text does not pass it by accident.
+    if(not GRecoder::is_utf8(from) and g_utf8_looks_utf8(line))
+        from = "UTF-8";
+
+    if(strieql(from, CFG->xlatlocalset))
         return;
 
-    GRecoder& rec = g_recoder(CFG->xlatconfigset, CFG->xlatlocalset);
+    GRecoder& rec = g_recoder(from, CFG->xlatlocalset);
     if(not rec.is_open() or rec.is_identity())
         return;
 
