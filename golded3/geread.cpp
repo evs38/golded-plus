@@ -239,7 +239,16 @@ void Reader()
             AL.SetActiveAreaNo(i++);
         }
         while(AA->isseparator());
-        NewArea();
+        //  A resize cuts the list short before anything is chosen; lay
+        //  the screen out again and offer it once more, the way the
+        //  reader loop does, rather than walk into the first area.
+        for(;;)
+        {
+            NewArea();
+            if(not gkbd.resize_pending)
+                break;
+            ScreenResized(true);
+        }
     }
     else
     {

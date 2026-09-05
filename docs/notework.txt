@@ -695,6 +695,15 @@ ______________________________________________________________________
   reader applies to a message, and a single-byte text does not pass it
   by accident.
 
+- GoldED+ started inside the first area instead of the area list on
+  a Windows console. conhost sends its buffer-size event without the
+  window having changed - at startup among other times - and it was
+  taken for a resize, which cut the list short as if abandoned; the
+  same happened to a SIGWINCH for a window the same size as before.
+  A resize is one only when the screen's size differs from the one
+  held, and the startup list, when a real resize does interrupt it, is
+  offered again at the new size.
+
 - The screen follows the terminal when its window is resized. The
   size was read once at startup and never again: the columns the
   configuration gives relative to the right edge were folded into

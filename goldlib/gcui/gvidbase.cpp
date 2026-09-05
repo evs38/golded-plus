@@ -920,6 +920,16 @@ static void gvid_addstr(const char* str, int attr, uint width, bool boxcvt)
 
 
 //  ------------------------------------------------------------------
+//  For the keyboard layer, which cannot include gvidall.h everywhere:
+//  whether the screen's size differs from the one held.
+
+bool gvid_size_changed()
+{
+    return (gvid == NULL) or gvid->size_changed();
+}
+
+
+//  ------------------------------------------------------------------
 //  A cell from a character of the text - see gvidall.h. Only the wide
 //  curses screen keeps codepoints in its cells and so has to translate
 //  a byte of an 8-bit session; everywhere else a cell holds what

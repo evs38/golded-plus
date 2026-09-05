@@ -376,6 +376,26 @@ void GKbd::Init()
 
 
 //  ------------------------------------------------------------------
+//  Whether a resize the input layer reports is one: the size the screen
+//  has now against the size we hold. A console sends its buffer-size
+//  event without the window having changed - at startup, say - and a
+//  KEY_RESIZE can follow a SIGWINCH for a window the same size as
+//  before. Handed on, such an event cut the area list short as if
+//  abandoned, and GoldED walked into the first area instead of showing
+//  the list.
+
+//  Answered by the screen layer, gvidbase.cpp; declared here rather
+//  than through gvidall.h, whose vchar collides with the one BeOS's
+//  SupportDefs.h declares in this file.
+bool gvid_size_changed();
+
+static bool gkbd_resize_real()
+{
+    return gvid_size_changed();
+}
+
+
+//  ------------------------------------------------------------------
 //  Keyboard Class constructor
 
 GKbd::GKbd()
@@ -2094,7 +2114,12 @@ gkey kbxget_raw(eKeyModes mode)
     {
         k = (gkbd_curstable[key - KEY_MIN]);
         if(k == Key_Resize)
-            gkbd.resize_pending = true;
+        {
+            if(gkbd_resize_real())
+                gkbd.resize_pending = true;
+            else
+                k = 0;
+        }
     }
     else if(key == '\015')
         k = Key_Ent;
@@ -2266,8 +2291,13 @@ gkey kbxget_raw(eKeyModes mode)
         {
             if(inp.EventType == WINDOW_BUFFER_SIZE_EVENT)
             {
-                gkbd.resize_pending = true;
-                return Key_Resize;
+                gkbd_read(inp, nread);
+                if(gkbd_resize_real())
+                {
+                    gkbd.resize_pending = true;
+                    return Key_Resize;
+                }
+                return 0;
             }
             if(gkbd_nt and gkbd_alt_composed(inp))
             {
@@ -2314,6 +2344,8 @@ gkey kbxget_raw(eKeyModes mode)
             if(inp.EventType == WINDOW_BUFFER_SIZE_EVENT)
             {
                 gkbd_read(inp, nread);
+                if(not gkbd_resize_real())
+                    continue;
                 gkbd.resize_pending = true;
                 k = Key_Resize;
                 break;
