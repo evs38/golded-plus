@@ -633,6 +633,11 @@ ______________________________________________________________________
   keyword": their handlers have been in the source since the first
   import, but nothing ever called them. They are dispatched now.
 
+- The processor name in the version banner is read through <cpuid.h>
+  on GCC, a header GCC 4.3 brought; a GCC before it - the Cygwin of a
+  machine kept for the old toolchains still has 3.4 - stopped at the
+  include. Such a compiler gets the instruction spelled out.
+
 - The screen follows the terminal when its window is resized. The
   size was read once at startup and never again: the columns the
   configuration gives relative to the right edge were folded into

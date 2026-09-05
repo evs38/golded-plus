@@ -84,7 +84,14 @@
     #include <intrin.h>
   #endif
 #elif defined(GX86) && (defined(__GNUC__) || defined(__clang__))
+  //  <cpuid.h> arrived with GCC 4.3. An older GCC - the Cygwin of a
+  //  machine kept for the old toolchains still has 3.4 - gets the
+  //  instruction spelled out, the way the code before the header read
+  //  it. GOLD_NO_CPUID_H forces that path, for checking it.
+  #if !defined(GOLD_NO_CPUID_H) && (defined(__clang__) || (__GNUC__ > 4) || ((__GNUC__ == 4) && (__GNUC_MINOR__ >= 3)))
     #include <cpuid.h>
+    #define GOLD_HAVE_CPUID_H 1
+  #endif
 #endif
 
 
@@ -219,11 +226,25 @@ static unsigned gcpuid_max(unsigned range)
         return 0;
     return maxleaf;
 
-#elif defined(__GNUC__) || defined(__clang__)
+#elif defined(GOLD_HAVE_CPUID_H)
 
     //  __get_cpuid_max() also performs the EFLAGS.ID check on i386
     //  and is PIC-safe (it saves/restores %ebx itself).
     return __get_cpuid_max(range, 0);
+
+#elif defined(__GNUC__)
+
+    //  No header: the instruction itself. %ebx is kept out of the
+    //  operand list, since a PIC i386 build reserves it; every CPU an
+    //  x86 GCC of this age runs on has CPUID.
+    unsigned a, b, c, d;
+    __asm__ __volatile__("xchgl %%ebx, %1\n\tcpuid\n\txchgl %%ebx, %1"
+                         : "=a" (a), "=r" (b), "=c" (c), "=d" (d)
+                         : "a" (range), "c" (0));
+    (void)b; (void)c; (void)d;
+    if((a & 0x80000000u) != (range & 0x80000000u))
+        return 0;
+    return a;
 
 #else
 
@@ -252,9 +273,16 @@ static bool gcpuid_call(unsigned leaf, unsigned subleaf, unsigned regs[4])
     regs[3] = (unsigned)r[3];
     return true;
 
-#elif defined(__GNUC__) || defined(__clang__)
+#elif defined(GOLD_HAVE_CPUID_H)
 
     __cpuid_count(leaf, subleaf, regs[0], regs[1], regs[2], regs[3]);
+    return true;
+
+#elif defined(__GNUC__)
+
+    __asm__ __volatile__("xchgl %%ebx, %1\n\tcpuid\n\txchgl %%ebx, %1"
+                         : "=a" (regs[0]), "=r" (regs[1]), "=c" (regs[2]), "=d" (regs[3])
+                         : "a" (leaf), "c" (subleaf));
     return true;
 
 #else
