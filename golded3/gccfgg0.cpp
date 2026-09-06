@@ -27,7 +27,6 @@
 #include <golded.h>
 #include <gccfgg.h>
 #include <gcprot.h>
-#include <gcharset.h>
 
 
 //  ------------------------------------------------------------------
@@ -1496,13 +1495,11 @@ static int do_if(char* val)
 //  Compile a GoldED text config file
 // Return 1 if success, return 0 if error
 
-//  The first configuration line whose value had text above ASCII that
-//  was not UTF-8, and the charset it was read in - see the warning in
-//  ReadCfg().
+//  The first configuration line whose value had text above ASCII while
+//  no XLATCONFIGSET was in force - see the warning in ReadCfg().
 static bool cfg_late_text = false;
 static Path cfg_late_file;
 static int  cfg_late_line = 0;
-static XlatName cfg_late_charset;
 
 int ReadCfg(const char* cfgfile, int ignoreunknown)
 {
@@ -1519,21 +1516,6 @@ int ReadCfg(const char* cfgfile, int ignoreunknown)
     char* cfgname;
     word crc;
     int cfgignore=NO, line=0;
-
-#if defined(__WIN32__)
-    //  A configuration written on a Windows machine and not declared
-    //  otherwise is in the machine's DOS codepage - what golded.cfg,
-    //  aliasru.cfg and the rest have been in since the DOS days. The
-    //  session may be UTF-8 now, so the default has to be said rather
-    //  than assumed equal to it. On unix the configuration is in the
-    //  locale's charset, which the session already is.
-    if((inuse == 0) and (*CFG->xlatconfigset == NUL))
-    {
-        const char* dcs = get_dos_charset("");
-        if(dcs and *dcs)
-            strupr(strxcpy(CFG->xlatconfigset, dcs, sizeof(CFG->xlatconfigset)));
-    }
-#endif
 
     if (cfgfile == NULL)
     {
@@ -1604,47 +1586,52 @@ int ReadCfg(const char* cfgfile, int ignoreunknown)
                 //  of the file: a line read before XLATCONFIGSET cannot
                 //  know what it is in.
                 //
-                //  A value with text above ASCII that is not UTF-8 is
-                //  read in the charset in force now - XLATCONFIGSET, or
-                //  what it defaults to. Should XLATCONFIGSET follow and
-                //  name another, that value stands as it was read - and
-                //  the symptom, an included file of city names in
-                //  mojibake, points nowhere near its cause. Remember
-                //  the first such line, to say so then. A value that is
-                //  UTF-8 is read as UTF-8 whatever is declared, so it
-                //  is not one of these.
-                if(not cfg_late_text)
+                //  Converted in place. Two of the handlers below work
+                //  out how much room is left with (buf+sizeof(buf))-val,
+                //  so val has to go on pointing into buf; where the
+                //  converted form would not fit, the line is left as it
+                //  was rather than cut.
+                if(*CFG->xlatconfigset and *val and not strieql(CFG->xlatconfigset, CFG->xlatlocalset))
                 {
-                    bool _high = false;
-                    for(const char* p = val; *p; p++)
-                        if((unsigned char)*p >= 0x80)
-                            _high = true;
-                    if(_high and not g_utf8_looks_utf8(val))
+                    GRecoder& _rec = g_recoder(CFG->xlatconfigset, CFG->xlatlocalset);
+                    if(_rec.is_open() and not _rec.is_identity())
                     {
-                        cfg_late_text = true;
-                        strxcpy(cfg_late_file, cfg, sizeof(Path));
-                        cfg_late_line = line;
-                        strxcpy(cfg_late_charset, *CFG->xlatconfigset ? CFG->xlatconfigset : CFG->xlatlocalset, sizeof(cfg_late_charset));
+                        std::string _out = _rec.convert(val, strlen(val));
+                        if(_out.length() < (size_t)((buf + sizeof(buf)) - val))
+                            memcpy(val, _out.c_str(), _out.length() + 1);
+                    }
+                }
+
+                //  A value with text above ASCII, read while no
+                //  XLATCONFIGSET was in force, was taken to be in the
+                //  session's charset. Should XLATCONFIGSET follow and
+                //  name another, that value stands unconverted - and
+                //  the symptom, an included file of city names in
+                //  mojibake, points nowhere near its cause. Say so.
+                if((*CFG->xlatconfigset == NUL) and not cfg_late_text)
+                {
+                    for(const char* p = val; *p; p++)
+                    {
+                        if((unsigned char)*p >= 0x80)
+                        {
+                            cfg_late_text = true;
+                            strxcpy(cfg_late_file, cfg, sizeof(Path));
+                            cfg_late_line = line;
+                            break;
+                        }
                     }
                 }
                 if((crc == CRC_XLATCONFIGSET) and cfg_late_text)
                 {
                     char _cs[17];
                     strupr(strxcpy(_cs, val, sizeof(_cs)));
-                    if(not GRecoder::same(_cs, cfg_late_charset))
+                    if(not strieql(_cs, CFG->xlatlocalset))
                     {
-                        LOG.printf("! XLATCONFIGSET %s comes after %s line %i, whose value is not ASCII and was read as %s. Put XLATCONFIGSET before it.", _cs, cfg_late_file, cfg_late_line, cfg_late_charset);
-                        STD_PRINTNL("! XLATCONFIGSET " << _cs << " comes after " << cfg_late_file << " line " << cfg_late_line << ", whose value is not ASCII and was read as " << cfg_late_charset << ". Put XLATCONFIGSET before it.");
+                        const char* _local = *CFG->xlatlocalset ? CFG->xlatlocalset : "the local charset";
+                        LOG.printf("! XLATCONFIGSET %s comes after %s line %i, whose value is not ASCII and was read as %s. Put XLATCONFIGSET before it.", _cs, cfg_late_file, cfg_late_line, _local);
+                        STD_PRINTNL("! XLATCONFIGSET " << _cs << " comes after " << cfg_late_file << " line " << cfg_late_line << ", whose value is not ASCII and was read as " << _local << ". Put XLATCONFIGSET before it.");
                     }
                 }
-
-                //  Converted in place, in the charset the configuration
-                //  is in, by the same rule every other file of GoldED+'s
-                //  own goes through. The room is what is left of buf: two
-                //  of the handlers below work out how much is left with
-                //  (buf+sizeof(buf))-val, so val has to go on pointing
-                //  into buf.
-                XlatCfgLine(val, (size_t)((buf + sizeof(buf)) - val));
 
                 int _gotcond = true;
                 switch(crc)

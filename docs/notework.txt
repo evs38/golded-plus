@@ -673,28 +673,6 @@ ______________________________________________________________________
   corrected: advanced.cfg leaves IBMPC alone, advanced.rus makes it
   CP866.
 
-- On Windows NT and later a Unicode build starts in UTF-8 whatever the
-  console's codepage is. The screen is written and the keyboard read
-  through the wide console API there, so the codepage decided nothing
-  about what could be shown - yet the session followed it, and without
-  XLATLOCALSET every Russian Windows ran the 8-bit screen, CP866, as
-  the old GoldED+ did, unless chcp 65001 was typed first. The codepage
-  keeps its real meaning: XLATIMPORT and XLATEXPORT default to it, and
-  so does an undeclared configuration on Windows, since golded.cfg and
-  the files beside it have been in the DOS codepage since the DOS
-  days - which is why a configuration in CP866 needs no XLATCONFIGSET
-  to be read right in the UTF-8 session. Windows 9x and the 8-bit
-  build keep the codepage as their session charset; XLATLOCALSET
-  names one explicitly, as before.
-
-- A configuration line that is well-formed UTF-8 is read as UTF-8
-  whatever XLATCONFIGSET declares. A file saved by a UTF-8 editor beside
-  a CP866 or KOI8-R golded.cfg - a list of origins was the case - came
-  out as the letters its bytes spell in the declared charset, "п▓я▀ п╡
-  п╬п©п╟я│п╫п╬я│я┌п╦" for "Вы в опасности"; the test is the one the
-  reader applies to a message, and a single-byte text does not pass it
-  by accident.
-
 - GoldED+ started inside the first area instead of the area list on
   a Windows console. conhost sends its buffer-size event without the
   window having changed - at startup among other times - and it was
