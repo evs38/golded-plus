@@ -216,6 +216,7 @@ int ImportQWK()
                     strtrim(strxcpy(msg->by, hdr.from, 26));
                     strtrim(strxcpy(msg->to, hdr.to, 26));
                     strtrim(strxcpy(msg->re, hdr.subject,  26));
+                    msg->hdrraw = true;   // As the packet holds them
                     int _year, _month, _day, _hour, _minute;
                     sscanf(hdr.date, "%d%*c%d%*c%2d", &_month, &_day, &_year);
                     sscanf(hdr.time, "%d%*c%2d", &_hour, &_minute);

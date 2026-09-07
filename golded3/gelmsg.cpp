@@ -141,6 +141,7 @@ int Area::LoadMsg(GMsg* msg, uint32_t msgno, int margin, int mode)
             //  fall inside a character. The header's own charset
             //  kludge is all that is known about them.
             msg->hdrutf8 = *msg->hdrchrs and GRecoder::is_utf8(msg->hdrchrs);
+            msg->hdrraw = true;
             if(not ((mode & GMSG_MOVE) and (mode & GMSG_UNS_NOT_RCV)))
                 return true;
             if(not (msg->attr.uns() and not msg->attr.rcv()))

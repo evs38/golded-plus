@@ -1035,18 +1035,19 @@ void LoadText(GMsg* msg, const char* textfile, bool cfgcharset)
 //  field; nor is the subject of a file attach or request, which holds a
 //  list of names rather than a subject.
 //
-//  Call after the LinesToText() that converts to the export charset,
-//  not after the one that leaves the fields in the session's own.
+//  Called from Area::SaveMsg(), once the fields are in the charset
+//  the base gets, and for the area the message is being written to,
+//  which is not always the current one.
 
-void GMsg::FitFtnHeader()
+void GMsg::FitFtnHeader(const Area* area)
 {
-    if(AA->isinternet())
+    if(area->isinternet())
         return;
 
     //  FTS-0001's widths, or the base's own with LARGEHEADERTOBASE;
     //  a width of 0 is a field with no fixed width, left as it is.
     size_t _by, _to, _re;
-    AA->HeaderFieldLimits(_by, _to, _re);
+    area->HeaderFieldLimits(_by, _to, _re);
 
     if(_by)
         by[fit_hdr_len(by, _by)] = NUL;
@@ -1066,19 +1067,12 @@ void GMsg::LinesToText()
     Chs* _xlat_table = CharTable;
     int _xlat_level = _xlat_table ? (_xlat_table->level ? _xlat_table->level : 2) : 0;
 
-    //  Settled before the fields are cut rather than after: the cuts
-    //  below need to know whether the charset they are cutting is one
-    //  where a cut can fall inside a character.
-    hdrutf8 = GRecoder::is_utf8(charset);
-
-    strxcpy(realby, XlatStr(realby, _xlat_level, _xlat_table).c_str(), sizeof(realby));
-    strxcpy(realto, XlatStr(realto, _xlat_level, _xlat_table).c_str(), sizeof(realto));
-    strxcpy(by, XlatStr(by, _xlat_level, _xlat_table).c_str(), sizeof(by));
-    strxcpy(to, XlatStr(to, _xlat_level, _xlat_table).c_str(), sizeof(to));
-    if(not (attr.frq() or attr.att() or attr.urq()))
-    {
-        strxcpy(re, XlatStr(re, _xlat_level, _xlat_table).c_str(), sizeof(re));
-    }
+    //  Only the text is converted here. The header fields stay in the
+    //  local charset until the message is written: they are painted,
+    //  looked up in the address book and carried into other areas
+    //  after this, and every one of those wants them as the session
+    //  holds them. Area::SaveMsg() converts them for the base and puts
+    //  them back.
 
     bool _lfterm = EDIT->CrLfTerm() and (AA->basetype() == "PCBOARD");
     bool _hardterm = AA->Edithardterm() or AA->requirehardterm();

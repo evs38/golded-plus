@@ -468,6 +468,13 @@ public:
     //  place that knows what charset they are now in.
     bool        hdrutf8;
 
+    //  True when the header fields hold the bytes the message base
+    //  holds, and are to be written back as they are: a message being
+    //  copied or moved, or one taken from a packet. Otherwise they are
+    //  in the local charset, and are converted on the way into the
+    //  base - see Area::SaveMsg().
+    bool        hdrraw;
+
     //  The full header fields of FSP-1030, when the message carries
     //  them: ^AUCSFROM, ^AUCSTO and ^AUCSSUBJ hold in UTF-8 what did not
     //  fit the base's own fields. Taken from the header kludges by the
@@ -527,6 +534,7 @@ public:
         pid[0] = 0;
         hdrchrs[0] = 0;
         hdrutf8 = false;
+        hdrraw = false;
         ucsby[0] = ucsto[0] = ucsre[0] = 0;
         chrsdetected = false;
         memset(&jam, 0, sizeof(jam));
@@ -667,6 +675,7 @@ public:
         pid[0] = 0;
         hdrchrs[0] = 0;
         hdrutf8 = false;
+        hdrraw = false;
         ucsby[0] = ucsto[0] = ucsre[0] = 0;
         chrsdetected = false;
         txtstart = 0;

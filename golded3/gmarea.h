@@ -38,6 +38,8 @@
 //  ------------------------------------------------------------------
 //  Internal GoldED message header
 
+class Area;
+
 class GMsg : public gmsg
 {
 
@@ -114,8 +116,9 @@ public:
     void LinesToText();
 
     //  Cut the header fields to the sizes FTS-0001 gives them, on a
-    //  character boundary. Call once the export charset is in force.
-    void FitFtnHeader();
+    //  character boundary. Call once the export charset is in force,
+    //  with the area the message goes into.
+    void FitFtnHeader(const Area* area);
 
     void Reset();
 };

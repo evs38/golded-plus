@@ -515,7 +515,6 @@ static void MakeMsg3(int& mode, GMsg* msg)
 
     ApplyExportCharset(msg);
     msg->LinesToText();
-    msg->FitFtnHeader();
 
     if(AA->isnet() and (msg->attr.frq() or msg->attr.att() or msg->attr.urq()) and specfiles >= 1)
         CreateFileMsgs(mode, msg);
@@ -663,7 +662,6 @@ static void MakeMsg3(int& mode, GMsg* msg)
 
             ApplyExportCharset(cmsg);
             cmsg->LinesToText();
-            cmsg->FitFtnHeader();
             msg->txt   = cmsg->txt;
             msg->lin   = cmsg->lin;
             msg->line  = cmsg->line;
@@ -1059,7 +1057,10 @@ void MakeMsg(int mode, GMsg* omsg, bool ignore_replyto)
                 AA->RandomizeData(mode);
             }
 
-            msg->TextToLines(CFG->dispmargin-1);
+            //  The text comes back from the charset the last area
+            //  took it in; the header fields never left the local
+            //  charset, so they are not to be recoded along with it.
+            msg->TextToLines(CFG->dispmargin-1, true, false);
             msg->orig = AA->Aka().addr;
             SetExportCharset(msg);
             strcpy(msg->odom, CFG->aka[AkaMatch(&msg->orig, &AA->Aka().addr)].domain);
@@ -1068,7 +1069,6 @@ void MakeMsg(int mode, GMsg* omsg, bool ignore_replyto)
             DoKludges(mode, msg);
             ApplyExportCharset(msg);
             msg->LinesToText();
-            msg->FitFtnHeader();
             post_xparea.pop_back();
         }
 

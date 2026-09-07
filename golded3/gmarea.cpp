@@ -439,6 +439,45 @@ void Area::SaveMsg(int mode, GMsg* msg)
         msg->attr.frq0();
     }
 
+    //  The header fields are held in the local charset and are written
+    //  in the charset the message says it is in - the one its text was
+    //  converted to. That is done on the fields themselves, as the base
+    //  drivers read them in place, and undone once the message is
+    //  written: what follows - the address book, a copy into another
+    //  area, a crosspost - wants them as the session holds them, and
+    //  the header on screen is painted from them all the while.
+    //
+    //  Not for fields that hold the base's own bytes already - a copy,
+    //  a move, a message out of a packet: those go as they are.
+    INam _by, _to, _realby, _realto;
+    ISub _re;
+    bool _hdrutf8 = msg->hdrutf8;
+    bool _convert = not msg->hdrraw;
+    if(_convert)
+    {
+        memcpy(_by, msg->by, sizeof(_by));
+        memcpy(_to, msg->to, sizeof(_to));
+        memcpy(_realby, msg->realby, sizeof(_realby));
+        memcpy(_realto, msg->realto, sizeof(_realto));
+        memcpy(_re, msg->re, sizeof(_re));
+
+        ApplyExportCharset(msg);
+        Chs* _xlat_table = CharTable;
+        int _xlat_level = _xlat_table ? (_xlat_table->level ? _xlat_table->level : 2) : 0;
+        strxcpy(msg->realby, XlatStr(msg->realby, _xlat_level, _xlat_table).c_str(), sizeof(msg->realby));
+        strxcpy(msg->realto, XlatStr(msg->realto, _xlat_level, _xlat_table).c_str(), sizeof(msg->realto));
+        strxcpy(msg->by, XlatStr(msg->by, _xlat_level, _xlat_table).c_str(), sizeof(msg->by));
+        strxcpy(msg->to, XlatStr(msg->to, _xlat_level, _xlat_table).c_str(), sizeof(msg->to));
+        if(not (msg->attr.frq() or msg->attr.att() or msg->attr.urq()))
+            strxcpy(msg->re, XlatStr(msg->re, _xlat_level, _xlat_table).c_str(), sizeof(msg->re));
+
+        //  The cut to FTS-0001's widths is made here, where the fields
+        //  are in the charset the wire carries and a character can
+        //  still be seen whole.
+        msg->hdrutf8 = GRecoder::is_utf8(msg->charset);
+        msg->FitFtnHeader(this);
+    }
+
     if(isinternet() or isecho())             // Adjust fields for compatibility
     {
         if(*msg->realby)
@@ -460,6 +499,16 @@ void Area::SaveMsg(int mode, GMsg* msg)
         strchg(msg->txt, SOFTCR, EDIT->SoftCrXlat());
     }
     area->save_msg(mode, msg);
+
+    if(_convert)
+    {
+        memcpy(msg->by, _by, sizeof(_by));
+        memcpy(msg->to, _to, sizeof(_to));
+        memcpy(msg->realby, _realby, sizeof(_realby));
+        memcpy(msg->realto, _realto, sizeof(_realto));
+        memcpy(msg->re, _re, sizeof(_re));
+        msg->hdrutf8 = _hdrutf8;
+    }
 
     if(not (mode & GMSG_NOLSTUPD) or msg->attr.uns())
     {
