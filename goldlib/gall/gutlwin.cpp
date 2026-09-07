@@ -201,13 +201,18 @@ char* g_get_clip_text(void)
     int Unicode = false;
     int Format = 0;
     int ReadType = CF_OEMTEXT;
+    //  Unicode text first whenever there is any, whatever order the
+    //  formats were put on the clipboard in. Walking the enumeration
+    //  and taking the first text format found used to pick CF_OEMTEXT
+    //  ahead of CF_UNICODETEXT when both were there - and that is the
+    //  order g_put_clip_text() itself set them in, so in a UTF-8
+    //  session GoldED read its own copy back through the OEM codepage
+    //  and pasted every letter as three.
+    if((WinVer.dwPlatformId == VER_PLATFORM_WIN32_NT) and IsClipboardFormatAvailable(CF_UNICODETEXT))
+        Unicode = true;
+    else
     while((Format = EnumClipboardFormats(Format)) != 0)
     {
-        if((Format == CF_UNICODETEXT) and (WinVer.dwPlatformId == VER_PLATFORM_WIN32_NT))
-        {
-            Unicode = true;
-            break;
-        }
         if(Format == CF_TEXT)
         {
             ReadType = CF_TEXT;
@@ -302,6 +307,45 @@ int g_put_clip_text(const char *Data)
             return -1;
         EmptyClipboard();
         int BufferSize = DataSize + 1;
+        if(g_utf8_mode() and (WinVer.dwPlatformId == VER_PLATFORM_WIN32_NT))
+        {
+            //  The text is UTF-8, which is neither the OEM nor the ANSI
+            //  codepage: the 8-bit formats are made from the Unicode
+            //  text, so that a reader of CF_TEXT or CF_OEMTEXT gets the
+            //  letters the codepage has and '?' for the rest, not the
+            //  UTF-8 bytes taken one at a time. Putting the raw bytes
+            //  there gave every such reader - GoldED's own paste
+            //  included - three characters per letter.
+            int wlen = MultiByteToWideChar(CP_UTF8, 0, Data, -1, NULL, 0);
+            WCHAR* wide = (WCHAR*)throw_malloc(wlen * sizeof(WCHAR));
+            if(wide)
+            {
+                MultiByteToWideChar(CP_UTF8, 0, Data, -1, wide, wlen);
+                if((hData = GlobalAlloc(GMEM_MOVEABLE | GMEM_DDESHARE, wlen * sizeof(WCHAR))) != NULL)
+                    if((GData = GlobalLock(hData)) != NULL)
+                    {
+                        memcpy(GData, wide, wlen * sizeof(WCHAR));
+                        GlobalUnlock(hData);
+                        SetClipboardData(CF_UNICODETEXT, (HANDLE)hData);
+                    }
+                UINT cps[2] = { CP_OEMCP, CP_ACP };
+                UINT fmts[2] = { CF_OEMTEXT, CF_TEXT };
+                for(int n = 0; n < 2; n++)
+                {
+                    int need = WideCharToMultiByte(cps[n], 0, wide, -1, NULL, 0, NULL, NULL);
+                    if(need > 0 and (hData = GlobalAlloc(GMEM_MOVEABLE | GMEM_DDESHARE, need)) != NULL)
+                        if((GData = GlobalLock(hData)) != NULL)
+                        {
+                            WideCharToMultiByte(cps[n], 0, wide, -1, (LPSTR)GData, need, NULL, NULL);
+                            GlobalUnlock(hData);
+                            SetClipboardData(fmts[n], (HANDLE)hData);
+                        }
+                }
+                throw_free(wide);
+            }
+            CloseClipboard();
+            return 0;
+        }
         if((hData=GlobalAlloc(GMEM_MOVEABLE | GMEM_DDESHARE, BufferSize)) != NULL)
             if((GData = GlobalLock(hData)) != NULL)
             {
