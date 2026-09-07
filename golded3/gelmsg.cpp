@@ -74,33 +74,68 @@ int Area::LoadHdr(GMsg* msg, uint32_t msgno, bool enable_recode)
         //  beats a header charset too, as it does in the reader.
         msg->charsetlevel = 0;
         int _detect = CFG->ignorecharset ? NO : AA->Xlatutfautodetect();
-        if((_detect != NO) and ((_detect == ALWAYS) or (*msg->hdrchrs == NUL)))
+        //  What the fields are read as, by name, for MIXED below; NULL
+        //  when a table was picked by index and nothing is known.
+        const char* _from = NULL;
+        if((_detect != NO) and ((_detect >= ALWAYS) or (*msg->hdrchrs == NUL)))
         {
             if(g_utf8_valid(msg->by) and g_utf8_valid(msg->to) and g_utf8_valid(msg->re) and
                (g_utf8_looks_utf8(msg->by) or g_utf8_looks_utf8(msg->to) or g_utf8_looks_utf8(msg->re)))
             {
                 msg->charsetlevel = LoadCharset("UTF-8", CFG->xlatlocalset);
                 msg->chrsdetected = (msg->charsetlevel != 0);
+                _from = "UTF-8";
             }
         }
         if(not msg->charsetlevel and *msg->hdrchrs and not CFG->ignorecharset)
+        {
             msg->charsetlevel = LoadCharset(msg->hdrchrs, CFG->xlatlocalset);
+            _from = msg->hdrchrs;
+        }
         if(not msg->charsetlevel)
         {
             if((table == -1) or not CFG->ignorecharset)
+            {
                 msg->charsetlevel = LoadCharset(AA->Xlatimport(), CFG->xlatlocalset);
+                _from = AA->Xlatimport();
+            }
             else
+            {
                 msg->charsetlevel = LoadCharset(table);
+                _from = NULL;
+            }
         }
 
         // Charset translate header fields
-        strxmimecpy(msg->realby, msg->realby, msg->charsetlevel, sizeof(INam), true);
-        strxmimecpy(msg->realto, msg->realto, msg->charsetlevel, sizeof(INam), true);
-        strxmimecpy(msg->by, msg->by, msg->charsetlevel, sizeof(INam), true);
-        strxmimecpy(msg->to, msg->to, msg->charsetlevel, sizeof(INam), true);
+        if((_detect == XLATUTF_MIXED) and _from)
+        {
+            //  MIXED: each field on its own, as the reader does - see
+            //  MixedSpanCharset(). The list and the tree read the
+            //  header alone, so this is where they get it right.
+            XlatSnap _saved = XlatSnapshot();
+            char* _fields[5] = { msg->realby, msg->realto, msg->by, msg->to, msg->re };
+            size_t _sizes[5] = { sizeof(INam), sizeof(INam), sizeof(INam), sizeof(INam), sizeof(ISub) };
+            int _count = (msg->attr.frq() or msg->attr.att() or msg->attr.urq()) ? 4 : 5;
+            for(int _n = 0; _n < _count; _n++)
+            {
+                GRecoder* _r = _saved.recoder;
+                int _l = msg->charsetlevel;
+                MixedSpanCharset(_fields[_n], strlen(_fields[_n]), _from, _l, _r);
+                CharRecoder = _r;
+                strxmimecpy(_fields[_n], _fields[_n], _l, (int)_sizes[_n], true);
+            }
+            XlatRestore(_saved);
+        }
+        else
+        {
+            strxmimecpy(msg->realby, msg->realby, msg->charsetlevel, sizeof(INam), true);
+            strxmimecpy(msg->realto, msg->realto, msg->charsetlevel, sizeof(INam), true);
+            strxmimecpy(msg->by, msg->by, msg->charsetlevel, sizeof(INam), true);
+            strxmimecpy(msg->to, msg->to, msg->charsetlevel, sizeof(INam), true);
 
-        if(not (msg->attr.frq() or msg->attr.att() or msg->attr.urq()))
-            strxmimecpy(msg->re, msg->re, msg->charsetlevel, sizeof(ISub), true);
+            if(not (msg->attr.frq() or msg->attr.att() or msg->attr.urq()))
+                strxmimecpy(msg->re, msg->re, msg->charsetlevel, sizeof(ISub), true);
+        }
 
         //  The FSP-1030 fields, where the driver found them in the
         //  header: the list shows the same name the reader will.

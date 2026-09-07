@@ -552,6 +552,22 @@ ______________________________________________________________________
   bytes on load, through whatever character stood there; the cut is
   now the message's own buffers and falls between characters.
 
++ XLATUTFAUTODETECT MIXED: every paragraph of the text and every
+  header field is judged on its own. A single-byte message with a
+  paragraph that is UTF-8 by the test below has that paragraph read
+  as UTF-8; a UTF-8 message with a paragraph that is not valid UTF-8
+  has it read as the area's XLATIMPORT. For mail that quotes UTF-8
+  into a CP866 reply and declares CP866 for the lot - the subject
+  and the quotes in one charset, the author's own lines in another.
+  Includes OVERRIDE. A stretch is judged without the CJK ideographs,
+  which three lower-case CP866 letters can form ("фев" in a quote
+  header did, 81 times in 600 000 paragraphs); with that, none of the
+  paragraphs of a Russian base of 98 000 messages changed charset by
+  mistake. Experimental still: a box-drawing character right before a
+  lower-case letter passes, and is then one wrong line, not a wrong
+  message. The message list and the thread tree judge the header
+  fields the same way.
+
 + XLATUTFAUTODETECT <yes/override/no> (no): recognise a message
   written in UTF-8 that does not say so, for the day such mail turns
   up in an echo whose XLATIMPORT is something else. A text is taken

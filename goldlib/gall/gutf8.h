@@ -284,6 +284,9 @@ bool g_utf8_valid(const char* p, size_t nbytes);
 //  and then, from passing as an exotic character. Pure ASCII is not
 //  UTF-8 for this purpose: it says nothing either way.
 bool g_utf8_looks_utf8(const char* p);
+//  The bounded form judges a stretch of text; without 'ideographs' the
+//  CJK range does not count as plausible - see the comment there.
+bool g_utf8_looks_utf8(const char* p, size_t nbytes, bool ideographs = true);
 
 
 //  ------------------------------------------------------------------

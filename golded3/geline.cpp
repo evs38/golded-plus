@@ -2434,6 +2434,92 @@ static void adopt_charset(GMsg* __msg, int& __level, GRecoder*& __recoder,
 
 
 //  ------------------------------------------------------------------
+//  XLATUTFAUTODETECT MIXED: a stretch of text - one paragraph of the
+//  body, one header field - decides its own charset against the one
+//  the message was read in. Mail that quotes UTF-8 into a CP866 reply
+//  and declares CP866 for the lot, or the other way round, is what
+//  this is for.
+//
+//  Two cases. The message is single-byte and the stretch is UTF-8 by
+//  the look of it - every high byte in a well-formed sequence, at
+//  least one, every character plausible - so it is converted from
+//  UTF-8 instead. Or the message is UTF-8 and the stretch is not even
+//  valid UTF-8, so it is taken for the area's XLATIMPORT. Otherwise
+//  the message's own conversion stands.
+//
+//  'level' and 'recoder' come in as the message's and go out as the
+//  stretch's; NULL and 0 together mean "already in the local charset".
+//  A UTF-8 stretch in an 8-bit session needs a recoder, and a build
+//  with none - tables only - leaves such a stretch as it was.
+
+void MixedSpanCharset(const char* span, size_t n, const char* msgcharset, int& level, GRecoder*& recoder)
+{
+    if((span == NULL) or (n == 0))
+        return;
+
+    const char* from = (msgcharset and *msgcharset) ? msgcharset : CFG->xlatlocalset;
+
+    if(not GRecoder::is_utf8(from))
+    {
+        if(not g_utf8_looks_utf8(span, n, false))
+            return;
+        if(GRecoder::is_utf8(CFG->xlatlocalset))
+        {
+            recoder = NULL;
+            level = 0;
+            return;
+        }
+        GRecoder& rec = g_recoder("UTF-8", CFG->xlatlocalset);
+        if(rec.is_open() and not rec.is_identity())
+        {
+            recoder = &rec;
+            level = 4;
+        }
+        return;
+    }
+
+    bool high = false;
+    for(size_t i = 0; i < n and span[i]; i++)
+        if((unsigned char)span[i] & 0x80)
+        {
+            high = true;
+            break;
+        }
+    if(not high or g_utf8_valid(span, n))
+        return;
+
+    const char* imp = AA->Xlatimport();
+    if((imp == NULL) or (*imp == NUL) or GRecoder::is_utf8(imp))
+        return;
+    if(strieql(imp, CFG->xlatlocalset))
+    {
+        recoder = NULL;
+        level = 0;
+        return;
+    }
+    GRecoder& rec = g_recoder(imp, CFG->xlatlocalset);
+    if(rec.is_open() and not rec.is_identity())
+    {
+        recoder = &rec;
+        level = 2;
+    }
+}
+
+
+//  A header field converted the way MixedSpanCharset() decides, with
+//  the conversion in force set for it; the caller restores.
+
+static void MixedFieldCopy(char* field, size_t size, int level, GRecoder* recoder, const char* msgcharset)
+{
+    GRecoder* r = recoder;
+    int l = level;
+    MixedSpanCharset(field, strlen(field), msgcharset, l, r);
+    CharRecoder = r;
+    strxmimecpy(field, field, l, (int)size, true);
+}
+
+
+//  ------------------------------------------------------------------
 
 void GMsg::TextToLines(int __line_width, bool getvalue, bool header_recode)
 {
@@ -2518,6 +2604,8 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
     const char* _chssrc = "area default";
     const int  _utfdetect = getvalue ? AA->Xlatutfautodetect() : NO;
     bool _utfdetected = false;
+    //  MIXED: every paragraph and every header field on its own.
+    const bool _mixed = (_utfdetect == XLATUTF_MIXED) and not CFG->ignorecharset;
     uint n;
     char ch, chln = 0, dochar;
     Line* line;
@@ -2637,6 +2725,21 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
                 bp = bptr;
                 len = 0;
 
+                //  The conversion for this stretch of the paragraph:
+                //  the message's, unless MIXED finds it is in another
+                //  charset. Decided on what is left of the paragraph,
+                //  so a wrapped paragraph is looked at again from the
+                //  wrap - the same answer for the same bytes.
+                GRecoder* _lrec = _recoder;
+                int _llevel = level;
+                if(_mixed)
+                {
+                    const char* _e = ptr;
+                    while(*_e and (*_e != CR) and (*_e != LF))
+                        _e++;
+                    MixedSpanCharset(ptr, (size_t)(_e - ptr), msg->charset, _llevel, _lrec);
+                }
+
                 // Link previous line to this one
 
                 if(line->prev)
@@ -2660,7 +2763,7 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
                     char* qend = qbuf + qlen;
                     while(qptr < qend)
                     {
-                        RecodeChar(qptr, bp, level, _recoder);
+                        RecodeChar(qptr, bp, _llevel, _lrec);
                     }
                     if(quotewraphard)
                     {
@@ -2736,7 +2839,7 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
                             //  "override": the text is UTF-8 whatever the
                             //  kludge says, so the charset kludges are not
                             //  acted on. Everything else on the line is.
-                            if(_utfdetected and (_utfdetect == ALWAYS) and
+                            if(_utfdetected and (_utfdetect >= ALWAYS) and
                                ((kludgetype == FSC_I51) or (kludgetype == FSC_CHARSET) or (kludgetype == FSC_CODEPAGE) or
                                 (kludgetype == RFC_CONTENT_TYPE) or (kludgetype == RFC_X_CHARSET)))
                                 kludgetype = -1;
@@ -3225,7 +3328,7 @@ do_ht:
                         }
                     default:
 defaultchardo:
-                        len += RecodeChar(ptr, bp, level, _recoder);
+                        len += RecodeChar(ptr, bp, _llevel, _lrec);
                         break;
 
 chardo:
@@ -3240,7 +3343,7 @@ chardo:
                             //  toward the margin, as they always did.
                             char dbuf[2] = { dochar, NUL };
                             char* dp = dbuf;
-                            len += RecodeChar(dp, bp, level, _recoder);
+                            len += RecodeChar(dp, bp, _llevel, _lrec);
                         }
                         break;
                     }
@@ -3333,10 +3436,22 @@ chardo:
                 XlatSnap hdr_saved = XlatSnapshot();
                 CharRecoder = _recoder;
 
-                strxmimecpy(msg->by, msg->by, level, sizeof(INam), true);
-                strxmimecpy(msg->to, msg->to, level, sizeof(INam), true);
-                if(not (msg->attr.frq() or msg->attr.att() or msg->attr.urq()))
-                    strxmimecpy(msg->re, msg->re, level, sizeof(ISub), true);
+                if(_mixed)
+                {
+                    //  Each field on its own: a UTF-8 subject over
+                    //  CP866 names is the usual shape of such mail.
+                    MixedFieldCopy(msg->by, sizeof(INam), level, _recoder, msg->charset);
+                    MixedFieldCopy(msg->to, sizeof(INam), level, _recoder, msg->charset);
+                    if(not (msg->attr.frq() or msg->attr.att() or msg->attr.urq()))
+                        MixedFieldCopy(msg->re, sizeof(ISub), level, _recoder, msg->charset);
+                }
+                else
+                {
+                    strxmimecpy(msg->by, msg->by, level, sizeof(INam), true);
+                    strxmimecpy(msg->to, msg->to, level, sizeof(INam), true);
+                    if(not (msg->attr.frq() or msg->attr.att() or msg->attr.urq()))
+                        strxmimecpy(msg->re, msg->re, level, sizeof(ISub), true);
+                }
 
                 ApplyUcsHeaders(msg);
 

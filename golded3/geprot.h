@@ -208,6 +208,7 @@ struct XlatSnap
 
 XlatSnap XlatSnapshot();
 void     XlatRestore(const XlatSnap& x);
+void     MixedSpanCharset(const char* span, size_t n, const char* msgcharset, int& level, GRecoder*& recoder);
 char* mime_header_decode(char* decoded, const char* encoded, char* charset = NULL);
 char* strxmimecpy(char* dest, const char* source, int level, int size, bool detect = false);
 char* strxmimecpy_local(char* dest, const char* source, int size);

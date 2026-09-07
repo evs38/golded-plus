@@ -804,14 +804,16 @@ void CfgXlatreplyoriginal()
 }
 
 //  ------------------------------------------------------------------
-//  XLATUTFAUTODETECT <yes/override/no>: NO, YES, or ALWAYS for
-//  "override". GetYesno() would read "override" as OFF - it goes by the
-//  first letter - so that word is recognised first; "always" is
-//  accepted too.
+//  XLATUTFAUTODETECT <yes/override/mixed/no>: NO, YES, ALWAYS for
+//  "override", XLATUTF_MIXED for "mixed". GetYesno() would read
+//  "override" as OFF and "mixed" as... whatever its first letter says -
+//  it goes by the first letter - so those words are recognised first;
+//  "always" is accepted too.
 
 void CfgXlatutfautodetect()
 {
-    int v = strieql(val, "override") ? ALWAYS : GetYesno(val);
+    int v = strieql(val, "override") ? ALWAYS :
+            strieql(val, "mixed")    ? XLATUTF_MIXED : GetYesno(val);
     if(cfgingroup)
         CFG->grp.AddItm(GRP_XLATUTFAUTODETECT, v);
     else

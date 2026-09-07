@@ -802,11 +802,20 @@ bool g_utf8_valid(const char* p, size_t nbytes)
 //  the CP866 texts that happened to form well-formed UTF-8 decoded to
 //  Tai Le and Arabic presentation forms, and nothing genuine did.
 
-static bool g_utf8_plausible_cp(uint32_t cp)
+static bool g_utf8_plausible_cp(uint32_t cp, bool ideographs)
 {
+    //  A single stretch of text is judged without the ideographs: three
+    //  lower-case CP866 letters starting at у..щ form a well-formed
+    //  sequence that decodes to one - "фев" in every quote header of a
+    //  February - and a stretch is too short to be saved by the rest of
+    //  the message. Measured on 600 000 paragraphs of Russian echomail:
+    //  81 such stretches with the ideographs, none without.
+    if(not ideographs and (cp >= 0x3000) and (cp <= 0x9FFF))
+        return false;
     static const uint32_t ranges[][2] =
     {
         { 0x0080, 0x02FF },   // Latin-1 Supplement .. IPA, spacing modifiers
+        { 0x0300, 0x036F },   // Combining diacritical marks
         { 0x0370, 0x052F },   // Greek, Cyrillic and its supplements
         { 0x0530, 0x058F },   // Armenian
         { 0x0590, 0x06FF },   // Hebrew, Arabic
@@ -828,13 +837,14 @@ static bool g_utf8_plausible_cp(uint32_t cp)
 }
 
 
-bool g_utf8_looks_utf8(const char* p)
+bool g_utf8_looks_utf8(const char* p, size_t nbytes, bool ideographs)
 {
     if(p == NULL)
         return false;
 
+    const char* end = p + nbytes;
     bool multi = false;
-    while(*p)
+    while(p < end and *p)
     {
         if(not ((unsigned char)*p & 0x80))
         {
@@ -843,13 +853,19 @@ bool g_utf8_looks_utf8(const char* p)
         }
         int  used = 1;
         bool ok   = false;
-        uint32_t cp = g_utf8_decode_raw(p, NULL, &used, &ok);
-        if(not ok or not g_utf8_plausible_cp(cp))
+        uint32_t cp = g_utf8_decode_raw(p, end, &used, &ok);
+        if(not ok or not g_utf8_plausible_cp(cp, ideographs))
             return false;
         multi = true;
         p += used ? used : 1;
     }
     return multi;
+}
+
+
+bool g_utf8_looks_utf8(const char* p)
+{
+    return p ? g_utf8_looks_utf8(p, strlen(p), true) : false;
 }
 
 

@@ -26,6 +26,10 @@
 #ifndef __GECFGG__H
 #define __GECFGG__H
 
+//  XLATUTFAUTODETECT beyond ALWAYS: every line and every header field
+//  decided on its own, for a message that mixes charsets.
+#define XLATUTF_MIXED 3
+
 #include <list>
 #include <map>
 #include <vector>
@@ -489,7 +493,7 @@ public:
     bool        usesoftcrxlat;
     bool        writeucsheaders;
     bool        largeheadertobase;
-    int         xlatutfautodetect;
+    int         xlatutfautodetect;  // NO, YES, ALWAYS (override) or XLATUTF_MIXED
     bool        usestylies;
     bool        usetzutc;
     Path        uudecodepath;
