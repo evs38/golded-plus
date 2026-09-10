@@ -746,8 +746,14 @@ void GMsgList::Run()
 
     mlst_with_date(AA->Msglistdate());
 
-    fldadd1 = (MAXCOL-80)/3;
-    fldadd2 = (MAXCOL-80) - (fldadd1*2);
+    //  What the screen has beyond the eighty columns the layout is
+    //  drawn for, shared out between the fields - and taken from it
+    //  when the screen is narrower. MAXCOL is unsigned: on a terminal
+    //  under eighty columns the difference wrapped to four billion,
+    //  each field was padded to a third of that, and the line was
+    //  either killed by the memory it took or refused by vsnprintf().
+    fldadd1 = ((int)MAXCOL - 80) / 3;
+    fldadd2 = ((int)MAXCOL - 80) - (fldadd1 * 2);
 
     mlst = (MLst **)throw_malloc(sizeof(MLst *) * (maximum_index + 1));
 

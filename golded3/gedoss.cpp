@@ -160,6 +160,12 @@ void Cleanup(void)
         if (C_BACKB != (BLACK_|_BLACK))
             gvid->setoverscan(gvid->orig.color.overscan);
 
+        //  The views close their own windows; that has to come before
+        //  every window is closed below, or they close a record that
+        //  wcloseall() has already freed.
+        throw_xdelete(BodyView);
+        throw_xdelete(HeaderView);
+
         wcloseall();                      // Close all windows
         if(in_arealist)
         {

@@ -109,9 +109,18 @@ void GMsgHeaderView::Paint()
     //  these below zero. g_utf8_fit() now takes a signed width and
     //  treats that as nothing to print, but a negative count is still
     //  no width for the columns below.
-    int namewidth = MaxV(0, CFG->disphdrnodeset.pos - CFG->disphdrnameset.pos);
-    int nodewidth = MaxV(0, CFG->disphdrdateset.pos - CFG->disphdrnodeset.pos);
-    int datewidth = MaxV(0, MinV(width - CFG->disphdrdateset.pos, CFG->disphdrdateset.len));
+    //  Nor may a column lie beyond the window: a position past the
+    //  right edge is the edge itself, so what is laid out from it has
+    //  no width rather than a negative one. Handing width-position to
+    //  MakeAttrStr() as a size_t when the window was narrower than the
+    //  node column gave strncpy() a length of four billion, and the
+    //  reader died the moment a terminal was shrunk below that column.
+    int namepos = MinV(CFG->disphdrnameset.pos, width);
+    int nodepos = MinV(CFG->disphdrnodeset.pos, width);
+    int datepos = MinV(CFG->disphdrdateset.pos, width);
+    int namewidth = MaxV(0, nodepos - namepos);
+    int nodewidth = MaxV(0, datepos - nodepos);
+    int datewidth = MaxV(0, MinV(width - datepos, CFG->disphdrdateset.len));
 
 #if defined(GUTLOS_FUNCS)
     g_set_ostitle_name(struplow(strtmp(area->echoid())), 0);
@@ -155,12 +164,12 @@ void GMsgHeaderView::Paint()
 
     // Generate message attributes string
     bool attrsgenerated = false;
-    MakeAttrStr(buf, width-CFG->disphdrnodeset.pos, &msg->attr);
+    MakeAttrStr(buf, (size_t)(width-nodepos), &msg->attr);
     if(*buf)
     {
         attrsgenerated = true;
-        strsetsz(buf, width-CFG->disphdrnodeset.pos);
-        window.prints(1, CFG->disphdrnodeset.pos, window_color, buf);
+        strsetsz(buf, width-nodepos);
+        window.prints(1, nodepos, window_color, buf);
     }
 
     // Generate message number and reply links string
@@ -192,15 +201,15 @@ void GMsgHeaderView::Paint()
     }
     if(replyto)
         ptr += sprintf(ptr, " -%u", replyto);
-    for(int replyn=0,plus=0; (replyn<(list_max+1)) and (not attrsgenerated or ((ptr-buf)<CFG->disphdrnodeset.pos)); replyn++)
+    for(int replyn=0,plus=0; (replyn<(list_max+1)) and (not attrsgenerated or ((ptr-buf)<nodepos)); replyn++)
         if(replies[replyn])
             ptr += sprintf(ptr, " %s%u", plus++?"":"+", replies[replyn]);
-    if(replynext and (not attrsgenerated or ((ptr-buf)<CFG->disphdrnodeset.pos)))
+    if(replynext and (not attrsgenerated or ((ptr-buf)<nodepos)))
         sprintf(ptr, " *%u", replynext);
     throw_free(replies);
 
     //  Columns again - the line holds language text.
-    strxcpy(buf, g_utf8_fit(buf, attrsgenerated ? CFG->disphdrnodeset.pos : width).c_str(), sizeof(buf));
+    strxcpy(buf, g_utf8_fit(buf, attrsgenerated ? nodepos : width).c_str(), sizeof(buf));
     window.prints(1, 0, window_color, buf);
 
     // Get marks
@@ -222,7 +231,7 @@ void GMsgHeaderView::Paint()
                 *buf = NUL;
             nodegenerated = true;
             strsetsz(buf, nodewidth);
-            window.prints(2, CFG->disphdrnodeset.pos, from_color, buf);
+            window.prints(2, nodepos, from_color, buf);
         }
     }
 
@@ -240,7 +249,7 @@ void GMsgHeaderView::Paint()
     window.prints(2, 0, window_color, LNG->From);
     vattr color = ((msg->foundwhere&GFIND_FROM) or msg->attr.fmu() or (msg->attr.loc() and CFG->switches.get(displocalhigh))) ? highlight_color : from_color;
     color = GetColorName(msg->By(), msg->orig, color);
-    window.prints(2, CFG->disphdrnameset.pos, color, buf);
+    window.prints(2, namepos, color, buf);
 
     if (datewidth > 0)
     {
@@ -260,7 +269,7 @@ void GMsgHeaderView::Paint()
             *buf = NUL;
 
         strxcpy(buf, g_utf8_fit(buf, datewidth).c_str(), sizeof(buf));
-        window.prints(2, CFG->disphdrdateset.pos, from_color, buf);
+        window.prints(2, datepos, from_color, buf);
     }
 
     // Generate dest node data
@@ -282,7 +291,7 @@ void GMsgHeaderView::Paint()
                 nodegenerated = true;
                 //  Columns: the Via label is language text.
                 strxcpy(buf, g_utf8_fit(buf, nodewidth).c_str(), sizeof(buf));
-                window.prints(3, CFG->disphdrnodeset.pos, to_color, buf);
+                window.prints(3, nodepos, to_color, buf);
             }
         }
     }
@@ -302,7 +311,7 @@ void GMsgHeaderView::Paint()
         Addr zero;
         color = GetColorName(msg->To(), area->isnet() ? msg->dest : zero, color);
     }
-    window.prints(3, CFG->disphdrnameset.pos, color, buf);
+    window.prints(3, namepos, color, buf);
 
     if (datewidth > 0)
     {
@@ -317,7 +326,7 @@ void GMsgHeaderView::Paint()
             *buf = NUL;
 
         strxcpy(buf, g_utf8_fit(buf, datewidth).c_str(), sizeof(buf));
-        window.prints(3, CFG->disphdrdateset.pos, to_color, buf);
+        window.prints(3, datepos, to_color, buf);
     }
 
     // Generate subjectline
