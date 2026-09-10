@@ -2709,6 +2709,38 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
                 int _chslev = LoadCharset(AA->Xlatimport(), CFG->xlatlocalset);
                 adopt_charset(msg, level, _recoder, _chslev, AA->Xlatimport(), _chssrc, "area default");
             }
+
+            //  A charset kludge speaks for the whole message, the kludge
+            //  lines ahead of it included: FMail writes UCSSUBJ before
+            //  CHRS, and converting that line with the area's default
+            //  because its own charset had not been reached yet showed
+            //  a UTF-8 subject as box-drawing characters - and quoted it
+            //  that way. So the leading kludge lines are looked through
+            //  for it first; the line itself is read again in its turn,
+            //  which adopts the same charset once more and costs nothing.
+            //  Not with "override", which has settled the charset already.
+            if(not _utfdetected and not CFG->ignorecharset)
+            {
+                for(const char* _kp = ptr; *_kp == CTRL_A; )
+                {
+                    const char* _ke = _kp;
+                    while(*_ke and (*_ke != CR) and (*_ke != LF))
+                        _ke++;
+                    if(strnieql(_kp + 1, "CHRS:", 5) or strnieql(_kp + 1, "CHARSET:", 8))
+                    {
+                        const char* _kv = strchr(_kp, ':') + 1;
+                        std::string _val(_kv, (size_t)(_ke - _kv));
+                        g_charset_kludge_value(GCHS_PLAIN, _val.c_str(), chsbuf, sizeof(chsbuf));
+                        int _chslev = LoadCharset(chsbuf, CFG->xlatlocalset);
+                        if(_chslev)
+                            adopt_charset(msg, level, _recoder, _chslev, chsbuf, _chssrc, "CHRS kludge");
+                        break;
+                    }
+                    while((*_ke == CR) or (*_ke == LF))
+                        _ke++;
+                    _kp = _ke;
+                }
+            }
         }
 
         if(*ptr != NUL)
@@ -3050,6 +3082,17 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
 do_cr:
                         ch = CR;
                         ptr = spanfeeds(ptr+1);
+                        //  A hard line ends at its CR however many times
+                        //  it wrapped: the reflow below is not for it, but
+                        //  leaving 'wraps' set with it made the next line
+                        //  a continuation, parsed with no look at what it
+                        //  starts with. A kludge line longer than the
+                        //  screen - UCSSUBJ with a long subject - was
+                        //  followed by a CHRS line that was never read as
+                        //  a kludge, and the message was shown in the
+                        //  area's charset instead of its own.
+                        if(wraps and (line->type & GLINE_HARD) and not (line->type & GLINE_QUOT))
+                            wraps = 0;
                         if(wraps and not ((line->type & GLINE_HARD) and not (line->type & GLINE_QUOT)))
                         {
                             if(para != GLINE_QUOT)

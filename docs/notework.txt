@@ -560,6 +560,16 @@ ______________________________________________________________________
   bytes on load, through whatever character stood there; the cut is
   now the message's own buffers and falls between characters.
 
++ A kludge line longer than the screen - UCSSUBJ with a long subject
+  is the one that got there - left the line after it unread as a
+  kludge: a CHRS line following it was shown as text and the message
+  came out in the area's charset instead of its own. A hard line now
+  ends at its CR however many times it wrapped. And a charset kludge
+  is looked for among the leading kludge lines before any of them is
+  converted, so the kludge lines ahead of it - FMail writes UCSSUBJ
+  before CHRS - are read in the message's charset too, not the
+  area's.
+
 + XLATUTFAUTODETECT MIXED: every paragraph of the text and every
   header field is judged on its own. A single-byte message with a
   paragraph that is UTF-8 by the test below has that paragraph read
