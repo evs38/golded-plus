@@ -511,11 +511,17 @@ void DoKludges(int mode, GMsg* msg, int kludges)
         }
 
         // The UCSFROM/UCSTO/UCSSUBJ kludges of FSP-1030: the full header
-        // fields, for the ones the base's own fields cannot hold whole.
+        // fields, for the ones that do not fit the widths FTS-0001 gives
+        // the packet - 35, 35 and 71 bytes. Those, not the base's: with
+        // LARGEHEADERTOBASE the base may keep a hundred bytes, but the
+        // packed message a tosser builds still cuts at the standard's
+        // widths, and it is the reader at the far end that needs the
+        // whole field. Measured against the base's widths, a JAM base
+        // wrote no kludge for anything under a hundred bytes and a base
+        // without a limit wrote none at all.
         if(AA->Writeucsheaders() and not AA->isinternet() and GRecoder::is_utf8(msg->charset))
         {
-            size_t _by, _to, _re;
-            AA->HeaderFieldLimits(_by, _to, _re);
+            size_t _by = 35, _to = 35, _re = 71;
             line = AddUcsKludge(line, "UCSFROM", msg->by, _by);
             line = AddUcsKludge(line, "UCSTO",   msg->to, _to);
             if(not (msg->attr.frq() or msg->attr.att() or msg->attr.urq()))

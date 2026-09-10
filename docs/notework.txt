@@ -543,10 +543,18 @@ ______________________________________________________________________
   limits a field to them counted in the bytes of the export charset,
   converting what is typed as it is typed - 100 bytes of JAM are 50
   Cyrillic letters or 100 Latin ones. The cut on saving still falls
-  between characters, and WRITEUCSHEADERS measures against the same
-  widths. The packed message a tosser builds is defined with the
-  FTS-0001 widths, so this is common practice rather than the
-  standard; the reference manual says so. Can be set per group.
+  between characters. The packed message a tosser builds is defined
+  with the FTS-0001 widths, so this is common practice rather than
+  the standard; the reference manual says so. Can be set per group.
+
+  WRITEUCSHEADERS measures against the FTS-0001 widths whatever
+  LARGEHEADERTOBASE says: the kludge is there for the reader at the
+  far end of the packet, which is cut at 35, 35 and 71 bytes however
+  much the local base keeps. Measured against the base's widths, as
+  first written, a JAM area wrote no kludge for a field under a
+  hundred bytes and a Synchronet area, whose base has no limit, wrote
+  none at all - which made LARGEHEADERTOBASE look as if it switched
+  WRITEUCSHEADERS off.
 
   Reading a Synchronet base cut the three fields at 36, 36 and 72
   bytes on load, through whatever character stood there; the cut is
