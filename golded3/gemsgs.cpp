@@ -85,8 +85,29 @@ static bool tokenxchg(std::string &input, std::string::iterator &pos,
             va_end(a);
         }
 
+        //  'len' is a count of characters - the 34 of a name is what
+        //  FTS-0001 gives the field - and in a UTF-8 session that is
+        //  not a count of bytes: cut by bytes, @dname of a Cyrillic
+        //  name stopped after seventeen letters, and could stop
+        //  inside one.
         size_t strlen = str.length();
-        if (!len || (len > strlen)) len = strlen;
+        if (!len || (len > strlen))
+            len = strlen;
+        else if (g_utf8_mode())
+        {
+            size_t i = 0, chars = 0;
+            while (i < strlen)
+            {
+                if (((unsigned char)str[i] & 0xC0) != 0x80)
+                {
+                    if (chars == len)
+                        break;
+                    chars++;
+                }
+                i++;
+            }
+            len = i;
+        }
 
         size_t idx = pos - input.begin();
         input.replace(pos, tokend, str.c_str(), len);

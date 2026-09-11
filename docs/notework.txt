@@ -567,6 +567,11 @@ ______________________________________________________________________
   were a codepoint; it goes through the session charset now, as text
   always did.
 
++ Template tokens with a width - @oname, @dname, @tname and their kin,
+  34 characters as FTS-0001 sizes a name - cut in characters, not
+  bytes: in a UTF-8 session a Cyrillic name from a UCSTO kludge came
+  out seventeen letters long.
+
 + FGHI URLs, the FTN hypertext scheme: "area://ECHO?msgid=2:5020/1+12345678"
   in a message text is recognised as a URL (highlighted with
   HIGHLIGHTURLS, listed by READpeekurls) and, chosen from the list, is
