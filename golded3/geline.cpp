@@ -2485,7 +2485,27 @@ void MixedSpanCharset(const char* span, size_t n, const char* msgcharset, int& l
             high = true;
             break;
         }
-    if(not high or g_utf8_valid(span, n))
+    if(not high)
+        return;
+
+    //  A field cut to a fixed width may end inside a character - a
+    //  To of 36 bytes with a Cyrillic name does - and that is still
+    //  UTF-8, not another charset. The incomplete sequence at the end
+    //  is left out of the test.
+    size_t m = n, cont = 0;
+    while(m and (cont < 3) and (((unsigned char)span[m-1] & 0xC0) == 0x80))
+    {
+        m--;
+        cont++;
+    }
+    if(m and (((unsigned char)span[m-1] & 0xC0) == 0xC0))
+    {
+        unsigned char lead = (unsigned char)span[m-1];
+        size_t need = (lead >= 0xF0) ? 4 : (lead >= 0xE0) ? 3 : 2;
+        if(cont + 1 < need)
+            n = m - 1;
+    }
+    if(g_utf8_valid(span, n))
         return;
 
     const char* imp = AA->Xlatimport();

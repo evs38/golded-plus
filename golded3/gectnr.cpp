@@ -77,6 +77,12 @@ const char *url_begin(const char *ptr)
         return ptr+5;
     if(strnieql(ptr, "ed2k://", 7))
         return ptr+7;
+    //  FGHI, the FTN hypertext scheme: "area://ECHO?msgid=..." names a
+    //  message in an echo. Short form without the slashes too.
+    if(strnieql(ptr, "area://", 7))
+        return ptr+7;
+    if(strnieql(ptr, "area:", 5))
+        return ptr+5;
     return NULL;
 }
 

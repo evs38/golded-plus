@@ -126,6 +126,7 @@ const word CRC_DISPAREANO       = 0x68CE;
 const word CRC_DISPATTACHSIZE   = 0x7BB4;
 const word CRC_DISPAUTONEXT     = 0x52D9;
 const word CRC_DISPHDRDATESET   = 0x65A5;
+const word CRC_DISPHDRFGHIURL   = 0x020E;
 const word CRC_DISPHDRLOCATION  = 0x8EF6;
 const word CRC_DISPHDRNAMESET   = 0xFEF9;
 const word CRC_DISPHDRNODESET   = 0xC232;

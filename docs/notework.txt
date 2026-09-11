@@ -567,6 +567,17 @@ ______________________________________________________________________
   were a codepoint; it goes through the session charset now, as text
   always did.
 
++ FGHI URLs, the FTN hypertext scheme: "area://ECHO?msgid=2:5020/1+12345678"
+  in a message text is recognised as a URL (highlighted with
+  HIGHLIGHTURLS, listed by READpeekurls) and, chosen from the list, is
+  followed inside GoldED+ - the echo is opened and the message with
+  that MSGID shown, searched from the newest back; "area:ECHO?mid=..."
+  is the same URL. DISPHDRFGHIURL <no/yes/short> puts the message's own
+  URL on the line under the header, and the template token @ofghiurl
+  gives the quoted message's URL. Ported from Konstantin Kuzov's
+  GoldED-NSF patch of 2009, without its fetching of absent messages
+  through an external handler and without its PCRE.
+
 + A kludge line longer than the screen - UCSSUBJ with a long subject
   is the one that got there - left the line after it unread as a
   kludge: a CHRS line following it was shown as text and the message

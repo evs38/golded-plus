@@ -394,6 +394,7 @@ void GMsgHeaderView::Paint()
         }
     }
 
+    int sizecols = 0;
     if(CFG->dispmsgsize and msg->txt and not _in_editor)
     {
         uint len = strlen(msg->txt);
@@ -412,7 +413,10 @@ void GMsgHeaderView::Paint()
             *buf1 = NUL;
         }
         if(*buf1)
+        {
             window.prints(5, 1, title_color, buf1);
+            sizecols = (int)strlen(buf1);
+        }
     }
 
     if (CFG->disphdrlocation && !_in_editor)
@@ -432,9 +436,25 @@ void GMsgHeaderView::Paint()
         {
             loc += " ";
             int pos = window.width() - (int)g_utf8_width(loc.c_str());
-            pos = ((CFG->disphdrlocation >> 16) == TCENTER) ? pos/2 : pos-1;
-            window.prints(5, pos, location_color, loc.c_str());
+            //  Centred only when the FGHI URL is not on the left of it.
+            pos = (((CFG->disphdrlocation >> 16) == TCENTER) and not CFG->disphdrfghiurl) ? pos/2 : pos-1;
+            window.prints(5, MaxV(0, pos), location_color, loc.c_str());
         }
+    }
+
+    //  DISPHDRFGHIURL: the message's own FGHI URL, on the left of the
+    //  line under the header, where the location goes on the right.
+    if(CFG->disphdrfghiurl and not _in_editor and not area->isnet() and *msg->msgids)
+    {
+        std::string id(msg->msgids);
+        strchg(id, ' ', '+');
+        std::string url = (CFG->disphdrfghiurl == DISPHDRFGHIURL_SHORT) ? " area:" : " area://";
+        url += area->echoid();
+        url += (CFG->disphdrfghiurl == DISPHDRFGHIURL_SHORT) ? "?mid=" : "?msgid=";
+        url += id;
+        url += " ";
+        int col = 1 + (sizecols ? sizecols + 1 : 0);
+        window.prints(5, col, location_color, g_utf8_truncate(url.c_str(), (size_t)MaxV(0, width - col - 2)).c_str());
     }
 }
 

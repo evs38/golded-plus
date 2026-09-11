@@ -6282,6 +6282,9 @@ The following is a list of the tokens available:
 @olname     Original last name.
 @omessageid Original RFC "Message-ID" headerline.
 @omsgid     Original MSGID kludge content.
+@ofghiurl   FGHI URL of the original message: area://ECHO?msgid=...
+            with the MSGID's space written as "+". Empty when the
+            original has no MSGID.
 @oname      Original name.
 @opseudo    Original pseudonym (see addressbook), or @ofname.
 @origin     The current global or Random System origin.

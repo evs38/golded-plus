@@ -246,6 +246,21 @@ void TokenXlat(int mode, std::string &input, GMsg* msg, GMsg* oldmsg, int __orig
             if (tokenxchg(input, dst, "@omsgid", *msg->replys ? msg->replys : ""))
                 continue;
 
+            //  The original message's FGHI URL - "area://ECHO?msgid=..." -
+            //  for a quote header that links back to what it quotes.
+            {
+                const char* oid = *oldmsg->msgids ? oldmsg->msgids : msg->replys;
+                std::string ofghi;
+                if(*oid)
+                {
+                    std::string id(oid);
+                    strchg(id, ' ', '+');
+                    ofghi = std::string("area://") + origareaid + "?msgid=" + id;
+                }
+                if (tokenxchg(input, dst, "@ofghiurl", ofghi.c_str()))
+                    continue;
+            }
+
             if (tokenxchg(input, dst, "@dname", strbtrim(strtmp(oldmsg->To())), 34, 3,
                           (int)msg->to_me(), (int)msg->to_you(), (int)oldmsg->to_all()))
                 continue;

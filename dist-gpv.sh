@@ -6,7 +6,7 @@
 srcdatefile=srcdate.h
 build=`sed -n 's/.*"\([[:digit:]]\{8\}\)".*/\1/p' $srcdatefile`
 date="$build"
-name=../gpwin-115-${date}.zip
+name=../gpwin-200-${date}.zip
 shortdate=${date/???/}
 shortname=../gpv${shortdate}.zip
 binesdir="windows/bin/release/win32"

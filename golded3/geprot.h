@@ -404,7 +404,8 @@ void Reader();
 void UpdateArea(GMsg* msg);
 int ExternUtil(GMsg* msg, uint32_t utilno);
 void ExternUtilMenu(GMsg* msg);
-void ReadPeekURLs(GMsg* msg);
+bool ReadPeekURLs(GMsg* msg);
+bool GotoFghiUrl(GMsg* msg, const char* url);
 uint next_msg(int direction);
 
 void ChangeAttributes();

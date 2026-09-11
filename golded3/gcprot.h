@@ -125,6 +125,7 @@
     void CfgDispautonext     ();
     void CfgDisphdrdateset   ();
     void CfgDisphdrlocation  ();
+    void CfgDisphdrfghiurl   ();
     void CfgDisphdrnameset   ();
     void CfgDisphdrnodeset   ();
     void CfgDisplistcursor   ();

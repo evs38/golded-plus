@@ -1,12 +1,12 @@
 #!/bin/bash
 # $Id$
-# Create an archive 'gpsunx86-115-*.zip' (gpsunx86-115-YMMDD.zip)
+# Create an archive 'gpsunx86-200-*.zip' (gpsunx86-200-YMMDD.zip)
 # with binary SunOS x86 build installable package
 
 srcdatefile=srcdate.h
 #  Solaris's own sed does not take \{8\} after a character class, and
 #  quietly matches nothing - which left the package named
-#  "golded-plus-x86-115-.pkg", with the date missing. GNU sed is what
+#  "golded-plus-x86-200-.pkg", with the date missing. GNU sed is what
 #  the makefiles use here as well.
 SED=sed
 for s in gsed /usr/gnu/bin/sed ; do
@@ -23,8 +23,8 @@ dizfile="${binesdir}/file_id.diz"
 pkgdir=${binesdir}/pkg
 vendor=`sed -n -e "/^#define __GVER_VENDOR_NAME__/s/#define __GVER_VENDOR_NAME__ \"\(.*\)\"/\1/p" golded3/mygolded.h`
 email=`sed -n -e "/^#define __GVER_VENDOR_EMAIL__/s/#define __GVER_VENDOR_EMAIL__ \"\(.*\)\"/\1/p" golded3/mygolded.h`
-name=${binesdir}/gpsunx86-115-${date}.zip
-pkgname=golded-plus-x86-115-${date}.pkg
+name=${binesdir}/gpsunx86-200-${date}.zip
+pkgname=golded-plus-x86-200-${date}.pkg
 bines="${binesdir}/ged${binsuffix} ${binesdir}/gn${binsuffix} ${binesdir}/rddt${binsuffix}"
 
 echo Build a Golded+/sunX86 binary package:  ${name} \(${pkgname}\)

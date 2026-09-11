@@ -1083,8 +1083,9 @@ void Reader()
                             break;
 
                         case KK_ReadPeekURLs:
-                            ReadPeekURLs(msg);
-                            reader_keyok = true;
+                            //  An FGHI URL moves the reader; the loop
+                            //  then loads what it stands on.
+                            reader_keyok = not ReadPeekURLs(msg);
                             break;
 
                         case KK_ReadAddressbookAdd:

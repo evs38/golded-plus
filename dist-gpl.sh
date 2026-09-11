@@ -13,7 +13,7 @@ binsuffix="lnx"
 binesdir="bin"
 dizfile="$binesdir/File_ID.Diz"
 shortname=../gpl${shortdate}.zip
-name=../gpl115-${date}.zip
+name=../gpl200-${date}.zip
 requirements_file="${binesdir}/requirements.txt"
 
 echo Build a Golded+/lnx binary package:  ${name} and ${shortname}

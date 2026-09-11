@@ -787,15 +787,136 @@ static bool PeekURLCmp(const std::string &a, const std::string b)
 
 //  ------------------------------------------------------------------
 
-void ReadPeekURLs(GMsg* msg)
+//  An FGHI URL - "area://ECHO?msgid=2:5020/1+12345678", the FTN
+//  hypertext scheme - is followed inside GoldED+ rather than handed to
+//  an external program: the echo is opened and the message with that
+//  MSGID becomes the current one. The MSGID's space is a "+" in the
+//  URL, and any character may be %XX-encoded; "mid" is accepted for
+//  "msgid", and "area:ECHO" without the slashes is the same URL.
+//  Returns true when the reader is now somewhere else and has to load
+//  what it stands on.
+
+static std::string fghi_decode(const char* p, const char* e)
 {
-    if( CFG->urlhandler.empty() )
+    std::string s;
+    while(p < e)
     {
-        w_info(LNG->PeekInfoNoHandler);
-        waitkeyt(10000);
-        w_info(NULL);
-        return;
+        if((*p == '%') and (p + 2 < e) and isxdigit((unsigned char)p[1]) and isxdigit((unsigned char)p[2]))
+        {
+            char hex[3] = { p[1], p[2], 0 };
+            s += (char)strtol(hex, NULL, 16);
+            p += 3;
+        }
+        else
+            s += *p++;
     }
+    return s;
+}
+
+bool GotoFghiUrl(GMsg* msg, const char* url)
+{
+    const char* p = url;
+    while(*p == ' ')
+        p++;
+    if(strnieql(p, "area://", 7))
+        p += 7;
+    else if(strnieql(p, "area:", 5))
+        p += 5;
+    else
+        return false;
+
+    const char* e = p + strlen(p);
+    while((e > p) and (e[-1] == ' '))
+        e--;
+    const char* q = (const char*)memchr(p, '?', e - p);
+    std::string echo = fghi_decode(p, q ? q : e);
+    while(not echo.empty() and (echo[echo.length()-1] == '/'))
+        echo.erase(echo.length()-1);
+
+    std::string msgid;
+    if(q)
+    {
+        const char* a = q + 1;
+        while(a < e)
+        {
+            const char* n = (const char*)memchr(a, '&', e - a);
+            if(n == NULL)
+                n = e;
+            const char* v = (const char*)memchr(a, '=', n - a);
+            if(v)
+            {
+                std::string key(a, v - a);
+                if(strieql(key.c_str(), "msgid") or strieql(key.c_str(), "mid"))
+                {
+                    msgid = fghi_decode(v + 1, n);
+                    strchg(msgid, '+', ' ');
+                }
+            }
+            a = n + 1;
+        }
+    }
+
+    int areano = echo.empty() ? -1 : AL.AreaEchoToNo(echo.c_str());
+    if(areano == -1)
+    {
+        char info[256];
+        gsprintf(PRINTF_DECLARE_BUFFER(info), LNG->NoAreaFound, echo.c_str());
+        w_info(info);
+        waitkeyt(5000);
+        w_info(NULL);
+        return false;
+    }
+
+    int fromarea = CurrArea;
+    AA->attr().hex0();
+    AA->Close();
+    AL.SetActiveAreaNo(areano);
+    OrigArea = CurrArea;
+    AA->Open();
+    AA->RandomizeData();
+
+    if(not msgid.empty())
+    {
+        //  The MSGID is looked for in the kludges, from the last message
+        //  back - the one a link points at is older than the link.
+        std::string pattern = "-(\"MSGID: ";
+        for(size_t i = 0; i < msgid.length(); i++)
+        {
+            if((msgid[i] == '\"') or (msgid[i] == '\\'))
+                pattern += '\\';
+            pattern += msgid[i];
+        }
+        pattern += '\"';
+
+        bool found = false;
+        if(AA->Msgn.Count())
+        {
+            AA->set_lastread(AA->Msgn.Count());
+            found = FindString(msg, pattern.c_str(), GFIND_HDRTXT);
+        }
+        if(not found)
+        {
+            //  FindString() has said "no more matches"; back to where
+            //  the link was.
+            AA->Close();
+            AL.SetActiveAreaId(fromarea);
+            OrigArea = CurrArea;
+            AA->Open();
+            AA->RandomizeData();
+            return false;
+        }
+    }
+    else if(AA->Msgn.Count() and (AA->lastread() == 0))
+        AA->set_lastread(1);
+
+    AA->SetBookmark(AA->lastread());
+    return true;
+}
+
+
+bool ReadPeekURLs(GMsg* msg)
+{
+    bool changed = false;
     w_info(LNG->Wait);
 
     // Scan the current msg for urls
@@ -872,7 +993,21 @@ void ReadPeekURLs(GMsg* msg)
         n = wpickstr(6, 0, 6 + n + 1, -1, W_BASK, C_ASKB, C_ASKW, C_ASKS, Listi, 0, title_shadow);
         whelpop();
 
-        if(n != -1)
+        std::string chosen = (n != -1) ? strtrim(strltrim(Listi[n])) : std::string();
+
+        if(n == -1)
+            ;
+        else if(strnieql(chosen.c_str(), "area:", 5))
+        {
+            changed = GotoFghiUrl(msg, chosen.c_str());
+        }
+        else if(CFG->urlhandler.empty())
+        {
+            w_info(LNG->PeekInfoNoHandler);
+            waitkeyt(10000);
+            w_info(NULL);
+        }
+        else
         {
             std::vector<UrlHandler>::iterator it = CFG->urlhandler.begin();
             std::vector<UrlHandler>::iterator end = CFG->urlhandler.end();
@@ -889,7 +1024,7 @@ void ReadPeekURLs(GMsg* msg)
             if (it == end) it = CFG->urlhandler.begin();
 
             std::string cmdline = it->handler.cmdline;
-            std::string buf = "\"" + strtrim(strltrim(Listi[n])) + "\"";
+            std::string buf = "\"" + chosen + "\"";
             strischg(cmdline, "@url", buf.c_str());
 
             buf = CFG->goldpath;
@@ -923,6 +1058,7 @@ void ReadPeekURLs(GMsg* msg)
         throw_free(urls.back());
         urls.pop_back();
     }
+    return changed;
 }
 
 

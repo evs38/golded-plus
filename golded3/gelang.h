@@ -508,6 +508,7 @@ struct LangGed
     char*  MMList;             // MI_MMLIST
     char*  MMWrite;            // MI_MMWRITE
     char*  MMFreq;             // MI_MMFREQ
+    char*  NoAreaFound;        // IL_NOAREAFOUND
 
     char*  EndLanguage;        // LAST_CRC
 

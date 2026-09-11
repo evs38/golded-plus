@@ -523,6 +523,7 @@ static LangCrc LangCrcs[] =
     { CRC_MI_MMLIST, NULL, "L List messages         " },
     { CRC_MI_MMWRITE, NULL, "W Write to disk/printer " },
     { CRC_MI_MMFREQ, NULL, "F File request          " },
+    { CRC_IL_NOAREAFOUND, NULL, " Area %s not found " },
 
     { CRC_LAST_CRC, NULL, NULL }
 };

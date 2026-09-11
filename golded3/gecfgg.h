@@ -30,6 +30,9 @@
 //  decided on its own, for a message that mixes charsets.
 #define XLATUTF_MIXED 3
 
+//  DISPHDRFGHIURL: NO, YES, or the short spelling of the URL.
+#define DISPHDRFGHIURL_SHORT 2
+
 #include <list>
 #include <map>
 #include <vector>
@@ -315,6 +318,7 @@ public:
     int         dispareano;
     int         dispattachsize;
     int         disphdrlocation;
+    int         disphdrfghiurl;     // NO, YES or DISPHDRFGHIURL_SHORT
     PosLen      disphdrdateset;
     PosLen      disphdrnameset;
     PosLen      disphdrnodeset;

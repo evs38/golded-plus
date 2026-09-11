@@ -8,7 +8,7 @@ date="$build"
 shortdate=${date/???/}
 
 shortname=../gpc${shortdate}.zip
-name=../gpc115-${date}.zip
+name=../gpc200-${date}.zip
 
 dir=cfgs
 

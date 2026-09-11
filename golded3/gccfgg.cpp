@@ -799,6 +799,7 @@ CfgGed::CfgGed()
     dispareano = true;
     dispattachsize = ATTACH_KBYTES;
     disphdrlocation = NO;
+    disphdrfghiurl = NO;
     displistcursor = NO;
     dispmargin = 0;
     dispmsgsize = DISPMSGSIZE_BYTES;

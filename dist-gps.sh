@@ -8,7 +8,7 @@ date="$build"
 shortdate=${date/???/}
 
 shortname=gps${shortdate}.tb2
-name=gps115-${date}.tar.bz2
+name=gps200-${date}.tar.bz2
 
 echo Build a Golded+ sources package:  ${name} and ${shortname}
 

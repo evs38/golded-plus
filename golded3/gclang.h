@@ -532,6 +532,7 @@ const word CRC_MI_MMCOPYMOVEFORWARD = 0x43E5;
 const word CRC_MI_MMLIST            = 0xAF21;
 const word CRC_MI_MMWRITE           = 0xBA20;
 const word CRC_MI_MMFREQ            = 0xF5B5;
+const word CRC_IL_NOAREAFOUND       = 0x83A5;
 
 const word CRC_LAST_CRC             = 0xFFFF;
 

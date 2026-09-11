@@ -566,6 +566,21 @@ void CfgDisphdrdateset()
 
 //  ------------------------------------------------------------------
 
+//  DISPHDRFGHIURL <no/yes/short>: the message's own FGHI URL on the
+//  line under the header - "area://ECHO?msgid=..." or, with SHORT,
+//  "area:ECHO?mid=...".
+
+void CfgDisphdrfghiurl()
+{
+    if(strieql(val, "short"))
+        CFG->disphdrfghiurl = DISPHDRFGHIURL_SHORT;
+    else
+        CFG->disphdrfghiurl = GetYesno(val) ? YES : NO;
+}
+
+
+//  ------------------------------------------------------------------
+
 void CfgDisphdrlocation()
 {
     char* key;

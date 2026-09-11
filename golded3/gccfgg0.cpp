@@ -504,6 +504,9 @@ SwitchD:
     case CRC_DISPHDRLOCATION  :
         CfgDisphdrlocation  ();
         break;
+    case CRC_DISPHDRFGHIURL   :
+        CfgDisphdrfghiurl   ();
+        break;
     case CRC_DISPHDRNAMESET   :
         CfgDisphdrnameset   ();
         break;
