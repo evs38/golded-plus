@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////
 //
-//  GoldED+ 1.1.5 * Dutch Language Definition File
+//  GoldED+ 2.0.0 * Dutch Language Definition File
 //
 //  Translated 29-03-1999 by :  Cees Schouten; e-mail : wpp@dds.nl
 //  Additions 11-06-2002 by:    Kees Bergwerf, 2:280/1507

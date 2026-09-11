@@ -1,6 +1,6 @@
 #!/bin/sh
 # $Id$
-# Create a Haiku package 'golded_plus-1.1.5.YMMDD-1-<arch>.hpkg'.
+# Create a Haiku package 'golded_plus-2.0.0.YMMDD-1-<arch>.hpkg'.
 #
 # Run it on Haiku, from the top of the source tree. It builds the BeOS
 # target - which is what Haiku is, as far as this source is concerned -
@@ -27,7 +27,7 @@ case "$arch" in
   BePC|i586|i686) arch=x86 ;;
 esac
 
-version="1.1.5.${build}"
+version="2.0.0.${build}"
 release="1"
 pkgname="golded_plus-${version}-${release}-${arch}.hpkg"
 bines="${binesdir}/ged${binsuffix} ${binesdir}/gn${binsuffix} ${binesdir}/rddt${binsuffix}"

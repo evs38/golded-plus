@@ -38,7 +38,7 @@ fi
 if [ ! -d "${binesdir}" ] ; then mkdir ${binesdir}; fi
 
 compilerver=`gcc -v 2>&1 | sed -n -e '/^gcc version/{s/gcc version \([[:digit:].]\{2,\}\)\s\((\([[:alnum:]]\{2,\}\)\sspecial\).*/\1 \3/p;q}'`
-printf 'GoldED+1.1.5 beta at %8.8s\r\n' $build  >${dizfile}
+printf 'GoldED+2.0.0 beta at %8.8s\r\n' $build  >${dizfile}
 
 printf "`uname` `uname -i` pkg compiled\r\n"  >${dizfile}
 printf 'using GNU C/C++ %13.13s\r\n' "$compilerver" >>${dizfile}
@@ -78,10 +78,10 @@ mkdir $pkgdir
 echo 'P      CSWncurses   ncurses - ncurses library and utilities' > $pkgdir/depend
 echo 'ARCH="i386"' > $pkgdir/pkginfo
 echo 'CATEGORY="application"' >> $pkgdir/pkginfo
-echo 'NAME="GoldED+1.1.5 - FTN mail editor"' >> $pkgdir/pkginfo
+echo 'NAME="GoldED+2.0.0 - FTN mail editor"' >> $pkgdir/pkginfo
 echo 'PKG="CSWgolded+"' >> $pkgdir/pkginfo
 echo 'CLASSES="none"' >> $pkgdir/pkginfo
-echo 'VERSION="1.1.5"' >> $pkgdir/pkginfo
+echo 'VERSION="2.0.0"' >> $pkgdir/pkginfo
 echo 'BASEDIR="/opt/csw"' >> $pkgdir/pkginfo
 echo "EMAIL=\"$email\"" >> $pkgdir/pkginfo
 echo "VENDOR=\"https://github.com/golded-plus/ packaged by $vendor\"" >> $pkgdir/pkginfo

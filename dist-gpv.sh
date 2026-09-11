@@ -30,7 +30,7 @@ files="${files} docs/rusfaq.txt docs/tips.txt docs/todowork.txt"
 files="${files} docs/tokencfg.txt docs/tokentpl.txt"
 
 VSver=`nmake /v 2>&1 | sed -ne 's/.*Version \([0-9]\{1,\}\.[0-9]\{1,\}\).*/\1/p'`
-printf 'GoldED+1.1.5 beta at %8.8s\r\n' $build  >${dizfile}
+printf 'GoldED+2.0.0 beta at %8.8s\r\n' $build  >${dizfile}
 printf 'Win32 binaries compiled using\r\n' >>${dizfile}
 printf 'Microsoft Visual Studio %5.5s\r\n' $VSver >>${dizfile}
 printf 'This is  unstable release and\r\n' >>${dizfile}

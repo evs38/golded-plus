@@ -1,4 +1,4 @@
-%define reldate 20260905
+%define reldate 20260912
 %define reltype C
 # may be one of: C (current), R (release), S (stable)
 
@@ -19,7 +19,7 @@
 %endif
 
 Name: golded+
-Version: 1.1.5.%{reldate}%{reltype}
+Version: 2.0.0.%{reldate}%{reltype}
 Release: %{vendor_prefix}%relnum%{vendor_suffix}
 Group: Applications/FTN
 Summary: GoldEd - the FTN editor
@@ -65,7 +65,7 @@ cat << __MYGOLDED_H_EOF__ > golded3/mygolded.h
 #define __GVER_PREVERSION__    ""
 #undef __GVER_POSTVERSION__
 #define __GVER_POSTVERSION__   ""
-__GVER__(1,1,5)
+__GVER__(2,0,0)
 __MYGOLDED_H_EOF__
 
 %build

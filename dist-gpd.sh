@@ -86,7 +86,7 @@ files="${files} docs/rusfaq.txt docs/tips.txt docs/todowork.txt"
 files="${files} docs/tokencfg.txt docs/tokentpl.txt ${dizfile}"
 
 compilerver=`gcc -v 2>&1 | sed -n -e '/^gcc version/{s/gcc version \([[:digit:].]\{2,\}\)\s\((\([[:alnum:]]\{2,\}\)\sspecial\).*/\1 \3/p;q}'`
-printf 'GoldED+1.1.5 beta at %8.8s\r\n' $build  >${dizfile}
+printf 'GoldED+2.0.0 beta at %8.8s\r\n' $build  >${dizfile}
 printf 'DOS32-DPMI binaries  compiled\r\n' >>${dizfile}
 printf 'using DJGPP GNU C/C++ %-7.7s\r\n' "$compilerver" >>${dizfile}
 printf 'This is  unstable release and\r\n' >>${dizfile}

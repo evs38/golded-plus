@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////
 //
-//  GoldED+ 1.1.5 * Swedish Language Definition File
+//  GoldED+ 2.0.0 * Swedish Language Definition File
 //
 //  Before you start redefining the language, I suggest you print this
 //  file and keep it close for reference. Redefining can be a slow and

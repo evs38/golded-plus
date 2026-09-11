@@ -51,7 +51,7 @@ Building
     make PLATFORM=be
 
 produces bin/gedbe, bin/gnbe and bin/rddtbe, banner "GoldED+/BeOS
-1.1.5", linked against libbe.so and libtextencoding.so.
+2.0.0", linked against libbe.so and libtextencoding.so.
 
     make PLATFORM=be strip
 
@@ -67,11 +67,11 @@ builds the binaries, stages them in the layout a package is unpacked
 into, writes a .PackageInfo and calls Haiku's own `package create`. The
 result is
 
-    bin/golded_plus-1.1.5.<date>-1-<arch>.hpkg
+    bin/golded_plus-2.0.0.<date>-1-<arch>.hpkg
 
 Install it with
 
-    pkgman install ./bin/golded_plus-1.1.5.<date>-1-x86_64.hpkg
+    pkgman install ./bin/golded_plus-2.0.0.<date>-1-x86_64.hpkg
 
 or drop it into /boot/system/packages, which Haiku picks up without
 being asked.
