@@ -560,6 +560,13 @@ ______________________________________________________________________
   bytes on load, through whatever character stood there; the cut is
   now the message's own buffers and falls between characters.
 
++ Windows, 8-bit session: the fill of an area separator line, and any
+  other run of box characters written as vchars, came out as accented
+  Latin letters - a row of question marks on a CP866 console. The
+  byte the box table gives was put into the console cell as if it
+  were a codepoint; it goes through the session charset now, as text
+  always did.
+
 + A kludge line longer than the screen - UCSSUBJ with a long subject
   is the one that got there - left the line after it unread as a
   kludge: a CHRS line following it was shown as text and the message

@@ -1509,16 +1509,22 @@ void vputvs(int row, int col, vattr atr, const vchar* str)
 
 #elif defined(__WIN32__)
 
-    //  Already a run of codepoints, so it goes straight into cells -
-    //  passing it to vputs() would mean reinterpreting it as bytes.
+    //  A run of vchars, so it goes straight into cells - passing it to
+    //  vputs() would mean reinterpreting it as bytes. In UTF-8 mode a
+    //  vchar is a codepoint already; in an 8-bit session it is a byte
+    //  in the local charset, and gvid_tcpr() says which character that
+    //  is, as it does for vputs(). Put into the cell as it stood, the
+    //  box-drawing byte 0xC4 a separator line is filled with became
+    //  U+00C4 - and a CP866 console drew a row of question marks.
     int i, cells = 0;
     for(i = 0; str[i] and (cells < gvid->numcols); i++)
     {
+        vchar cp = gvid_tcpr(str[i]);
         WCHAR w16[2];
-        int need = (gvid_utf16(str[i], w16) > 1 or g_cp_width((uint32_t)str[i]) == 2) ? 2 : 1;
+        int need = (gvid_utf16(cp, w16) > 1 or g_cp_width((uint32_t)cp) == 2) ? 2 : 1;
         if(cells + need > gvid->numcols)
             break;
-        cells = gvid_cellcp(gvid->bufwrd, cells, str[i], atr);
+        cells = gvid_cellcp(gvid->bufwrd, cells, cp, atr);
     }
     if(cells)
         vputws(row, col, gvid->bufwrd, cells);
