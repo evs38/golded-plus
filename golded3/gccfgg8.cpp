@@ -26,6 +26,7 @@
 
 #include <golded.h>
 #include <gcprot.h>
+#include <grecode.h>
 
 
 //  ------------------------------------------------------------------
@@ -876,6 +877,11 @@ void CfgXlatlocalset()
 {
 
     strupr(strxcpy(CFG->xlatlocalset, val, sizeof(CFG->xlatlocalset)));
+
+    //  In force from this line on, so that a later keyword taking one
+    //  character can tell a byte from a UTF-8 sequence; see the
+    //  constructor of CfgGed.
+    g_set_local_charset(CFG->xlatlocalset);
 
     if (CFG->usecharset and (strieql(CFG->xlatlocalset, "IBMPC") or strieql(CFG->xlatlocalset, "+7_FIDO")))
     {

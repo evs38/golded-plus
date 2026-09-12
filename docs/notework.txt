@@ -277,6 +277,17 @@ ______________________________________________________________________
   used to be cut down to its first byte and went out over the wire
   broken. A letter carrying an accent is taken whole as well.
 
+- The keywords that take one character - LATINTOLOCAL, TAGLINECHAR,
+  EDITCHARPARA, EDITCHARSPACE, EDITSOFTCRXLAT - could not tell a byte
+  from a UTF-8 sequence while the configuration was being read: the
+  session's charset was put into force only after the last line of
+  it. LATINTOLOCAL therefore held the first byte of each Cyrillic
+  letter, and a text search, which runs every line through that table
+  before matching, put a broken byte where the found message had a
+  Latin H standing in for a Cyrillic one - the line showed a
+  replacement mark in the reader until it was reloaded. The charset is
+  in force from the start, and again from the XLATLOCALSET line.
+
 - The mark that says another GoldED+ wrote a message - the squared sign
   in the status line - was chosen when the program was compiled, by
   platform. A UTF-8 session on unix therefore got the ASCII stand-in

@@ -767,6 +767,15 @@ CfgGed::CfgGed()
     strcpy(xlatlocalset, get_charset());
     strcpy(xlatimport, get_dos_charset(xlatlocalset));
     strcpy(xlatexport, xlatimport);
+    //  Said now, and again when XLATLOCALSET is read, not only after
+    //  the whole configuration is in: the handlers that take one
+    //  character - LATINTOLOCAL, TAGLINECHAR, EDITCHARPARA and the
+    //  like - ask whether a character is one byte or several while
+    //  the file is still being read, and until this the answer was
+    //  always "one byte". LATINTOLOCAL then held the first byte of
+    //  each Cyrillic letter, and a search, which runs the text
+    //  through that table, put a broken byte into every Latin H.
+    g_set_local_charset(xlatlocalset);
     // variables & switches
     adeptxbbsuserno = 0;
     addressbookadd = YES;
