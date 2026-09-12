@@ -7,7 +7,7 @@ ______________________________________________________________________
                          --- === *** === ---
 ______________________________________________________________________
 
-               Notes for GoldED+ 1.1.5, /snapshot/
+               Notes for GoldED+ 2.0.0, /snapshot/
 ______________________________________________________________________
 
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
@@ -216,6 +216,17 @@ ______________________________________________________________________
   selector, a letter with its accents. The cursor steps over such a
   character in a single move, Backspace removes it whole, and a field
   that has to be cut is never cut through the middle of one.
+
+- A line holding an Indic vowel sign - Devanagari, Bengali, Tamil and
+  the other scripts whose vowels are written as marks beside the
+  consonant - lost its last characters in the reader: two for a word
+  like "Nepali" in its own script, one per such mark. The mark belongs
+  to the consonant's cluster and was measured as taking no room of its
+  own, while every renderer - the terminal through curses, the Windows
+  console - gives it a cell; the line was drawn at its true width and
+  then blanked from the measured one. The same text quoted into a
+  reply was intact, since the editor never blanks after a line. A
+  spacing mark now counts as the column it is drawn in.
 
 + How many columns a character occupies is now decided by tables
   generated from the Unicode Character Database instead of written by

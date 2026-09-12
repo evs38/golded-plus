@@ -586,10 +586,19 @@ const char* g_utf8_cluster_prev(const char* start, const char* p)
 
 //  ------------------------------------------------------------------
 //  How wide one cluster is: the width of the character it is built
-//  around, since everything attached to it is drawn on top of or
-//  inside that. The one thing that changes the answer is an emoji
-//  presentation selector, which turns a text symbol into a picture,
-//  and a picture always takes two columns.
+//  around, since what is attached to it is drawn on top of or inside
+//  that - with one exception. A spacing combining mark (an Indic vowel
+//  sign such as U+093E, the "aa" in Devanagari) belongs to the cluster
+//  by the breaking rules, but it is a glyph of its own beside the
+//  consonant, and every renderer looked at gives it a cell: wcwidth()
+//  on NetBSD and glibc, the Windows console, and the drawing paths
+//  here, which put each codepoint through g_cp_width(). Absorbing it
+//  made a line measure two columns short of what had been drawn, and
+//  the blank painted after the text from the measured width erased
+//  the last two characters of the line - on the console as on curses.
+//  The other thing that changes the answer is an emoji presentation
+//  selector, which turns a text symbol into a picture, and a picture
+//  always takes two columns.
 
 size_t g_utf8_cluster_width(const char* p, const char* end)
 {
@@ -606,8 +615,11 @@ size_t g_utf8_cluster_width(const char* p, const char* end)
     while(s < end and *s)
     {
         int u = 1;
-        if(g_utf8_decode(s, end, &u) == 0xFE0F)
+        uint32_t cp = g_utf8_decode(s, end, &u);
+        if(cp == 0xFE0F)
             return 2;
+        if(gcb_class(cp) == GCB_SpacingMark)
+            w += (size_t)g_cp_width(cp);
         s += u ? u : 1;
     }
 
