@@ -866,6 +866,22 @@ char* ggetosstring(void)
 
 #elif defined(__WIN32__) || defined(_WIN32)
 
+        //  The SDK of Visual C++ 6.0 stops at Alpha64; it has never
+        //  heard of x64 or ARM64. GetNativeSystemInfo() reports those
+        //  all the same, so a 32-bit build made with it ran on every
+        //  x64 machine into the default of the switch below and put
+        //  "CPU-unknown" into the tearline. The values are fixed by
+        //  the ABI and are what every later SDK defines.
+#ifndef PROCESSOR_ARCHITECTURE_IA64
+#define PROCESSOR_ARCHITECTURE_IA64   6
+#endif
+#ifndef PROCESSOR_ARCHITECTURE_AMD64
+#define PROCESSOR_ARCHITECTURE_AMD64  9
+#endif
+#ifndef PROCESSOR_ARCHITECTURE_ARM64
+#define PROCESSOR_ARCHITECTURE_ARM64 12
+#endif
+
         OSVERSIONINFO info;
         SYSTEM_INFO si;
         char ostype[16];

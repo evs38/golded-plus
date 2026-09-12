@@ -706,6 +706,13 @@ ______________________________________________________________________
   machine kept for the old toolchains still has 3.4 - stopped at the
   include. Such a compiler gets the instruction spelled out.
 
+- The Windows binary built with Visual C++ 6.0 wrote "CPU-unknown"
+  into its tearline on every x64 machine: the SDK of that compiler
+  predates x64 and ARM64, so the architecture Windows reports for a
+  32-bit program under WOW64 matched nothing it knew. The two values
+  are supplied where the SDK lacks them, and the name comes from
+  CPUID as it does in every other build.
+
 - The makefiles ran a shell where the upstream ones never had: a
   $(shell uname) before any platform was chosen, to tell Haiku apart,
   and a shell script in the OS/2 resource step, to pick between rc and
