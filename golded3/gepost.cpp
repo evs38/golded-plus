@@ -865,12 +865,18 @@ static void MakeMsg2(int& mode, int& status, int& forwstat, int& topline, GMsg* 
                     line = msg->lin;
                     while(line)
                     {
+                        //  The editor's one mark that survives: a line
+                        //  cut in the middle of a word at the margin.
+                        //  The trailing space is trimmed below and
+                        //  LinesToText() puts one back between soft
+                        //  lines - except across such a cut.
+                        uint _cutword = line->type & GLINE_CUTW;
                         if(line->txt.find('\n') != line->txt.npos)
                             line->type = GLINE_HARD;
                         else if(line->next and (line->next->type & GLINE_QUOT))
                             line->type = GLINE_HARD;
                         else
-                            line->type = 0;
+                            line->type = _cutword;
                         strtrimline(line->txt);
                         if(AA->isinternet() or *msg->ito or *msg->ifrom)
                         {

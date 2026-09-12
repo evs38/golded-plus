@@ -3443,6 +3443,15 @@ chardo:
                                 bp = btmp+1;
                                 ptr = tmp+1;
                             }
+                            else
+                            {
+                                //  No space to break at: the word runs
+                                //  on into the next line. A URL longer
+                                //  than the margin is the usual case,
+                                //  and the reader needs to know that
+                                //  the next line continues it.
+                                line->type |= GLINE_CUTW;
+                            }
                         }
                     }
                 }

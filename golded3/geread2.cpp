@@ -942,9 +942,25 @@ bool ReadPeekURLs(GMsg* msg)
 
                 if (urlBegin < urlEnd)
                 {
-                    char* bufurl=(char*)throw_malloc(urlEnd - ptr + 3);
+                    //  A URL longer than the line was cut at the
+                    //  margin, and the lines below carry the rest of
+                    //  it - the same rule the reader colours it by.
+                    std::string whole(ptr, (size_t)(urlEnd - ptr));
+                    for (int m = n; (*urlEnd == NUL) and (lin[m]->type & GLINE_CUTW) and (m + 1 < msg->lines); m++)
+                    {
+                        const char* more = lin[m+1]->txt.c_str();
+                        const char* moreEnd = more + strcspn(more, " \t\"\'<>()[]");
+                        if (*moreEnd and (moreEnd > more) and ispunct(moreEnd[-1]) and (moreEnd[-1] != '/'))
+                            --moreEnd;
+                        whole.append(more, (size_t)(moreEnd - more));
+                        urlEnd = moreEnd;
+                        n = m + 1;
+                        ptr = more;
+                    }
+
+                    char* bufurl=(char*)throw_malloc(whole.length() + 3);
                     bufurl[0] = ' ';
-                    strxcpy(bufurl + 1, ptr, (urlEnd - ptr) + 1);
+                    strxcpy(bufurl + 1, whole.c_str(), whole.length() + 1);
                     strcat(bufurl, " ");
 
                     std::vector<char *>::iterator it = urls.begin();

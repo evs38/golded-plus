@@ -1140,7 +1140,9 @@ void GMsg::LinesToText()
             {
                 if(_line->next)
                 {
-                    if(text[text.size() - 1] != ' ' and _line->next->txt[0] != ' ')
+                    //  Not after a line the editor cut in the middle
+                    //  of a word: the halves meet as they were typed.
+                    if(text[text.size() - 1] != ' ' and _line->next->txt[0] != ' ' and not (_line->type & GLINE_CUTW))
                     {
                         if(_softterm or not _hardterm)
                             text += ' ';

@@ -594,7 +594,7 @@ void GMsgBodyView::PaintLine(int row, Line *line)
             StyleCodeHighlight(line->txt.c_str()+11, vrow, 11, not AA->attr().hex() and AA->adat->hidestylies, color);
         }
         else
-            StyleCodeHighlight(line->txt.c_str(), vrow, 0, not AA->attr().hex() and AA->adat->hidestylies, color);
+            StyleCodeHighlight(line->txt.c_str(), vrow, 0, not AA->attr().hex() and AA->adat->hidestylies, color, UrlContinues(line));
         printns(vrow, lwidth, color, "", visible_width-lwidth);
     }
     else

@@ -555,6 +555,7 @@ bool isuucp(const char *name);
 //  ------------------------------------------------------------------
 
 const char *url_begin(const char *ptr);
+bool UrlContinues(const Line* line);
 
 
 //  ------------------------------------------------------------------

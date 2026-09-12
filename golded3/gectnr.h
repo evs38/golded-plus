@@ -38,7 +38,7 @@ public:
 
     virtual ~Container() { }
 
-    void StyleCodeHighlight(const char* text, int row, int col, bool dohide, vattr color);
+    void StyleCodeHighlight(const char* text, int row, int col, bool dohide, vattr color, bool urlcont = false);
 };
 
 

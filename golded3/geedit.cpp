@@ -1207,6 +1207,11 @@ Line* IEclass::wrapit(Line** __currline, uint* __curr_col, uint* __curr_row, boo
         setlinetype(_thisline);
         uint _wrapmargin = (_thisline->type & GLINE_QUOT) ? marginquotes : margintext;
 
+        //  Decided afresh below for a line that wraps; a line that no
+        //  longer does cannot have been cut in a word.
+        _thisline->type &= ~GLINE_CUTW;
+        bool _cutword = false;
+
         // Does this line need wrapping?
         if((_thiswidth > _wrapmargin) or ((_thiswidth == _wrapmargin) and not ((_thisline->txt[_thislen-1] == ' ') or (_thisline->txt[_thislen-1] == '\n'))))
         {
@@ -1281,6 +1286,12 @@ Line* IEclass::wrapit(Line** __currline, uint* __curr_col, uint* __curr_row, boo
 
                     // We have to break it up at the margin
                     _wrappos = _atmargin;
+
+                    //  A word cut in two, not two words: when the
+                    //  message is written the halves must meet without
+                    //  a space between them, or a URL longer than the
+                    //  margin goes out with a space inside it.
+                    _cutword = true;
                 }
             }
 
@@ -1306,7 +1317,7 @@ Line* IEclass::wrapit(Line** __currline, uint* __curr_col, uint* __curr_row, boo
                 // it on current, moving the rest over deleted.
                 Undo->PushItem(EDIT_UNDO_WRAP_TEXT|BATCH_MODE, _thisline, _quotelen, _wrapbuf.length() - _quotelen);
 
-                _wrapline->type = _thisline->type;
+                _wrapline->type = _thisline->type & ~GLINE_CUTW;
                 // Make sure the type of the line is correct
                 setlinetype(_wrapline);
 
@@ -1415,6 +1426,8 @@ Line* IEclass::wrapit(Line** __currline, uint* __curr_col, uint* __curr_row, boo
 
             // Make sure the line type still is correct
             setlinetype(_thisline);
+            if(_cutword)
+                _thisline->type |= GLINE_CUTW;
 
             if(__display)
             {

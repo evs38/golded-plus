@@ -92,6 +92,7 @@ const uint GLINE_TAGL = 0x0400;
 const uint GLINE_SIGN = 0x0800;
 const uint GLINE_TXTH = 0x1000;  // text is hiden
 const uint GLINE_NOAL = 0x2000;  // text is not allocated
+const uint GLINE_CUTW = 0x4000;  // wrapped in the middle of a word: nothing to break at
 
 const uint GLINE_KLUDGE = GLINE_HIDD | GLINE_KLUD;
 const uint GLINE_ALL    = GLINE_HIDD | GLINE_KLUD | GLINE_QUOT;

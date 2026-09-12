@@ -605,6 +605,22 @@ ______________________________________________________________________
   GoldED-NSF patch of 2009, without its fetching of absent messages
   through an external handler and without its PCRE.
 
+- A URL longer than the screen is cut at the right margin, and the
+  part carried to the next line lost its colour: the highlighter
+  looked at one line at a time and saw no scheme at the start of the
+  second. The reader now remembers that a line was cut inside a word
+  and colours the rest of the URL on the lines below; the URL list
+  (READpeekurls) joins the pieces, so the whole address is offered
+  rather than its first line.
+
+- A URL longer than the margin, typed into the internal editor, went
+  out with a space inside it. The editor has to cut such a word to
+  show it, and the message was assembled from its lines with a space
+  at every soft break, whether the break fell between words or inside
+  one. A cut inside a word is kept apart from a break between words
+  now, and the halves meet as they were typed; a paragraph wrapped
+  between words is joined with spaces as before.
+
 + A kludge line longer than the screen - UCSSUBJ with a long subject
   is the one that got there - left the line after it unread as a
   kludge: a CHRS line following it was shown as text and the message

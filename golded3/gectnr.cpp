@@ -89,6 +89,54 @@ const char *url_begin(const char *ptr)
 
 //  ------------------------------------------------------------------
 
+//  The characters a URL cannot run across, as the highlighter and the
+//  URL list have always drawn the line.
+
+static const char* const url_stops = " \t\"\'<>()[]";
+
+
+//  Whether a URL in 'text' runs to its very end - the line was cut
+//  inside it, so the next line carries the rest.
+
+static bool url_runs_to_end(const char* text)
+{
+    for(const char* ptr = text; *ptr; ptr++)
+    {
+        const char* begin = url_begin(ptr);
+        if(begin == NULL)
+            continue;
+        if((ptr != text) and (isxalnum(ptr[-1]) or (ptr[-1] == '@')))
+            continue;
+        const char* end = begin + strcspn(begin, url_stops);
+        if(*end == NUL)
+            return true;
+        ptr = end - 1;
+    }
+    return false;
+}
+
+
+//  Whether 'line' starts inside a URL that an earlier line began: the
+//  line before it was cut in the middle of a word - no space to break
+//  at - and the word that ran off its end is a URL, either begun there
+//  or itself carried over from a line before, delimiter-free all the
+//  way.
+
+bool UrlContinues(const Line* line)
+{
+    for(const Line* p = line ? line->prev : NULL; p; p = p->prev)
+    {
+        if(not (p->type & GLINE_CUTW))
+            return false;
+        if(url_runs_to_end(p->txt.c_str()))
+            return true;
+        if(p->txt.find_first_of(url_stops) != std::string::npos)
+            return false;
+    }
+    return false;
+}
+
+
 inline bool isstylechar(char c)
 {
 
@@ -98,7 +146,7 @@ inline bool isstylechar(char c)
 }
 
 
-void Container::StyleCodeHighlight(const char* text, int row, int col, bool dohide, vattr color)
+void Container::StyleCodeHighlight(const char* text, int row, int col, bool dohide, vattr color, bool urlcont)
 {
 
     //  Counted in screen columns, not bytes: it is added to 'col' to
@@ -119,6 +167,29 @@ void Container::StyleCodeHighlight(const char* text, int row, int col, bool dohi
 
     if(usestylies or CFG->highlighturls)
     {
+        //  The line opens inside a URL the line above began and was
+        //  cut in - see UrlContinues(). Its head is the rest of that
+        //  URL, up to the first character a URL cannot hold, and is
+        //  drawn as one; a URL wrapped at the screen width used to
+        //  lose its colour from the wrap on. The trailing punctuation
+        //  rule below applies only where the run stops short of the
+        //  end: at the end the line may have been cut again.
+        if(urlcont and CFG->highlighturls)
+        {
+            const char* end = ptr + strcspn(ptr, url_stops);
+            if(*end and (end > ptr) and ispunct(end[-1]) and (end[-1] != '/'))
+                --end;
+            if(end > ptr)
+            {
+                strxcpy(buf, ptr, (uint)(end-ptr)+1);
+                prints(row, col+sclen, C_READU, buf);
+                sclen += (uint)g_utf8_width(buf);
+                txptr = end;
+                ptr = end;
+                prevchar = end[-1];
+            }
+        }
+
         while(*ptr)
         {
             if(usestylies and isstylechar(*ptr))
@@ -214,7 +285,7 @@ void Container::StyleCodeHighlight(const char* text, int row, int col, bool dohi
                 if(((begin = url_begin(ptr)) != NULL) and
                         ((ptr == text) or (not isxalnum(ptr[-1]) and (ptr[-1] != '@'))))
                 {
-                    const char *end = begin+strcspn(begin, " \t\"\'<>()[]");
+                    const char *end = begin+strcspn(begin, url_stops);
 
                     if(ispunct(end[-1]) and (end[-1] != '/'))
                         --end;
