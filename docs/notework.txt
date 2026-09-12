@@ -721,6 +721,12 @@ ______________________________________________________________________
   compiled by rc in one command, as before, unless a cross build names
   its wrc in GOLD_OS2WRC.
 
+- The OS/2 executables imported GCC1.DLL, the compiler's own shared
+  runtime, which only a machine with GCC installed has. libgcc is
+  linked in statically now, the way a native build is often told to
+  with GCCOPT=-static-libgcc, and the binaries need nothing beyond
+  LIBCN0.DLL.
+
 - XLATCONFIGSET placed after a line whose value is not ASCII - an
   INCLUDEd aliasru.cfg, say - left that line as it was read, in the
   session's charset, and the city names came out as mojibake with

@@ -282,7 +282,12 @@ ifeq ($(PLATFORM),emx)
         CFLAGS+=-DHAS_ULS
         STDLIBS+=-los2_unicode_lazy
     endif
-    LNKFLAGS+=-s
+    #  The linker strips here; a bound resource leaves the file in a
+    #  form strip cannot read afterwards. libgcc goes in statically:
+    #  without that the executables import GCC1.DLL, which only a
+    #  machine with the compiler installed has. The same effect as
+    #  the GCCOPT=-static-libgcc a native build is often given.
+    LNKFLAGS+=-s -static-libgcc
 else
 ifeq ($(PLATFORM),djg)
     CAT=command.com /c type
