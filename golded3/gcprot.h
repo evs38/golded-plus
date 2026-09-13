@@ -126,6 +126,8 @@
     void CfgDisphdrdateset   ();
     void CfgDisphdrlocation  ();
     void CfgDisphdrfghiurl   ();
+    void CfgDispimages       ();
+    void CfgImageprotocol    ();
     void CfgDisphdrnameset   ();
     void CfgDisphdrnodeset   ();
     void CfgDisplistcursor   ();

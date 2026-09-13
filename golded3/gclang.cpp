@@ -524,6 +524,10 @@ static LangCrc LangCrcs[] =
     { CRC_MI_MMWRITE, NULL, "W Write to disk/printer " },
     { CRC_MI_MMFREQ, NULL, "F File request          " },
     { CRC_IL_NOAREAFOUND, NULL, " Area %s not found " },
+    { CRC_IL_NOIMAGES, NULL, " No images in this message " },
+    { CRC_IL_NOIMAGESUPPORT, NULL, " This terminal cannot show images " },
+    { CRC_ST_VIEWIMAGE, NULL, "Viewing an image - any key returns to the message" },
+    { CRC_WT_VIEWIMAGE, NULL, "Images" },
 
     { CRC_LAST_CRC, NULL, NULL }
 };

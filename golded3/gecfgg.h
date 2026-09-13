@@ -32,6 +32,7 @@
 
 //  DISPHDRFGHIURL: NO, YES, or the short spelling of the URL.
 #define DISPHDRFGHIURL_SHORT 2
+#define DISPIMAGES_VIEWER    2
 
 #include <list>
 #include <map>
@@ -319,6 +320,8 @@ public:
     int         dispattachsize;
     int         disphdrlocation;
     int         disphdrfghiurl;     // NO, YES or DISPHDRFGHIURL_SHORT
+    int         dispimages;         // NO, YES (inline and viewer) or DISPIMAGES_VIEWER
+    char        imageprotocol[16];  // "auto", "sixel", "kitty", "iterm2", "none"
     PosLen      disphdrdateset;
     PosLen      disphdrnameset;
     PosLen      disphdrnodeset;

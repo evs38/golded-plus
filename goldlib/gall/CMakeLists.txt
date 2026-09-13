@@ -49,6 +49,8 @@ set(gall_SOURCES
   gtimutil.cpp
   gtxtpara.cpp
   gutf8.cpp
+  gimage.cpp
+  gimgterm.cpp
   gusrbase.cpp
   gusrezyc.cpp
   gusrgold.cpp

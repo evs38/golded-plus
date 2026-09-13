@@ -111,7 +111,17 @@ ifeq ($(filter $(GOLD_LIMITED_PLATFORMS),$(PLATFORM)),)
     WIDE_NCURSES?=1
     GOLD_UTF8?=1
     ICONV?=1
+    #  Pictures in messages, drawn past curses in a terminal graphics
+    #  protocol: only where the screen is a tty.
+    GOLD_IMAGES?=1
 else
+    #  The Win32 console takes the picture as a VT stream (Windows
+    #  Terminal draws Sixel); DOS, OS/2 and BeOS have nowhere to draw.
+    ifneq ($(filter cyg,$(PLATFORM)),)
+        GOLD_IMAGES?=1
+    else
+        GOLD_IMAGES?=0
+    endif
     #  None of these draws through curses, so there is no wide curses API
     #  to ask for.
     WIDE_NCURSES?=0
@@ -135,6 +145,11 @@ endif
 ifeq ($(GOLD_UTF8),1)
     CPPFLAGS+=-DGOLD_UTF8=1
     CFLAGS+=-DGOLD_UTF8=1
+endif
+
+ifeq ($(GOLD_IMAGES),1)
+    CPPFLAGS+=-DGOLD_IMAGES=1
+    CFLAGS+=-DGOLD_IMAGES=1
 endif
 
 # On unix the package manager's curses and iconv come first - pkgsrc,

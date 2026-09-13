@@ -581,6 +581,29 @@ void CfgDisphdrfghiurl()
 
 //  ------------------------------------------------------------------
 
+void CfgDispimages()
+{
+    if(strieql(val, "viewer"))
+        CFG->dispimages = DISPIMAGES_VIEWER;
+    else
+        CFG->dispimages = GetYesno(val) ? YES : NO;
+}
+
+
+//  ------------------------------------------------------------------
+
+//  Kept as the word given; the reader's side of the pictures reads it
+//  where the protocols are known, so this file needs no notion of
+//  them and builds everywhere.
+
+void CfgImageprotocol()
+{
+    strxcpy(CFG->imageprotocol, val, sizeof(CFG->imageprotocol));
+}
+
+
+//  ------------------------------------------------------------------
+
 void CfgDisphdrlocation()
 {
     char* key;

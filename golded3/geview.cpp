@@ -467,6 +467,8 @@ GMsgBodyView::GMsgBodyView()
     alive = false;
     scrollbar_visible = false;
     at_row = at_column = width = height = visible_width = 0;
+    vline = NULL;
+    vlines = 0;
     border_type = gwindow::bordertype_none;
     window_color = BLACK_|_LGREY;
     highlight_color = WHITE_|_RED;
@@ -530,35 +532,60 @@ void GMsgBodyView::Use(Area *areaptr, GMsg *msgptr, int startline)
     area = areaptr;
     msg = msgptr;
 
+    //  The index to walk - with rows for the pictures, where there
+    //  are any - before anything is measured against it.
+    SyncLines();
+
     // Find the first highlighted line and go to it
     if(msg->foundwhere & GFIND_BODY)
     {
-        for(startline=0; startline<msg->lines; startline++)
+        for(startline=0; startline<vlines; startline++)
         {
-            if(msg->line[startline]->type & GLINE_HIGH)
+            if(vline[startline]->type & GLINE_HIGH)
                 break;
         }
         // Adjust position in window
         startline -= height / 3;
         if(startline < 0)
             startline = 0;
-        else if((startline + height - 1) >= msg->lines)
-            startline = msg->lines - height;
+        else if((startline + height - 1) >= vlines)
+            startline = vlines - height;
     }
 
-    if(startline >= msg->lines)
-        startline = msg->lines - 1;
+    if(startline >= vlines)
+        startline = vlines - 1;
 
     if(startline < 0)
         startline = 0;
 
     upperline = startline;
     lowerline = upperline + height - 1;
-    can_pagedown = lowerline < (msg->lines-1);
+    can_pagedown = lowerline < (vlines-1);
 
-    scrollbar_visible = CFG->switches.get(disppagebar) ? (msg->lines > height) : false;
+    scrollbar_visible = CFG->switches.get(disppagebar) ? (vlines > height) : false;
     visible_width = scrollbar_visible ? width-1 : width;
     window.set_scrollbar_color(scrollbar_visible ? scrollbar_color : DEFATTR);
+}
+
+
+//  ------------------------------------------------------------------
+
+int GMsgBodyView::VisibleWidth() const
+{
+    return width - (CFG->switches.get(disppagebar) ? 1 : 0);
+}
+
+
+//  ------------------------------------------------------------------
+
+void GMsgBodyView::SyncLines()
+{
+#if defined(GOLD_IMAGES)
+    ReadImagesIndex(msg, VisibleWidth(), &vline, &vlines);
+#else
+    vline  = msg->line;
+    vlines = msg->lines;
+#endif
 }
 
 
@@ -609,13 +636,30 @@ void GMsgBodyView::Paint()
 
     window.activate_quick();
 
+    //  The message may have been re-indexed since - a toggle of
+    //  kludges or quotes - and then the rows for the pictures have to
+    //  be put back into what is walked here.
+    SyncLines();
+
+#if defined(GOLD_IMAGES)
+    //  The pictures on the screen go first: every line painted below
+    //  reaches the terminal at once, and a picture erased after the
+    //  text that took its cells would take the text with it.
+    ReadImagesErase(msg, upperline, lowerline, at_row);
+#endif
+
     Line* dummy_index = NULL;
-    Line** line_index = msg->line ? (msg->line + upperline) : &dummy_index;
+    Line** line_index = vline ? (vline + upperline) : &dummy_index;
 
     for(int row=0; row<height; row++)
         PaintLine(row, *line_index ? *line_index++ : &dummy_line);
 
     UpdateScrollbar();
+
+#if defined(GOLD_IMAGES)
+    //  The pictures, over the rows just painted blank for them.
+    ReadImagesPaint(msg, upperline, lowerline, at_row, at_column);
+#endif
 }
 
 
@@ -624,7 +668,7 @@ void GMsgBodyView::Paint()
 int GMsgBodyView::Top(int redraw)
 {
 
-    if(redraw or (msg->lines > height))
+    if(redraw or (vlines > height))
     {
         can_pagedown = true;
         upperline = 0;
@@ -642,9 +686,9 @@ int GMsgBodyView::Top(int redraw)
 int GMsgBodyView::Bottom()
 {
 
-    if(msg->lines > height)
+    if(vlines > height)
     {
-        if(msg->lines <= height)
+        if(vlines <= height)
         {
             can_pagedown = true;
             upperline = 0;
@@ -652,7 +696,7 @@ int GMsgBodyView::Bottom()
         else
         {
             can_pagedown = false;
-            upperline = msg->lines - height;
+            upperline = vlines - height;
         }
         lowerline = upperline + height - 1;
         Paint();
@@ -668,7 +712,7 @@ int GMsgBodyView::Bottom()
 int GMsgBodyView::PageUp()
 {
 
-    if(msg->lines > height)
+    if(vlines > height)
     {
         can_pagedown = true;
         if(upperline)
@@ -691,14 +735,14 @@ int GMsgBodyView::PageUp()
 int GMsgBodyView::PageDown()
 {
 
-    if(msg->lines > height)
+    if(vlines > height)
     {
         if(can_pagedown)
         {
-            if(lowerline < msg->lines-1)
+            if(lowerline < vlines-1)
             {
                 lowerline += height - 1;
-                if(lowerline >= msg->lines-1)
+                if(lowerline >= vlines-1)
                     can_pagedown = false;
                 upperline = lowerline - height + 1;
                 Paint();
@@ -716,21 +760,34 @@ int GMsgBodyView::PageDown()
 int GMsgBodyView::LineUp()
 {
 
-    if(msg->lines > height)
+    if(vlines > height)
     {
         if(upperline)
         {
+#if defined(GOLD_IMAGES)
+            //  A picture does not move with the cells the terminal
+            //  scrolls, so a message holding one is painted afresh.
+            //  Any other message scrolls exactly as it always did.
+            if(ReadImagesInline(msg))
+            {
+                upperline--;
+                lowerline--;
+                can_pagedown = lowerline < (vlines-1);
+                Paint();
+                return true;
+            }
+#endif
             window.scroll_down();
             upperline--;
             lowerline--;
 #ifdef GOLD_MOUSE
             gmou.HideCursor();
 #endif
-            PaintLine(0, msg->line[upperline]);
+            PaintLine(0, vline[upperline]);
 #ifdef GOLD_MOUSE
             gmou.ShowCursor();
 #endif
-            can_pagedown = lowerline < (msg->lines-1);
+            can_pagedown = lowerline < (vlines-1);
             UpdateScrollbar();
             return true;
         }
@@ -744,21 +801,31 @@ int GMsgBodyView::LineUp()
 int GMsgBodyView::LineDown()
 {
 
-    if(msg->lines > height)
+    if(vlines > height)
     {
-        if(lowerline < (msg->lines-1))
+        if(lowerline < (vlines-1))
         {
+#if defined(GOLD_IMAGES)
+            if(ReadImagesInline(msg))
+            {
+                upperline++;
+                lowerline++;
+                can_pagedown = lowerline < (vlines-1);
+                Paint();
+                return true;
+            }
+#endif
             window.scroll_up();
             upperline++;
             lowerline++;
 #ifdef GOLD_MOUSE
             gmou.HideCursor();
 #endif
-            PaintLine(height-1, msg->line[lowerline]);
+            PaintLine(height-1, vline[lowerline]);
 #ifdef GOLD_MOUSE
             gmou.ShowCursor();
 #endif
-            can_pagedown = lowerline < (msg->lines-1);
+            can_pagedown = lowerline < (vlines-1);
             UpdateScrollbar();
             return true;
         }
@@ -796,7 +863,7 @@ int GMsgBodyView::ThumbPosition(int pos)
 
     upperline = pos;
     lowerline = upperline + height - 1;
-    can_pagedown = lowerline < (msg->lines-1);
+    can_pagedown = lowerline < (vlines-1);
     Paint();
     return true;
 }
@@ -808,7 +875,7 @@ void GMsgBodyView::UpdateScrollbar()
 {
 
     if(CFG->switches.get(disppagebar) and scrollbar_visible)
-        window.vscrollbar(msg->lines, msg->lines-height, upperline);
+        window.vscrollbar(vlines, vlines-height, upperline);
 }
 
 

@@ -114,6 +114,7 @@ endif()
 
 option(WIDE_NCURSES "Use the wide-character (UTF-8 capable) curses API" ON)
 option(GOLD_UTF8 "Build GoldED+ with an UTF-8 internal representation" ON)
+option(GOLD_IMAGES "Show the pictures a message carries on a terminal that can draw them (Sixel, kitty, iTerm2)" ON)
 set(GOLD_CURSES "auto" CACHE STRING
     "Curses flavour to build against: auto, ncursesw, ncurses, curses or none")
 
@@ -531,6 +532,13 @@ endif()
 
 if (GOLD_UTF8)
   add_definitions(-DGOLD_UTF8=1)
+endif()
+
+#  Pictures are drawn past the cell model, in one of the terminal
+#  graphics protocols: through the tty on a curses build, through the
+#  console's VT stream on Windows (Windows Terminal draws Sixel).
+if (GOLD_IMAGES AND (GOLD_CURSES_LIB OR WIN32))
+  add_definitions(-DGOLD_IMAGES=1)
 endif()
 
 if (MSVC)

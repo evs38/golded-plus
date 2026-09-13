@@ -106,9 +106,7 @@ gkey ReaderGetKey()
     }
     while(keycode == Key_Tick);
     if(keycode == Key_Resize)
-    {
         return KK_ReadScreenResize;
-    }
     if(keycode < KK_Commands)
     {
         keycode = key_tolower(keycode);
@@ -1115,6 +1113,19 @@ void Reader()
 
                         case KK_ReadUUDecode:
                             UUDecode(msg);
+                            break;
+
+                        case KK_ReadViewImage:
+                            //  The message is reloaded for uulib at
+                            //  the export margin; the loop reloads it
+                            //  again for the screen, as after a decode.
+#if defined(GOLD_IMAGES)
+                            ReadViewImages(msg);
+#else
+                            w_info(LNG->NoImageSupport);
+                            waitkeyt(10000);
+                            w_info(NULL);
+#endif
                             break;
 
                         case KK_ExternUtil01:

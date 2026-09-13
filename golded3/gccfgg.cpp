@@ -809,6 +809,8 @@ CfgGed::CfgGed()
     dispattachsize = ATTACH_KBYTES;
     disphdrlocation = NO;
     disphdrfghiurl = NO;
+    dispimages = YES;
+    strcpy(imageprotocol, "auto");
     displistcursor = NO;
     dispmargin = 0;
     dispmsgsize = DISPMSGSIZE_BYTES;

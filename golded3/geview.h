@@ -84,6 +84,15 @@ protected:
     // View data
     int visible_width;
     int scrollbar_visible;
+
+    //  The lines the view walks. The message's own index, unless the
+    //  message carries pictures drawn inline: then an index of its
+    //  own, with rows for the pictures, and the message's stays as it
+    //  is for everything else that reads it - quoting, changing,
+    //  saving. SyncLines() keeps it current.
+    Line** vline;
+    int    vlines;
+    void   SyncLines();
     Line dummy_line;
     int can_pagedown;
     int upperline;
@@ -108,6 +117,11 @@ public:
     int   at_column;
     int   width;
     int   height;
+
+    //  The columns text may use: the width short of the scrollbar's
+    //  column when there is one - what a picture drawn over the body
+    //  is limited to as well.
+    int   VisibleWidth() const;
     int   border_type;
     vattr border_color;
     vattr window_color;

@@ -2593,6 +2593,14 @@ static void _vsave(word* buf, int len1, int srow, int scol, int erow)
 //  ------------------------------------------------------------------
 //  Saves the current screen and returns pointer to buffer
 
+static gvid_overlay_fn gvid_overlay_hook = NULL;
+
+void gvid_set_overlay_hook(gvid_overlay_fn fn)
+{
+    gvid_overlay_hook = fn;
+}
+
+
 vsavebuf* vsave(int srow, int scol, int erow, int ecol)
 {
 
@@ -2600,6 +2608,9 @@ vsavebuf* vsave(int srow, int scol, int erow, int ecol)
     if(scol == -1)  scol = 0;
     if(erow == -1)  erow = gvid->numrows-1;
     if(ecol == -1)  ecol = gvid->numcols-1;
+
+    if(gvid_overlay_hook)
+        gvid_overlay_hook(srow, scol, erow, ecol, false);
 
     // Calculate the number of rows and columns to save
     int num_rows = erow - srow + 1;
@@ -2865,6 +2876,9 @@ void vrestore(vsavebuf* sbuf, int srow, int scol, int erow, int ecol)
         gvid_refresh();
     }
 
+    if(gvid_overlay_hook)
+        gvid_overlay_hook(srow, scol, erow, ecol, true);
+
     return;
 
 #else
@@ -2933,6 +2947,9 @@ void vrestore(vsavebuf* sbuf, int srow, int scol, int erow, int ecol)
 
     (void)coord;
     gvid_write_cells(buf, size, &r);
+
+    if(gvid_overlay_hook)
+        gvid_overlay_hook(srow, scol, erow, ecol, true);
 
 #elif defined(__UNIX__)
 
@@ -3494,5 +3511,116 @@ void vfill(int srow, int scol, int erow, int ecol, vchar chr, vattr atr)
         vputx(crow, scol, atr, chr, width);
 }
 
+
+//  ------------------------------------------------------------------
+
+
+//  ------------------------------------------------------------------
+//  Bytes straight to the terminal, past the cell model: a picture in
+//  one of the terminal graphics protocols, which curses has no notion
+//  of. Whatever curses had pending is put on the screen first, so the
+//  picture lands on cells that are already drawn. Only where the
+//  screen is a tty; the consoles ignore it.
+
+static void gvid_putraw(const char* bytes, size_t len, bool flush_first)
+{
+#if defined(__USE_NCURSES__)
+    if(vscreendown() or bytes == NULL or len == 0)
+        return;
+    if(flush_first)
+        refresh();
+    //  curses draws on stdout; so does this.
+    int fd = fileno(stdout);
+    size_t done = 0;
+    while(done < len)
+    {
+        ssize_t n = write(fd, bytes + done, len - done);
+        if(n <= 0)
+            break;
+        done += (size_t)n;
+    }
+
+    //  The picture moved the terminal's cursor and curses did not see
+    //  it; its next output would be laid out from where it believes
+    //  the cursor is - curscr holds that. Put the cursor back there.
+    int y, x;
+    getyx(curscr, y, x);
+    char back[32];
+    int n = sprintf(back, "\x1b[%d;%dH", y + 1, x + 1);
+    if(write(fd, back, (size_t)n) < 0)
+        return;
+#elif defined(__WIN32__)
+    //  The console takes the bytes as a stream with its VT processing
+    //  on - Windows Terminal draws a Sixel that way, and understands
+    //  the cursor positioning and the erasures in the stream. The
+    //  cells are written straight away here, so there is nothing to
+    //  flush first. The mode and the cursor go back as they were, as
+    //  gvid_wwrite() does: the mode would follow us into the shell.
+    (void)flush_first;
+    if(bytes == NULL or len == 0)
+        return;
+#ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
+#define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
+#endif
+    CONSOLE_SCREEN_BUFFER_INFO sb;
+    DWORD mode = 0, want;
+    GetConsoleScreenBufferInfo(gvid_hout, &sb);
+    GetConsoleMode(gvid_hout, &mode);
+    want = (mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING) & ~(DWORD)ENABLE_WRAP_AT_EOL_OUTPUT;
+    if(want != mode)
+        SetConsoleMode(gvid_hout, want);
+    size_t done = 0;
+    while(done < len)
+    {
+        DWORD wrote = 0;
+        DWORD chunk = (len - done > 32768) ? 32768 : (DWORD)(len - done);
+        if(not WriteConsoleA(gvid_hout, bytes + done, chunk, &wrote, NULL) or wrote == 0)
+            break;
+        done += wrote;
+    }
+    if(want != mode)
+        SetConsoleMode(gvid_hout, mode);
+    SetConsoleCursorPosition(gvid_hout, sb.dwCursorPosition);
+#else
+    (void)bytes;
+    (void)len;
+    (void)flush_first;
+#endif
+}
+
+
+//  After whatever curses has pending is on the screen: a picture
+//  drawn over cells that are already there.
+
+void vputraw(const char* bytes, size_t len)
+{
+    gvid_putraw(bytes, len, true);
+}
+
+
+//  Before it: an erasure that must precede the text curses is about
+//  to put in the same cells - a picture in the terminal's cells is
+//  taken away by erasing them, and text written over it would not.
+
+void vputraw_now(const char* bytes, size_t len)
+{
+    gvid_putraw(bytes, len, false);
+}
+
+
+//  ------------------------------------------------------------------
+//  Everything on the screen is drawn again at the next refresh, cells
+//  curses believes unchanged included - what a picture drawn past the
+//  cell model needs when it is taken away.
+
+void vredraw()
+{
+#if defined(__USE_NCURSES__)
+    if(vscreendown())
+        return;
+    clearok(stdscr, TRUE);
+    refresh();
+#endif
+}
 
 //  ------------------------------------------------------------------

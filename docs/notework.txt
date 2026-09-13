@@ -594,6 +594,31 @@ ______________________________________________________________________
   bytes: in a UTF-8 session a Cyrillic name from a UCSTO kludge came
   out seventeen letters long.
 
++ Pictures carried in a message - uuencoded or MIME base64, as PNG,
+  JPEG, GIF or BMP - are shown on the terminal, in the text where
+  their encoded lines are: a line names the file and the picture
+  follows, scaled to the body's width short of the scrollbar, and
+  scrolls with the text; the encoded lines are not shown. A message
+  with a picture is repainted rather than scrolled by the terminal,
+  since the terminal does not move pictures with cells; every other
+  message scrolls as before. READviewimage also decodes them (with
+  the same uulib the READuudecode key uses) and draws the chosen one
+  over the body of the message, scaled to the body's width and
+  height; any key brings the text back. DISPIMAGES Viewer keeps only
+  the key. Three terminal protocols are spoken: Sixel
+  (xterm, foot, mlterm, mintty, Windows Terminal), the kitty graphics
+  protocol (kitty, Ghostty, WezTerm, Konsole) and iTerm2's inline
+  images (iTerm2, WezTerm, mintty). IMAGEPROTOCOL names one or leaves
+  it to AUTO, which reads the environment, asks the terminal its name
+  (XTVERSION - what tells iTerm2 from an xterm over ssh) and, failing
+  that, whether it draws Sixel; DISPIMAGES No turns it all off. The decoder
+  is stb_image, public domain, kept in goldlib/gall. On a screen too
+  narrow for the encoded lines they are joined back before decoding,
+  so the pictures show there too. Only where there is a terminal to
+  draw into: the curses builds on unix, and the Windows console build
+  made with GNU make or CMake (Windows Terminal draws Sixel); DOS,
+  OS/2, BeOS and the MSVC6 makefiles have no such key.
+
 + FGHI URLs, the FTN hypertext scheme: "area://ECHO?msgid=2:5020/1+12345678"
   in a message text is recognised as a URL (highlighted with
   HIGHLIGHTURLS, listed by READpeekurls) and, chosen from the list, is

@@ -45,6 +45,7 @@ set(golded_SOURCES
   geqwks.cpp
   gerand.cpp
   geread.cpp
+  geimg.cpp
   geread2.cpp
   gescan.cpp
   gesrch.cpp

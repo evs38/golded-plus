@@ -669,6 +669,11 @@ bool ScreenResized(bool force)
     }
 
     gvid->refresh_size();
+#if defined(GOLD_IMAGES)
+    //  The terminal reflowed its cells to the new size and the
+    //  pictures with them; nothing drawn before is where it was.
+    ReadImagesScreenReset();
+#endif
     ScreenLayoutMargins();
     ScreenLayoutHeader();
     ArealistLayout();

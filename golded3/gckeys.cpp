@@ -813,6 +813,7 @@ tglobalkey globalkeys[] =
     { CRC_LISTTOGGLEMARK, KK_ListToggleMark, KT_M },                 // 0xD389
     { CRC_EDITTOUPPER, KK_EditToUpper, KT_E },                       // 0xD3DD
     { CRC_FILEASKEXIT, KK_FileAskExit, KT_F },                       // 0xD40C
+    { CRC_READVIEWIMAGE, KK_ReadViewImage, KT_R },                   // 0xD413
     { CRC_EDITBLOCKDOWN, KK_EditBlockDown, KT_E },                   // 0xD4E4
     { CRC_READFORCEDELETEMSG, KK_ReadForceDeleteMsg, KT_R },         // 0xD57A
     { CRC_READMESSAGELIST, KK_ReadMessageList, KT_R },               // 0xD5D8

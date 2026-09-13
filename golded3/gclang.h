@@ -533,6 +533,10 @@ const word CRC_MI_MMLIST            = 0xAF21;
 const word CRC_MI_MMWRITE           = 0xBA20;
 const word CRC_MI_MMFREQ            = 0xF5B5;
 const word CRC_IL_NOAREAFOUND       = 0x83A5;
+const word CRC_IL_NOIMAGES          = 0x05A4;
+const word CRC_IL_NOIMAGESUPPORT    = 0x9213;
+const word CRC_ST_VIEWIMAGE         = 0x4D48;
+const word CRC_WT_VIEWIMAGE         = 0xE07D;
 
 const word CRC_LAST_CRC             = 0xFFFF;
 

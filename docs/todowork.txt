@@ -248,3 +248,9 @@ platform-neutral wide-aware cell appender exported from gvidbase - a
 deliberate small project, not a one-liner, and Cyrillic is unaffected.
 The OS/2 VIO path likewise still counts bytes as cells if an OS/2
 build is ever run with a UTF-8 locale.
+
+* Pictures: a Windows Terminal Sixel path through the Win32 backend
+  (VT output); passing the graphics through tmux and screen; kitty's
+  transmit-once-place-many so a scrolled picture is not sent again;
+  a window opened over an inline picture on Sixel and iTerm2 leaves
+  a hole in it until the body is painted again.

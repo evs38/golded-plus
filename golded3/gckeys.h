@@ -298,6 +298,7 @@ const word CRC_READTOUCHNETSCAN     = 0x4BF3;
 const word CRC_READTOUCHSEMAPHORE   = 0x6B1D;
 const word CRC_READUNDEFINE         = 0x329D;
 const word CRC_READUUDECODE         = 0x4F0B;
+const word CRC_READVIEWIMAGE        = 0xD413;
 const word CRC_READWRITEMSG         = 0x73AC;
 const word CRC_READSHOWKLUDGE       = 0xC9ED;
 const word CRC_READHIDEKLUDGE       = 0x19EC;

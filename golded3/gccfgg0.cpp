@@ -507,6 +507,9 @@ SwitchD:
     case CRC_DISPHDRFGHIURL   :
         CfgDisphdrfghiurl   ();
         break;
+    case CRC_DISPIMAGES       :
+        CfgDispimages       ();
+        break;
     case CRC_DISPHDRNAMESET   :
         CfgDisphdrnameset   ();
         break;
@@ -756,6 +759,9 @@ SwitchI:
     {
     case CRC_IGNORECHARSET    :
         CfgIgnorecharset    ();
+        break;
+    case CRC_IMAGEPROTOCOL    :
+        CfgImageprotocol    ();
         break;
     case CRC_IMPORTBEGIN      :
         CfgImportbegin      ();

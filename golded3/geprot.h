@@ -405,6 +405,20 @@ void UpdateArea(GMsg* msg);
 int ExternUtil(GMsg* msg, uint32_t utilno);
 void ExternUtilMenu(GMsg* msg);
 bool ReadPeekURLs(GMsg* msg);
+#if defined(GOLD_IMAGES)
+void ReadViewImages(GMsg* msg);
+//  Pictures inline with the text - see geimg.cpp. Index() puts rows
+//  for them into msg->line, Inline() says whether there are any, and
+//  Paint() draws the parts of them that show between two rows of the
+//  index, at the screen position given.
+void ReadImagesIndex(GMsg* msg, int cols, Line*** vline, int* vlines);
+bool ReadImagesInline(const GMsg* msg);
+void ReadImagesErase(const GMsg* msg, int upperline, int lowerline, int at_row);
+//  After the screen changed size: whatever pictures are on it are
+//  wiped with the screen and forgotten; the next paint draws afresh.
+void ReadImagesScreenReset();
+void ReadImagesPaint(const GMsg* msg, int upperline, int lowerline, int at_row, int at_col);
+#endif
 bool GotoFghiUrl(GMsg* msg, const char* url);
 uint next_msg(int direction);
 

@@ -490,6 +490,20 @@ void vsetattr   (int row, int col, vattr atr);
 void vshutdown  ();
 bool vscreendown();
 
+//  Bytes past the cell model - a picture in a terminal graphics
+//  protocol - and a full repaint afterwards. See gvidbase.cpp.
+void vputraw    (const char* bytes, size_t len);
+void vputraw_now(const char* bytes, size_t len);
+void vredraw    ();
+
+//  Told when a rectangle of the screen is about to be covered by a
+//  window (vsave, restore=false) and when it is put back (vrestore,
+//  restore=true). A picture drawn past the cell model lives in the
+//  terminal's cells until they are erased; whoever draws pictures
+//  takes them away under a window and brings them back after it.
+typedef void (*gvid_overlay_fn)(int srow, int scol, int erow, int ecol, bool restore);
+void gvid_set_overlay_hook(gvid_overlay_fn fn);
+
 void vcurget    (int* sline, int* eline);
 void vcurset    (int sline, int eline);
 

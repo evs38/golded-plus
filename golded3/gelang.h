@@ -509,6 +509,10 @@ struct LangGed
     char*  MMWrite;            // MI_MMWRITE
     char*  MMFreq;             // MI_MMFREQ
     char*  NoAreaFound;        // IL_NOAREAFOUND
+    char*  NoImages;           // IL_NOIMAGES
+    char*  NoImageSupport;     // IL_NOIMAGESUPPORT
+    char*  ViewImageStat;      // ST_VIEWIMAGE
+    char*  ViewImageMenuTitle; // WT_VIEWIMAGE
 
     char*  EndLanguage;        // LAST_CRC
 
