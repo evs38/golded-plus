@@ -158,6 +158,10 @@ public:
     uint  type;             // GLINE_*
     uint  kludge;           // GKLUD_*
     std::string txt;             // The line text
+    //  A line of ANSI art carries a colour for each of its characters
+    //  - one entry per character of txt, in order - and 'color' is
+    //  what a character past the end gets. Empty for every other line.
+    std::vector<vattr> ansi_color;
     Line* prev;             // Pointer to previous line
     Line* next;             // Pointer to next line
 
@@ -174,6 +178,16 @@ public:
         prev = next = NULL;
     }
     ~Line()              {}
+
+    bool has_ansi_color() const
+    {
+        return not ansi_color.empty();
+    }
+
+    void clear_ansi_color()
+    {
+        ansi_color.clear();
+    }
 
     int  istearline()
     {

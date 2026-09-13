@@ -38,6 +38,7 @@
 
 #include <grecode.h>
 #include <gutf8.h>
+#include <vector>
 
 
 
@@ -54,6 +55,699 @@ static ptrdiff_t g_distance(Iter first, Iter last)
 #else
     return std::distance(first, last);
 #endif
+}
+
+
+//  ------------------------------------------------------------------
+//  ANSI art in a message body.
+//
+//  GoldED holds one colour per line. ANSI art - the colour screens and
+//  logos of BBS mail - is a stream of CSI sequences that set colours,
+//  move the cursor and overwrite what was drawn before, so the text
+//  cannot be read line by line: it is drawn onto a canvas first, one
+//  colour per cell, and MakeLineIndex() then indexes the canvas rows
+//  as the lines of the message and gives each line the colours of its
+//  cells. Only a message that carries a CSI sequence goes this way;
+//  the rest are indexed as they always were.
+//
+//  A cell holds one character, whole: a byte of an 8-bit charset, or
+//  the whole sequence where the text is UTF-8. The columns the cursor
+//  moves in are characters, never bytes, and the colours line up with
+//  the characters of the indexed line whatever charset the text is
+//  converted from on the way. From pull request #103 by ric743256,
+//  whose canvas was one byte a cell.
+//  ------------------------------------------------------------------
+
+struct GoldedAnsiLine
+{
+    std::vector<std::string> cells;
+    std::vector<vattr> attr;
+};
+
+//  Cursor position, saved cursor and current colour while one message
+//  is rendered.
+struct GoldedAnsiState
+{
+    int row;
+    int col;
+    int saved_row;
+    int saved_col;
+    int maxrow;
+    int fg;
+    int bg;
+    bool intense;
+    vattr curattr;
+    bool wrap_pending;  //  the last column was written: the next
+                        //  character goes to the next row first
+};
+
+static const int GOLDED_ANSI_MAX_PARAMS = 32;
+
+//  The rendered rows, and where the next indexed line takes its
+//  colours from: the row, and the character in it - a row longer than
+//  the margin is indexed as several lines.
+static std::vector<GoldedAnsiLine> GoldedAnsiRenderedLines;
+static size_t GoldedAnsiRenderedRow = 0;
+static size_t GoldedAnsiRenderedCol = 0;
+static bool GoldedAnsiRenderedActive = false;
+
+//  Whether the text is read in UTF-8 sequences or in bytes.
+static bool GoldedAnsiUtf8 = false;
+
+
+static bool GoldedIsAnsiIntro(const unsigned char* p)
+{
+    return p and p[0] == 0x1B and p[1] == '[';
+}
+
+
+static bool GoldedHasAnsiCsi(const char* src)
+{
+    if(src == NULL)
+        return false;
+
+    for(const unsigned char* p = (const unsigned char*)src; *p; p++)
+    {
+        if(GoldedIsAnsiIntro(p))
+            return true;
+    }
+
+    return false;
+}
+
+
+//  The bytes of one character at p.
+static int GoldedAnsiCharLen(const unsigned char* p)
+{
+    if(GoldedAnsiUtf8)
+    {
+        int len = g_utf8_seqlen(*p);
+        for(int n = 1; n < len; n++)
+            if((p[n] & 0xC0) != 0x80)
+                return n;
+        return len < 1 ? 1 : len;
+    }
+    return 1;
+}
+
+
+static vattr GoldedAnsiFg(int fg, bool intense)
+{
+    switch(fg)
+    {
+    case 0: return intense ? DGREY_    : BLACK_;
+    case 1: return intense ? LRED_     : RED_;
+    case 2: return intense ? LGREEN_   : GREEN_;
+    case 3: return intense ? YELLOW_   : BROWN_;
+    case 4: return intense ? LBLUE_    : BLUE_;
+    case 5: return intense ? LMAGENTA_ : MAGENTA_;
+    case 6: return intense ? LCYAN_    : CYAN_;
+    case 7: return intense ? WHITE_    : LGREY_;
+    }
+    return intense ? WHITE_ : LGREY_;
+}
+
+static vattr GoldedAnsiBg(int bg)
+{
+    switch(bg)
+    {
+    case 0: return _BLACK;
+    case 1: return _RED;
+    case 2: return _GREEN;
+    case 3: return _BROWN;
+    case 4: return _BLUE;
+    case 5: return _MAGENTA;
+    case 6: return _CYAN;
+    case 7: return _LGREY;
+    }
+    return _BLACK;
+}
+
+static vattr GoldedAnsiAttr(int fg, int bg, bool intense)
+{
+    return GoldedAnsiFg(fg, intense) | GoldedAnsiBg(bg);
+}
+
+
+//  A cell nothing was ever written to is a blank in the default
+//  colours, whatever colour is current when the cursor passes over
+//  it - the way a terminal has it.
+static void GoldedAnsiEnsureCanvas(std::vector<GoldedAnsiLine>& canvas, int row, int col)
+{
+    if(row < 0)
+        row = 0;
+    if(col < 0)
+        col = 0;
+
+    while((int)canvas.size() <= row)
+        canvas.push_back(GoldedAnsiLine());
+
+    while((int)canvas[row].cells.size() < col)
+    {
+        canvas[row].cells.push_back(std::string(" "));
+        canvas[row].attr.push_back(GoldedAnsiAttr(7, 0, false));
+    }
+}
+
+
+static void GoldedAnsiPutChar(std::vector<GoldedAnsiLine>& canvas, int row, int col, const std::string& ch, vattr attr)
+{
+    GoldedAnsiEnsureCanvas(canvas, row, col);
+
+    if((int)canvas[row].cells.size() == col)
+    {
+        canvas[row].cells.push_back(ch);
+        canvas[row].attr.push_back(attr);
+    }
+    else
+    {
+        canvas[row].cells[col] = ch;
+        canvas[row].attr[col] = attr;
+    }
+}
+
+
+static void GoldedAnsiApplySgr(const int* vals, int count, int& fg, int& bg, bool& intense)
+{
+    if(count == 0)
+    {
+        fg = 7;
+        bg = 0;
+        intense = false;
+        return;
+    }
+
+    for(int i = 0; i < count; i++)
+    {
+        int v = vals[i];
+        if(v == 0)
+        {
+            fg = 7;
+            bg = 0;
+            intense = false;
+        }
+        else if(v == 1)
+            intense = true;
+        else if(v == 22)
+            intense = false;
+        else if(v >= 30 and v <= 37)
+            fg = v - 30;
+        else if(v >= 40 and v <= 47)
+            bg = v - 40;
+        else if(v >= 90 and v <= 97)
+        {
+            fg = v - 90;
+            intense = true;
+        }
+        else if(v >= 100 and v <= 107)
+            bg = v - 100;
+        else if(v == 39)
+            fg = 7;
+        else if(v == 49)
+            bg = 0;
+    }
+}
+
+
+//  The ';'-separated numbers of a CSI sequence, between the introducer
+//  (and a '?') and the final byte. Leaves p at the final byte.
+static void GoldedAnsiParseCsiParams(const unsigned char*& p, int* vals, int& count, bool& have_value)
+{
+    count = 0;
+    for(int nn = 0; nn < GOLDED_ANSI_MAX_PARAMS; nn++)
+        vals[nn] = 0;
+
+    have_value = false;
+
+    while(*p)
+    {
+        if(isdigit(*p))
+        {
+            int value = 0;
+            while(isdigit(*p))
+            {
+                value = (value * 10) + (*p - '0');
+                p++;
+            }
+            if(count < GOLDED_ANSI_MAX_PARAMS)
+                vals[count++] = value;
+            have_value = true;
+            if(*p == ';')
+            {
+                p++;
+                if((*p == ';') and (count < GOLDED_ANSI_MAX_PARAMS))
+                    vals[count++] = 0;
+            }
+            continue;
+        }
+        else if(*p == ';')
+        {
+            if(count < GOLDED_ANSI_MAX_PARAMS)
+                vals[count++] = 0;
+            p++;
+            continue;
+        }
+        break;
+    }
+}
+
+
+//  Cursor movement and the saved position: C D A B G H f s u. True
+//  when cmd was one of them.
+static bool GoldedAnsiExecCursorCommand(unsigned char cmd, const int* vals, int count, int n,
+                                        GoldedAnsiState& st, std::vector<GoldedAnsiLine>& canvas,
+                                        int max_width, int max_rows)
+{
+    switch(cmd)
+    {
+    case 'C':
+        //  Moves only: what the cursor passes over stays as it is.
+        //  Writing blanks here wiped the box a line had just drawn
+        //  when the next line stepped back over it.
+        st.col += n;
+        if(st.col > max_width - 1)
+            st.col = max_width - 1;
+        st.wrap_pending = false;
+        return true;
+
+    case 'D':
+        st.col -= n;
+        if(st.col < 0)
+            st.col = 0;
+        st.wrap_pending = false;
+        return true;
+
+    case 'A':
+        st.row -= n;
+        if(st.row < 0)
+            st.row = 0;
+        st.wrap_pending = false;
+        return true;
+
+    case 'B':
+        st.row += n;
+        if(st.row >= max_rows)
+            st.row = max_rows - 1;
+        if(st.row > st.maxrow)
+            st.maxrow = st.row;
+        st.wrap_pending = false;
+        return true;
+
+    case 'G':
+        st.col = (n > 0) ? n - 1 : 0;
+        if(st.col > max_width - 1)
+            st.col = max_width - 1;
+        st.wrap_pending = false;
+        return true;
+
+    case 'H':
+    case 'f':
+        st.row = (count >= 1 and vals[0] > 0) ? vals[0] - 1 : 0;
+        st.col = (count >= 2 and vals[1] > 0) ? vals[1] - 1 : 0;
+        if(st.row >= max_rows)
+            st.row = max_rows - 1;
+        if(st.col > max_width - 1)
+            st.col = max_width - 1;
+        if(st.row > st.maxrow)
+            st.maxrow = st.row;
+        st.wrap_pending = false;
+        return true;
+
+    case 's':
+        st.saved_row = st.row;
+        st.saved_col = st.col;
+        return true;
+
+    case 'u':
+        st.row = st.saved_row;
+        st.col = st.saved_col;
+        st.wrap_pending = false;
+        return true;
+    }
+
+    return false;
+}
+
+
+//  The rest: colours (m), erase display (J), erase to end of line (K);
+//  the private modes (h, l) are read and ignored.
+static void GoldedAnsiExecCsiCommand(unsigned char cmd, const int* vals, int count, bool have_value,
+                                     GoldedAnsiState& st, std::vector<GoldedAnsiLine>& canvas,
+                                     int max_width, int max_rows)
+{
+    int n = (have_value and count > 0 and vals[0] > 0) ? vals[0] : 1;
+
+    if(GoldedAnsiExecCursorCommand(cmd, vals, count, n, st, canvas, max_width, max_rows))
+        return;
+
+    switch(cmd)
+    {
+    case 'm':
+        GoldedAnsiApplySgr(vals, count, st.fg, st.bg, st.intense);
+        st.curattr = GoldedAnsiAttr(st.fg, st.bg, st.intense);
+        break;
+
+    case 'J':
+        if((count == 0) or vals[0] == 2)
+        {
+            canvas.clear();
+            canvas.push_back(GoldedAnsiLine());
+            st.row = st.col = st.saved_row = st.saved_col = st.maxrow = 0;
+        }
+        break;
+
+    case 'K':
+        GoldedAnsiEnsureCanvas(canvas, st.row, st.col);
+        if((int)canvas[st.row].cells.size() > st.col)
+        {
+            canvas[st.row].cells.resize(st.col);
+            canvas[st.row].attr.resize(st.col);
+        }
+        break;
+
+    default:
+        break;
+    }
+}
+
+
+static void GoldedAnsiAdvanceChar(const unsigned char*& p, GoldedAnsiState& st,
+                                  std::vector<GoldedAnsiLine>& canvas, int max_width, int max_rows);
+
+//  The rest of a CSI sequence, p just past the introducer.
+//
+//  A control character inside the sequence is carried out and the
+//  sequence goes on after it, as a terminal does: a message wrapped
+//  in transit at the screen width can have a line end in the middle
+//  of one, and the colour it sets is still wanted.
+static void GoldedAnsiHandleCsiBody(const unsigned char*& p, GoldedAnsiState& st,
+                                    std::vector<GoldedAnsiLine>& canvas, int max_width, int max_rows)
+{
+    if(*p == '?')
+        p++;
+
+    int vals[GOLDED_ANSI_MAX_PARAMS];
+    int count = 0;
+    bool have_value = false;
+    unsigned char cmd;
+
+    for(;;)
+    {
+        int more = 0;
+        bool morev = false;
+        int mvals[GOLDED_ANSI_MAX_PARAMS];
+        GoldedAnsiParseCsiParams(p, mvals, more, morev);
+        for(int i = 0; i < more and count < GOLDED_ANSI_MAX_PARAMS; i++)
+            vals[count++] = mvals[i];
+        have_value = have_value or morev;
+
+        cmd = *p;
+        if(cmd == 0 or cmd >= 0x20)
+            break;
+        if(cmd == '\r' or cmd == '\n' or cmd == '\t')
+            GoldedAnsiAdvanceChar(p, st, canvas, max_width, max_rows);
+        else if(cmd == 0x1B)
+        {
+            //  A new sequence begins: the unfinished one is dropped.
+            //  Anything else after the escape is left to the caller.
+            if(p[1] != '[')
+                return;
+            p += 2;
+            count = 0;
+            have_value = false;
+        }
+        else
+            p++;
+    }
+    for(int k = count; k < GOLDED_ANSI_MAX_PARAMS; k++)
+        vals[k] = 0;
+
+    if(cmd)
+        p++;
+
+    GoldedAnsiExecCsiCommand(cmd, vals, count, have_value, st, canvas, max_width, max_rows);
+}
+
+
+//  One whole CSI sequence at p, which points at the introducer.
+static void GoldedAnsiHandleCsi(const unsigned char*& p, GoldedAnsiState& st,
+                                std::vector<GoldedAnsiLine>& canvas, int max_width, int max_rows)
+{
+    p += 2;
+    GoldedAnsiHandleCsiBody(p, st, canvas, max_width, max_rows);
+}
+
+
+//  One character that is not a sequence: CR, LF, a tab, or a character
+//  put on the canvas.
+static void GoldedAnsiAdvanceChar(const unsigned char*& p, GoldedAnsiState& st,
+                                  std::vector<GoldedAnsiLine>& canvas, int max_width, int max_rows)
+{
+    if(*p == '\r' or *p == '\n')
+    {
+        //  CR is the line end of the message base; a LF after it is
+        //  part of the same line end.
+        st.row++;
+        st.col = 0;
+        st.wrap_pending = false;
+        if(st.row >= max_rows)
+            st.row = max_rows - 1;
+        if(st.row > st.maxrow)
+            st.maxrow = st.row;
+        if(*p++ == '\r' and *p == '\n')
+            p++;
+        return;
+    }
+
+    if(*p == '\t')
+    {
+        st.col += 8 - (st.col % 8);
+        if(st.col > max_width - 1)
+            st.col = max_width - 1;
+        st.wrap_pending = false;
+        p++;
+        return;
+    }
+
+    //  The art is drawn for an 80-column screen and much of it has no
+    //  line ends at all: a row is what the terminal wraps at the right
+    //  margin, and the wrap happens when the next character comes, not
+    //  when the last column is filled - a row of exactly 80 characters
+    //  followed by a line end is one row, not two.
+    if(st.wrap_pending)
+    {
+        st.row++;
+        st.col = 0;
+        st.wrap_pending = false;
+        if(st.row >= max_rows)
+            st.row = max_rows - 1;
+    }
+
+    int len = GoldedAnsiCharLen(p);
+    GoldedAnsiPutChar(canvas, st.row, st.col, std::string((const char*)p, len), st.curattr);
+    if(st.col < max_width - 1)
+        st.col++;
+    else
+        st.wrap_pending = true;
+
+    if(st.row > st.maxrow)
+        st.maxrow = st.row;
+
+    p += len;
+}
+
+
+//  The canvas as text, a row a line, trailing blank rows and trailing
+//  spaces dropped; the rows are kept for the colours. A row the art
+//  never coloured - the text around a logo, a quote, the tearline -
+//  keeps no colours and is painted the way the reader paints it.
+//
+//  A row wider than the reader's margin is cut at the margin. Wrapped
+//  instead, as text is, its tail would take a row of its own and push
+//  every row below down by one - on an 80-column screen the body is
+//  79 columns wide, next to the scrollbar, and every full row of an
+//  80-column picture would do that. One column lost keeps the picture
+//  whole.
+static std::string GoldedAnsiFinalizeLines(std::vector<GoldedAnsiLine>& canvas, int maxrow, int margin)
+{
+    std::string out;
+    int last = MinV(maxrow, (int)canvas.size() - 1);
+    const vattr plain = GoldedAnsiAttr(7, 0, false);
+
+    while(last > 0 and canvas[last].cells.empty())
+        last--;
+
+    for(int r = 0; r <= last; r++)
+    {
+        GoldedAnsiLine& line = canvas[r];
+
+        if(margin > 0 and (int)line.cells.size() > margin)
+        {
+            line.cells.resize(margin);
+            line.attr.resize(margin);
+        }
+
+        while(not line.cells.empty() and line.cells.back() == " ")
+        {
+            line.cells.pop_back();
+            line.attr.pop_back();
+        }
+
+        //  Two loop variables with two names: Visual C++ 6 leaks the
+        //  first into the enclosing scope and calls the second a
+        //  redefinition.
+        bool coloured = false;
+        for(size_t a = 0; a < line.attr.size() and not coloured; a++)
+            coloured = (line.attr[a] != plain);
+        if(not coloured)
+            line.attr.clear();
+
+        for(size_t c = 0; c < line.cells.size(); c++)
+            out += line.cells[c];
+        out += "\r";
+
+        GoldedAnsiRenderedLines.push_back(line);
+    }
+
+    return out;
+}
+
+
+//  The lines before the first sequence are not part of the picture:
+//  the kludges the base keeps apart from the text and the reader puts
+//  before it, and whatever else stands ahead of the art - a tosser's
+//  note, a greeting, a quote. The art was drawn for a clear screen,
+//  and a home sequence in it would draw over those lines, as it does
+//  on a terminal; they pass through as rows of their own, without
+//  colours, and the canvas begins with the first line that has a
+//  sequence in it.
+static std::string GoldedAnsiRender(const char* src, int margin)
+{
+    const int max_width = 80;
+    const int max_rows = 1000;
+
+    GoldedAnsiRenderedLines.clear();
+    GoldedAnsiRenderedRow = 0;
+    GoldedAnsiRenderedCol = 0;
+    GoldedAnsiRenderedActive = false;
+    GoldedAnsiUtf8 = g_utf8_mode() and g_utf8_looks_utf8(src);
+
+    std::string out;
+    const unsigned char* p = (const unsigned char*)src;
+    for(;;)
+    {
+        const unsigned char* e = p;
+        bool sequence = false;
+        while(*e and *e != '\r' and *e != '\n')
+        {
+            if(GoldedIsAnsiIntro(e))
+                sequence = true;
+            e++;
+        }
+        if(sequence or *e == NUL)
+            break;
+        GoldedAnsiLine plain;
+        plain.cells.push_back(std::string((const char*)p, e - p));
+        GoldedAnsiRenderedLines.push_back(plain);
+        out.append((const char*)p, e - p);
+        out += "\r";
+        if(*e == '\r')
+            e++;
+        if(*e == '\n')
+            e++;
+        p = e;
+    }
+
+    std::vector<GoldedAnsiLine> canvas;
+    canvas.push_back(GoldedAnsiLine());
+
+    GoldedAnsiState st;
+    st.row = st.col = st.saved_row = st.saved_col = st.maxrow = 0;
+    st.fg = 7;
+    st.bg = 0;
+    st.intense = false;
+    st.curattr = GoldedAnsiAttr(st.fg, st.bg, st.intense);
+    st.wrap_pending = false;
+
+    while(*p)
+    {
+        if(GoldedIsAnsiIntro(p))
+        {
+            GoldedAnsiHandleCsi(p, st, canvas, max_width, max_rows);
+            continue;
+        }
+
+        if(*p == 0x1B)
+        {
+            //  An escape on its own is never drawn. A terminal carries
+            //  out a line end that follows it and still takes a '['
+            //  after that as the introducer's - the form a message
+            //  wrapped in transit at the screen width has.
+            p++;
+            while(*p == '\r' or *p == '\n')
+                GoldedAnsiAdvanceChar(p, st, canvas, max_width, max_rows);
+            if(*p == '[')
+            {
+                p++;
+                GoldedAnsiHandleCsiBody(p, st, canvas, max_width, max_rows);
+            }
+            continue;
+        }
+
+        GoldedAnsiAdvanceChar(p, st, canvas, max_width, max_rows);
+    }
+
+    out += GoldedAnsiFinalizeLines(canvas, st.maxrow, margin);
+    GoldedAnsiRenderedActive = not GoldedAnsiRenderedLines.empty();
+    return out;
+}
+
+
+//  The colours for the line just indexed: as many as it has characters,
+//  taken from the current row at the current character. A line that
+//  wraps leaves the row where it stopped for the next one, with the
+//  blanks the wrap dropped at the break stepped over; any other line
+//  finishes the row. A row without colours - a kludge line - gives
+//  none, and the line is painted as usual.
+static void GoldedAnsiAttachToLine(Line* line)
+{
+    if(not GoldedAnsiRenderedActive or line == NULL)
+        return;
+
+    if(GoldedAnsiRenderedRow >= GoldedAnsiRenderedLines.size())
+        return;
+
+    const GoldedAnsiLine& rendered = GoldedAnsiRenderedLines[GoldedAnsiRenderedRow];
+    size_t at = GoldedAnsiRenderedCol;
+    size_t n = g_utf8_strlen(line->txt.c_str());
+
+    if(at > 0)
+        while(at < rendered.cells.size() and rendered.cells[at] == " ")
+            at++;
+
+    if(not rendered.attr.empty())
+    {
+        line->ansi_color.assign(n, line->color);
+        for(size_t i = 0; i < n and at + i < rendered.attr.size(); i++)
+            line->ansi_color[i] = rendered.attr[at + i];
+    }
+
+    if(line->type & GLINE_WRAP)
+        GoldedAnsiRenderedCol = at + n;
+    else
+    {
+        GoldedAnsiRenderedRow++;
+        GoldedAnsiRenderedCol = 0;
+    }
+}
+
+
+static void GoldedAnsiForget()
+{
+    GoldedAnsiRenderedLines.clear();
+    GoldedAnsiRenderedRow = 0;
+    GoldedAnsiRenderedCol = 0;
+    GoldedAnsiRenderedActive = false;
 }
 
 
@@ -2632,6 +3326,8 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
     Line* nextline=NULL;
     char* bp;
     char* btmp=NULL;
+    char* ansi_msgtxt=NULL;
+    char* original_msgtxt=NULL;
     char* tptr;
     char* escp;
     char* bptr;
@@ -2705,6 +3401,18 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
     {
         if(AA->StripHTML())
             RemoveHTML(msg->txt);
+
+        //  ANSI art is drawn onto a canvas first and the canvas rows
+        //  are what gets indexed; the text itself is put back below.
+        if(GoldedHasAnsiCsi(msg->txt))
+        {
+            std::string ansi_plain = GoldedAnsiRender(msg->txt, margin);
+            ansi_msgtxt = throw_strdup(ansi_plain.c_str());
+            original_msgtxt = msg->txt;
+            msg->txt = ansi_msgtxt;
+        }
+        else
+            GoldedAnsiForget();
         ptr = spanfeeds(msg->txt);
 
         // Set default conversion table for area
@@ -3483,6 +4191,8 @@ chardo:
                 else
                     line->color = C_READW;
 
+                GoldedAnsiAttachToLine(line);
+
                 Line* prevline = line;
                 line = new Line();
                 throw_xnew(line);
@@ -3647,6 +4357,13 @@ chardo:
             }
         }
     }
+
+    if(ansi_msgtxt)
+    {
+        msg->txt = original_msgtxt;
+        throw_free(ansi_msgtxt);
+    }
+    GoldedAnsiForget();
 
     // Make the index to the line index as allowed by config
     MsgLineReIndex(msg);

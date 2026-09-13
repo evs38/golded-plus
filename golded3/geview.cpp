@@ -610,19 +610,43 @@ void GMsgBodyView::PaintLine(int row, Line *line)
     {
         strerase(line->txt, g_utf8_bytes_for_cols(line->txt.c_str(), visible_width));
         lwidth = (uint)g_utf8_width(line->txt);
+        if(line->ansi_color.size() > g_utf8_strlen(line->txt.c_str()))
+            line->ansi_color.resize(g_utf8_strlen(line->txt.c_str()));
     }
 
     // Print it
     if(not SearchHighlight(line, vrow, visible_width, highlight_color))
     {
-        if(line->type & GLINE_ORIG and strneql(line->txt.c_str(), " * Origin: ", 11))
+        if(line->has_ansi_color())
+        {
+            //  A line of ANSI art: each character in its own colour,
+            //  stepped by character and by the columns it takes. Style
+            //  codes and URLs are not looked for in a picture.
+            uint col = 0;
+            size_t n = 0;
+            char cbuf[GUTF8_MAXLEN+1];
+            for(const char* p = line->txt.c_str(); *p and col < visible_width; n++)
+            {
+                const char* nxt = g_utf8_next(p);
+                uint w = (uint)g_utf8_width(p, (size_t)(nxt - p));
+                if(col + w > visible_width)
+                    break;
+                strxcpy(cbuf, p, (uint)(nxt - p) + 1);
+                prints(vrow, col, (n < line->ansi_color.size()) ? line->ansi_color[n] : color, cbuf);
+                col += w;
+                p = nxt;
+            }
+            printns(vrow, col, color, "", visible_width - col);
+        }
+        else if(line->type & GLINE_ORIG and strneql(line->txt.c_str(), " * Origin: ", 11))
         {
             prints(vrow, 0, color, " * Origin: ");
             StyleCodeHighlight(line->txt.c_str()+11, vrow, 11, not AA->attr().hex() and AA->adat->hidestylies, color);
         }
         else
             StyleCodeHighlight(line->txt.c_str(), vrow, 0, not AA->attr().hex() and AA->adat->hidestylies, color, UrlContinues(line));
-        printns(vrow, lwidth, color, "", visible_width-lwidth);
+        if(not line->has_ansi_color())
+            printns(vrow, lwidth, color, "", visible_width-lwidth);
     }
     else
         printns(vrow, 0, color, line->txt.c_str(), visible_width);
