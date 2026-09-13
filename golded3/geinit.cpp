@@ -662,6 +662,7 @@ static void w_back()
 
 bool ScreenResized(bool force)
 {
+    int oldcols = gvid->numcols, oldrows = gvid->numrows;
     if(not force and not gvid->size_changed())
     {
         gkbd.resize_pending = false;
@@ -669,6 +670,7 @@ bool ScreenResized(bool force)
     }
 
     gvid->refresh_size();
+    LOG.printf("- Screen resized: %dx%d -> %dx%d", oldcols, oldrows, gvid->numcols, gvid->numrows);
 #if defined(GOLD_IMAGES)
     //  The terminal reflowed its cells to the new size and the
     //  pictures with them; nothing drawn before is where it was.
@@ -680,6 +682,7 @@ bool ScreenResized(bool force)
     inforow = (MAXROW-1)/2;
 
     wcloseall();
+    update_statusline_forget();
     w_back();
     whelpwin(0, 0, MAXROW-2, MAXCOL-1, W_BHELP, NO);
 

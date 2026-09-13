@@ -2291,12 +2291,15 @@ gkey kbxget_raw(eKeyModes mode)
         {
             if(inp.EventType == WINDOW_BUFFER_SIZE_EVENT)
             {
-                gkbd_read(inp, nread);
+                //  A real resize stays in the queue for the read below,
+                //  as a key does. Taken out here, it was answered with
+                //  Key_Resize, but the read that followed found nothing
+                //  and waited for a key, and the screen was laid out
+                //  again only with the next message. One for the size
+                //  already held is dropped.
                 if(gkbd_resize_real())
-                {
-                    gkbd.resize_pending = true;
                     return Key_Resize;
-                }
+                gkbd_read(inp, nread);
                 return 0;
             }
             if(gkbd_nt and gkbd_alt_composed(inp))

@@ -619,6 +619,16 @@ ______________________________________________________________________
   made with GNU make or CMake (Windows Terminal draws Sixel); DOS,
   OS/2, BeOS and the MSVC6 makefiles have no such key.
 
+- On the Windows console a resize of the window was noticed only with
+  the next message: the probe that asks whether a key is waiting took
+  the console's resize event out of the queue, and the read that
+  followed found nothing and waited for a key. The event now stays in
+  the queue for that read, as a key does.
+
+- After a resize the status line was drawn only from where it differed
+  from the one drawn before, and the head with the version stayed
+  blank on the rebuilt line.
+
 + FGHI URLs, the FTN hypertext scheme: "area://ECHO?msgid=2:5020/1+12345678"
   in a message text is recognised as a URL (highlighted with
   HIGHLIGHTURLS, listed by READpeekurls) and, chosen from the list, is

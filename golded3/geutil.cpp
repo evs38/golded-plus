@@ -38,15 +38,30 @@ extern GPickArealist* PickArealist;
 
 //  ------------------------------------------------------------------
 
-void update_statuslines()
-{
 //  The status line is WIDE screen columns; a column can take several
 //  bytes, so the buffers holding it are sized for the worst case.
 # define BUFSIZE 800
 # define BUFLEN  799
+
+//  The line as drawn last, so that only what changed is drawn again.
+static char old_status_line[BUFSIZE] = "";
+
+
+//  Forget it: the status window is about to be rebuilt for a new
+//  screen size, blank, and the line has to be drawn whole again.
+//  Compared with what was drawn before, only the tail that changed
+//  with the width was, and the head - the version - stayed blank.
+
+void update_statusline_forget()
+{
+    *old_status_line = NUL;
+}
+
+
+void update_statuslines()
+{
     char buf[BUFSIZE]="";    /* FIXME: it is need to use dynamic arrays in this fuction to prevent buffer overflow or screen garbage */
     char * const buf_end = buf+BUFLEN;
-    static char old_status_line[BUFSIZE] = "";
     char * const old_status_line_end = old_status_line+BUFLEN;
     static int called = NO;
     const int WIDE= BUFLEN>MAXCOL? MAXCOL : BUFLEN;
