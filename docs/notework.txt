@@ -646,6 +646,13 @@ ______________________________________________________________________
   a program they are Windows 8, and "6.2" went into the tearline and
   the PID kludge on every newer Windows.
 
+- After a run of window resizes on a curses build - a phone pinched a
+  dozen times a minute - the reader stopped taking keys and sat until
+  the screen blanker took it. A KEY_RESIZE for a size the screen had
+  already been laid out for (the timer tick had seen it first) was
+  answered as no key but pushed back into the queue, where it stood in
+  front of every real key for good. It is taken out instead.
+
 - On the Windows console a resize of the window was noticed only with
   the next message: the probe that asks whether a key is waiting took
   the console's resize event out of the queue, and the read that

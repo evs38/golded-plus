@@ -2118,7 +2118,19 @@ gkey kbxget_raw(eKeyModes mode)
             if(gkbd_resize_real())
                 gkbd.resize_pending = true;
             else
-                k = 0;
+            {
+                //  A KEY_RESIZE for the size already held - the timer
+                //  tick saw the new size first and the screen has been
+                //  laid out for it - is nothing, and is taken out of the
+                //  queue. Pushed back like a key that is only being
+                //  looked at, it stood in front of every real key for
+                //  good: each look found "no key", the keys behind it
+                //  were never read, and the reader sat idle until the
+                //  screen blanker took it - after a run of resizes on a
+                //  phone, where the window is pinched a dozen times a
+                //  minute.
+                return 0;
+            }
         }
     }
     else if(key == '\015')
