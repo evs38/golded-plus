@@ -74,23 +74,45 @@ static bool reader_views_open = false;
 
 void ReaderResize()
 {
-    bool had_views = reader_views_open;
-    if(had_views)
+    if(reader_views_open)
     {
         HeaderView->Destroy();
         BodyView->Destroy();
     }
 
+    //  Lays the screen out for the new size and opens the views again
+    //  on it - see ReaderViewsRelayout().
     ScreenResized(true);
+}
 
-    if(had_views)
-    {
-        HeaderView->width  = MAXCOL;
-        HeaderView->Create();
-        BodyView->width    = MAXCOL;
-        BodyView->height   = MAXROW - 6 - 1;
-        BodyView->Create();
-    }
+
+//  ------------------------------------------------------------------
+//  Called by ScreenResized(), after every window has been closed and
+//  the background rebuilt: the reader's two views, when the reader
+//  has them open, are opened again for the new size.
+//
+//  Whoever took the resize - the reader itself, the editor above it, a
+//  list - ScreenResized() closes every window on the stack with
+//  wcloseall(), the views' among them; the view objects still held
+//  their window records, freed, and closed them a second time on the
+//  next resize (or painted into them when the editor returned), which
+//  is what crashed a phone after a few minutes of pinching the screen
+//  while writing. The records are forgotten and the views recreated
+//  here, once, whatever the caller.
+
+void ReaderViewsRelayout()
+{
+    if(not reader_views_open)
+        return;
+
+    HeaderView->Forget();
+    BodyView->Forget();
+
+    HeaderView->width  = MAXCOL;
+    HeaderView->Create();
+    BodyView->width    = MAXCOL;
+    BodyView->height   = MaxV((int)MAXROW - 6 - 1, 1);
+    BodyView->Create();
 }
 
 
@@ -278,7 +300,7 @@ void Reader()
 
         BodyView->at_row          = 6;
         BodyView->width           = MAXCOL;
-        BodyView->height          = MAXROW - 6 - 1;
+        BodyView->height          = MaxV((int)MAXROW - 6 - 1, 1);
         BodyView->border_color    = C_READB;
         BodyView->window_color    = C_READW;
         BodyView->scrollbar_color = C_READPB;
@@ -1717,7 +1739,10 @@ void GotoReplies()
     int selected = 0;
     if(replies > 1)
     {
-        uint maxname2 = MAXCOL-16-maxmsgno-maxaddr-maxwritten;
+        //  Signed: on a narrow screen the room for the name is nothing,
+        //  not four billion columns.
+        int _room = (int)MAXCOL-16-(int)maxmsgno-(int)maxaddr-(int)maxwritten;
+        uint maxname2 = (_room > 1) ? (uint)_room : 1;
         maxname = MinV(maxname, maxname2);
         gstrarray listr;
 

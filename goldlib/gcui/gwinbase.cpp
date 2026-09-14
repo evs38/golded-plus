@@ -146,6 +146,13 @@ int wopen(int srow, int scol, int erow, int ecol, int btype, vattr battr, vattr 
 
     if (ecol >= gvid->numcols)
         ecol = gvid->numcols - 1;
+    //  Rows as well: a window laid out for a taller screen - the body
+    //  view under the header on a screen of six rows - asked vsave()
+    //  for rows the screen does not have, and curses read past its
+    //  buffer. Cut to the screen, and refused below when nothing of it
+    //  is left.
+    if (erow >= (int)gvid->numrows)
+        erow = (int)gvid->numrows - 1;
 
     // see if window is to have a border
     int border = (btype==5) ? NO : YES;

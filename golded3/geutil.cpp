@@ -366,7 +366,10 @@ void w_progress(int mode, vattr attr, long pos, long size, const char* title)
 oops:
         if(wh == -1)
         {
-            wh = wopen_(inforow, ((MAXCOL-63)/2)-1, 3, 63, W_BINFO, C_INFOB, C_INFOW);
+            //  Centred when it fits; on a narrower screen it starts at
+            //  the left edge and is as wide as the screen. MAXCOL is
+            //  unsigned, and (MAXCOL-63)/2 wrapped below 63 columns.
+            wh = wopen_(inforow, MaxV(((int)MAXCOL-63)/2-1, 0), 3, MinV(63, (int)MAXCOL), W_BINFO, C_INFOB, C_INFOW);
             set_title(title, TCENTER, C_INFOT);
             title_shadow();
             goto force_update;

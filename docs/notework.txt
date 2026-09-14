@@ -653,6 +653,17 @@ ______________________________________________________________________
   answered as no key but pushed back into the queue, where it stood in
   front of every real key for good. It is taken out instead.
 
+- A window that does not fit the screen is not opened, and the object
+  standing for it then took whatever window was on top for its own: on
+  a resize of the editor the header view's window, which the editor's
+  next resize freed out from under it. A small screen crashed the
+  editor that way. The object now knows it has no window. The editor's
+  own row and column counts, unsigned, wrapped on a screen of fewer
+  than eight rows; and the info, ask, area list, nodelist, reply list
+  and file list windows did their arithmetic on the unsigned screen
+  width, which wrapped below sixty-three, eighty or thirty-six
+  columns. All of these are signed and clamped now.
+
 - On the Windows console a resize of the window was noticed only with
   the next message: the probe that asks whether a key is waiting took
   the console's resize event out of the queue, and the read that

@@ -67,6 +67,7 @@ public:
 
     void Create();
     void Destroy();
+    void Forget();
 
     void Paint();
 };
@@ -137,6 +138,7 @@ public:
 
     void Create();
     void Destroy();
+    void Forget();
 
     void Paint();
 

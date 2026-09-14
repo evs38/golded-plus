@@ -278,9 +278,10 @@ void NodelistBrowser::DisplayLine(int line)
 void NodelistBrowser::BuildListString(int line)
 {
 
-    int x1 = (MAXCOL-80)/3;
+    //  MAXCOL is unsigned; below 80 columns the difference wrapped.
+    int x1 = ((int)MAXCOL-80)/3;
     int x2 = x1;
-    int x3 = (MAXCOL-80) - (x1+x2);
+    int x3 = ((int)MAXCOL-80) - (x1+x2);
 
     ftn_nodelist_entry* entryp = entries + (line - 1);
     *entryp = NLP->entry();

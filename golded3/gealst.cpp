@@ -575,10 +575,15 @@ void SelMaskPick::Run()
 
     //  A window width in columns - sizeof(Desc) is bytes, and four
     //  times the columns it stands for since the type was widened.
-    DESC_LEN = MinV((int)(sizeof(Desc)/4), (int)(MAXCOL-6));
+    //  Signed before the subtraction: MAXCOL is unsigned, and on a
+    //  screen narrower than the window (MAXCOL-6) wrapped rather than
+    //  went negative.
+    DESC_LEN = MinV((int)(sizeof(Desc)/4), (int)MAXCOL-6);
+    if(DESC_LEN < 1)
+        DESC_LEN = 1;
 
-    ypos = (MAXROW-18)/2;
-    xpos = (MAXCOL-DESC_LEN-4)/2-1;
+    ypos = MaxV(((int)MAXROW-18)/2, 0);
+    xpos = MaxV(((int)MAXCOL-DESC_LEN-4)/2-1, 0);
     ylen = 16;
     xlen = DESC_LEN+2;
     btype = W_BMENU;

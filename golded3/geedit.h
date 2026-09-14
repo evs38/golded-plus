@@ -265,6 +265,7 @@ protected:
     int    win_minrow;     // First row
     int    win_maxcol;     // Last column
     int    win_maxrow;     // Last row
+    void   setwindowsize();
     int    win_border;     // Border type
     int    win_hasborder;  // 1 == window has a border, 0  == no border
 

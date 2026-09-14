@@ -386,8 +386,8 @@ void gfileselect::run(GMsg* cmsg)
 
     ypos    = 6;                                // Window Starting Row
     xpos    = 0;                                // Window Starting Column
-    ylen    = MAXROW - 9;                       // Window Height
-    xlen    = MAXCOL - 36;                      // Window Width
+    ylen    = MaxV((int)MAXROW - 9, 1);         // Window Height
+    xlen    = MaxV((int)MAXCOL - 36, 1);        // Window Width - unsigned MAXCOL wrapped below 36
     btype   = W_BMENU;                          // Window Border Type
     battr   = C_MENUB;                          // Window Border Color
     wattr   = C_MENUW;                          // Window Color
@@ -423,7 +423,7 @@ void FileSelect(GMsg* msg, char* title, FileSpec* fspec)
 
     char buf[256];
     Path fbuf;
-    uint MIN_POS=0, MAX_POS=MIN_POS+MAXROW-10;
+    uint MIN_POS=0, MAX_POS=MIN_POS+((MAXROW > 10) ? MAXROW-10 : 0);
     bool done, winop = false;
 
     selfiles = totfiles = 0;

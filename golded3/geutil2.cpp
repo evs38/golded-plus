@@ -38,7 +38,10 @@ int edit_string(char* buf, int buf_size, char* title, int helpcat)
 
     gwindow window;
 
-    window.openxy(inforow,((MAXCOL-63)/2)-1,3,63,W_BASK,C_ASKB,C_ASKW);
+    //  Centred when it fits; MAXCOL is unsigned and (MAXCOL-63)/2
+    //  wrapped on a screen narrower than the window.
+    int _wid = MinV(63, (int)MAXCOL);
+    window.openxy(inforow,MaxV(((int)MAXCOL-63)/2-1, 0),3,_wid,W_BASK,C_ASKB,C_ASKW);
     window.title(title, C_ASKT);
     if(CFG->switches.get(screenshadows))
         window.shadow(C_SHADOW);
@@ -47,7 +50,7 @@ int edit_string(char* buf, int buf_size, char* title, int helpcat)
 
     std::string buf2 = buf;
     iform.setup(C_ASKW, C_ASKW, C_ASKQ, _box_table(W_BASK, 13), true);
-    iform.add_field(0, 0, 1, 59, buf2, buf_size, gwinput::cvt_none, fieldupd);
+    iform.add_field(0, 0, 1, MaxV(_wid-4, 1), buf2, buf_size, gwinput::cvt_none, fieldupd);
     vcurshow();
     iform.run(helpcat);
     vcurhide();

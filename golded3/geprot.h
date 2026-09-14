@@ -533,6 +533,7 @@ void  update_statusline(const char* info);
 void  update_statuslinef(const char* format, const char *token, ...) __attribute__ ((format (printf, 1, 3)));
 void  update_statuslines();
 void  update_statusline_forget();
+void  ReaderViewsRelayout();
 void  w_info(const char* info=NULL);
 void  w_infof(const char* format, ...) __attribute__ ((format (printf, 1, 2)));
 void  w_progress(int mode, vattr attr, long pos, long size, const char* title);

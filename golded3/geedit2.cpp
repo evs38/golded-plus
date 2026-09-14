@@ -50,8 +50,7 @@ IEclass::IEclass(int __scol, int __ecol, int __srow, int __erow, int __border)
 
     mincol  = 0;
     minrow  = 0;
-    maxcol  = win_maxcol - win_mincol - (2*win_hasborder);
-    maxrow  = win_maxrow - win_minrow - (2*win_hasborder);
+    setwindowsize();
 
     col  = 0;
     row  = 0;
@@ -87,6 +86,23 @@ IEclass::~IEclass()
 
     throw_delete(Undo);
     windowclose();
+}
+
+
+//  ------------------------------------------------------------------
+//  The rows and columns the text has, from the window's corners. Both
+//  counts are unsigned: on a screen with fewer rows than the header
+//  and the status line take, win_maxrow lands above win_minrow and the
+//  difference wrapped to four billion rows - which a redraw then set
+//  out to paint. A screen that small leaves the editor one row and one
+//  column; the window itself is not opened there, and nothing wraps.
+
+void IEclass::setwindowsize()
+{
+    int _cols = win_maxcol - win_mincol - (2*win_hasborder);
+    int _rows = win_maxrow - win_minrow - (2*win_hasborder);
+    maxcol = (_cols > 0) ? _cols : 0;
+    maxrow = (_rows > 0) ? _rows : 0;
 }
 
 
@@ -260,19 +276,17 @@ void IEclass::rewrap()
 void IEclass::Resize()
 {
     windowclose();
-    HeaderView->Destroy();
 
+    //  Closes every window, the reader's views under this one among
+    //  them, and opens the views again for the new size.
     ScreenResized(true);
 
-    HeaderView->width = MAXCOL;
-    HeaderView->Create();
     HeaderView->Use(AA, msgptr);
     HeaderView->Paint();
 
     win_maxcol = MAXCOL - 1;
     win_maxrow = MAXROW - 2;
-    maxcol = win_maxcol - win_mincol - (2*win_hasborder);
-    maxrow = win_maxrow - win_minrow - (2*win_hasborder);
+    setwindowsize();
 
     int _oldtext = margintext;
     int _oldquotes = marginquotes;

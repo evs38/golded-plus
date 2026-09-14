@@ -207,6 +207,7 @@ public:
     void open();
     void close();
     void unlink();
+    void forget();
 
     void hide();
     void unhide();
@@ -335,8 +336,12 @@ inline void gwindow::open(int srow, int scol, int erow, int ecol, int style, vat
     border_lo_color = locolor;
     scrollbar_color = sbcolor;
 
-    wopen(srow, scol, erow, ecol, style, bcolor, wcolor, sbcolor, locolor);
-    wrec = gwin.active;
+    //  A window that does not fit the screen is not opened: wopen()
+    //  returns 0 and makes no record. Taking gwin.active for it then
+    //  aliased whichever window was on top - the header view's, on a
+    //  resize of the editor - and the next unlink() freed that one
+    //  out from under its owner.
+    wrec = wopen(srow, scol, erow, ecol, style, bcolor, wcolor, sbcolor, locolor) ? gwin.active : NULL;
 }
 
 
@@ -372,7 +377,7 @@ inline int gwindow::active()
 inline void gwindow::activate_quick()
 {
 
-    if(!active())
+    if(wrec and !active())
         wactiv_(wrec->whandle);
 }
 
@@ -396,7 +401,20 @@ inline void gwindow::close()
 inline void gwindow::unlink()
 {
 
-    wunlink(wrec->whandle);
+    if(wrec)
+        wunlink(wrec->whandle);
+    wrec = NULL;
+}
+
+
+//  ------------------------------------------------------------------
+//  The window is gone - closed behind this object's back, by
+//  wcloseall() when the screen is laid out again - and the record
+//  must not be touched again.
+
+inline void gwindow::forget()
+{
+
     wrec = NULL;
 }
 
@@ -416,7 +434,8 @@ inline void gwindow::hide()
 inline void gwindow::unhide()
 {
 
-    wunhide(wrec->whandle);
+    if(wrec)
+        wunhide(wrec->whandle);
 }
 
 
@@ -425,7 +444,7 @@ inline void gwindow::unhide()
 inline void gwindow::activate()
 {
 
-    if(!active())
+    if(wrec and !active())
         wactiv(wrec->whandle);
 }
 
@@ -435,7 +454,7 @@ inline void gwindow::activate()
 inline int gwindow::cursor_row()
 {
 
-    return wrec->row;
+    return wrec ? wrec->row : 0;
 }
 
 
@@ -444,7 +463,7 @@ inline int gwindow::cursor_row()
 inline int gwindow::cursor_column()
 {
 
-    return wrec->column;
+    return wrec ? wrec->column : 0;
 }
 
 
@@ -464,7 +483,8 @@ inline void gwindow::text_color(vattr color)
 inline void gwindow::set_scrollbar_color(vattr color)
 {
 
-    wrec->sbattr = color;
+    if(wrec)
+        wrec->sbattr = color;
     scrollbar_color = color;
 }
 

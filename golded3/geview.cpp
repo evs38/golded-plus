@@ -88,6 +88,16 @@ void GMsgHeaderView::Destroy()
 }
 
 
+//  The window was closed with every other when the screen was laid
+//  out again; see ReaderViewsRelayout().
+
+void GMsgHeaderView::Forget()
+{
+
+    window.forget();
+}
+
+
 //  ------------------------------------------------------------------
 
 void GMsgHeaderView::Use(Area *areaptr, GMsg *msgptr)
@@ -521,6 +531,13 @@ void GMsgBodyView::Destroy()
         window.close();
     else
         alive = false;
+}
+
+
+void GMsgBodyView::Forget()
+{
+
+    window.forget();
 }
 
 

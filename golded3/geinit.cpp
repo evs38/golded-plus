@@ -684,6 +684,7 @@ bool ScreenResized(bool force)
     wcloseall();
     update_statusline_forget();
     w_back();
+    ReaderViewsRelayout();
     whelpwin(0, 0, MAXROW-2, MAXCOL-1, W_BHELP, NO);
 
     gkbd.resize_pending = false;
