@@ -60,7 +60,11 @@ set(golded_SOURCES
   golded3.cpp
 )
 if (WIN32)
-  list(APPEND golded_SOURCES gedcyg.rc)
+  #  The manifest goes in as a source: CMake merges it into the
+  #  manifest the MSVC linker makes and binds it as a resource for
+  #  MinGW. gedres.rc, which binds it for GNU make and MSVC6, would
+  #  bind it twice here.
+  list(APPEND golded_SOURCES gedcyg.rc golded.manifest)
 endif()
 
 include_directories(../goldlib/gall ../goldlib/gcui ../goldlib/gmb3 ../goldlib/gcfg ../goldlib/smblib ../goldlib/uulib ../goldlib/glibc)

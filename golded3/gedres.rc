@@ -1,0 +1,10 @@
+/*  The resources of the Windows executable for the builds that bind
+    one resource file: the icon, and the application manifest as a
+    resource - type 24 is RT_MANIFEST, id 1 is the one an executable
+    is read for. See golded.manifest for what it says and why. The
+    GNU make and the MSVC6 builds take this file; CMake and Visual
+    Studio take gedcyg.rc and merge the .manifest file themselves.  */
+
+#include "gedcyg.rc"
+
+1 24 "golded.manifest"

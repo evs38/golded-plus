@@ -86,7 +86,7 @@ CLEAN :
 	-@erase "$(INTDIR)\gecmfd.obj"
 	-@erase "$(INTDIR)\gectnr.obj"
 	-@erase "$(INTDIR)\gectrl.obj"
-	-@erase "$(INTDIR)\gedcyg.res"
+	-@erase "$(INTDIR)\gedres.res"
 	-@erase "$(INTDIR)\gedoit.obj"
 	-@erase "$(INTDIR)\gedoss.obj"
 	-@erase "$(INTDIR)\geedit.obj"
@@ -168,7 +168,7 @@ CPP=cl.exe
 <<
 
 RSC=rc.exe
-RSC_PROJ=/l 0x409 /fo"$(INTDIR)\gedcyg.res" /d "NDEBUG" 
+RSC_PROJ=/l 0x409 /fo"$(INTDIR)\gedres.res" /d "NDEBUG" 
 BSC32=bscmake.exe
 BSC32_FLAGS=/nologo /o"$(OUTDIR)\golded.bsc" 
 BSC32_SBRS= \
@@ -232,7 +232,7 @@ LINK32_OBJS= \
 	"$(INTDIR)\geview.obj" \
 	"$(INTDIR)\gmarea.obj" \
 	"$(INTDIR)\golded3.obj" \
-	"$(INTDIR)\gedcyg.res" \
+	"$(INTDIR)\gedres.res" \
 	"$(OUTDIR)\goldlib.lib"
 
 "$(OUTDIR)\gedwin.exe" : "$(OUTDIR)" $(DEF_FILE) $(LINK32_OBJS)
@@ -592,20 +592,20 @@ SOURCE=..\golded3\golded3.cpp
 	$(CPP) $(CPP_PROJ) $(SOURCE)
 
 
-SOURCE=..\golded3\gedcyg.rc
+SOURCE=..\golded3\gedres.rc
 
 !IF  "$(CFG)" == "golded - Win32 Release"
 
 
-"$(INTDIR)\gedcyg.res" : $(SOURCE) "$(INTDIR)"
-	$(RSC) /l 0x409 /fo"$(INTDIR)\gedcyg.res" /i "\work\src\golded\golded3" /d "NDEBUG" $(SOURCE)
+"$(INTDIR)\gedres.res" : $(SOURCE) "$(INTDIR)"
+	$(RSC) /l 0x409 /fo"$(INTDIR)\gedres.res" /i "\work\src\golded\golded3" /d "NDEBUG" $(SOURCE)
 
 
 !ELSEIF  "$(CFG)" == "golded - Win32 Debug"
 
 
-"$(INTDIR)\gedcyg.res" : $(SOURCE) "$(INTDIR)"
-	$(RSC) /l 0x409 /fo"$(INTDIR)\gedcyg.res" /i "\work\src\golded\golded3" /d "_DEBUG" $(SOURCE)
+"$(INTDIR)\gedres.res" : $(SOURCE) "$(INTDIR)"
+	$(RSC) /l 0x409 /fo"$(INTDIR)\gedres.res" /i "\work\src\golded\golded3" /d "_DEBUG" $(SOURCE)
 
 
 !ENDIF 
