@@ -1397,19 +1397,7 @@ static bool gkbd_repeek(int* key)
 #define GOLD_CURSES_ESC_STUCK 1
 #endif
 
-#ifdef GOLD_CURSES_ESC_STUCK
-
-static bool   gkbd_esc_held  = false;   // curses is holding an Escape
-static double gkbd_esc_since = 0.0;     // since when
-static int    gkbd_esc_owed  = 0;       // Escapes reported ahead of curses
-
-static double gkbd_now()
-{
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return (double)tv.tv_sec + (double)tv.tv_usec / 1000000.0;
-}
-
+#if defined(__UNIX__)
 
 static bool gkbd_input_ready()
 {
@@ -1426,6 +1414,21 @@ static bool gkbd_input_ready()
 
 #endif
 
+#ifdef GOLD_CURSES_ESC_STUCK
+
+static bool   gkbd_esc_held  = false;   // curses is holding an Escape
+static double gkbd_esc_since = 0.0;     // since when
+static int    gkbd_esc_owed  = 0;       // Escapes reported ahead of curses
+
+static double gkbd_now()
+{
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (double)tv.tv_sec + (double)tv.tv_usec / 1000000.0;
+}
+
+#endif
+
 
 int gkbd_cursgetch(eKeyModes mode)
 {
@@ -1435,7 +1438,19 @@ int gkbd_cursgetch(eKeyModes mode)
 #ifdef GOLD_CURSES_ESC_STUCK
     bool _had_input = gkbd_input_ready();
 #endif
-#ifndef BUGGY_NCURSES
+#if defined(__UNIX__) && defined(__USE_WIDE_NCURSES__)
+    //  A look at the queue reads without waiting - and get_wch(), given
+    //  the first byte of a multibyte character with the rest not yet
+    //  arrived, gave up and threw that byte away: over a slow link,
+    //  where a character can come in pieces, every non-ASCII letter
+    //  typed was lost. When something is there to read, the read is
+    //  given the escape delay to finish the character; when nothing
+    //  is, it does not wait at all, as before.
+    if(mode == KeyMode_Wait)
+        nodelay(stdscr, FALSE);
+    else
+        wtimeout(stdscr, gkbd_input_ready() ? ESCDELAY : 0);
+#elif !defined(BUGGY_NCURSES)
     nodelay(stdscr, mode);
 #else
     wtimeout(stdscr, (mode != KeyMode_Wait) ? 0 : -1);

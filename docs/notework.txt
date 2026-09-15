@@ -657,6 +657,12 @@ ______________________________________________________________________
   kludge naming the 8-bit charset at level 2. A character the table
   does not have becomes '?'.
 
+- A character typed on a curses build was lost when its bytes reached
+  the terminal separately - over a slow link, a UTF-8 letter can come
+  in pieces. The probe that looks for a key read without waiting and
+  curses threw the first byte away; when there is something to read,
+  the read now gives the rest of the character the escape delay.
+
 - After a run of window resizes on a curses build - a phone pinched a
   dozen times a minute - the reader stopped taking keys and sat until
   the screen blanker took it. A KEY_RESIZE for a size the screen had
