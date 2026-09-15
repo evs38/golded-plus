@@ -13,6 +13,14 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- A build made with GOLD_UTF8 off, or against the 8-bit curses API,
+  and given XLATLOCALSET UTF-8 drew the letters right and everything
+  else wrong: the caret landed a cell to the right of every Cyrillic
+  letter typed, and a shorter line left the tail of the previous
+  message on screen behind it, because every column was counted in
+  bytes. Such a configuration is now reported as an error before the
+  screen starts, naming the build option that is missing.
+
 - A verification pass over the whole branch against the 8-bit build -
   GOLD_UTF8 off, plain curses - and against the documentation. What it
   caught, besides much smaller things: a message declaring CHRS IBMPC

@@ -180,6 +180,27 @@ bool ReadGoldedCfg()
     //  byte or as a UTF-8 sequence.
     g_set_local_charset(CFG->xlatlocalset);
 
+    //  A UTF-8 session needs a build that holds UTF-8 and a curses that
+    //  draws it. Without either the bytes still reach the screen - iconv
+    //  converts, the terminal assembles them - and the result looks
+    //  almost right: the letters are all there, only every column is
+    //  counted in bytes. The caret lands a cell to the right of each
+    //  letter typed, and behind a shorter line the tail of the previous
+    //  message stays on screen. Say so here, where complaints are read,
+    //  rather than have it reported as two bugs in the display.
+#if defined(__USE_NCURSES__) && (!defined(GOLD_UTF8) || !defined(__USE_WIDE_NCURSES__))
+    if(GRecoder::is_utf8(CFG->xlatlocalset))
+    {
+#if !defined(GOLD_UTF8)
+        STD_PRINTNL("* Warning: XLATLOCALSET " << CFG->xlatlocalset << " needs a build with UTF-8 support, and this one was built with GOLD_UTF8 off.");
+#else
+        STD_PRINTNL("* Warning: XLATLOCALSET " << CFG->xlatlocalset << " needs the wide-character curses API, and this build uses the 8-bit one (WIDE_NCURSES off).");
+#endif
+        STD_PRINTNL("  Rebuild with the default options, or set XLATLOCALSET to the 8-bit charset of the terminal.");
+        cfgerrors++;
+    }
+#endif
+
     //  Names and subjects in the configuration are cut to the standard
     //  field widths - Name is 36 bytes, Subj 72 - as each line is read,
     //  which is before the call above has said whether a character is
