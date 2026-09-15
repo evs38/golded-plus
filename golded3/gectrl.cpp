@@ -200,6 +200,23 @@ char* mime_header_encode(char* dest, const char* source, GMsg* msg)
                 s = temp_src;
             }
         }
+        else if (ChsTP and XlatTableReversed())
+        {
+            //  Through the reading table backwards, a UTF-8 character
+            //  at a time - see XlatReverseChar().
+            char* d = temp_src;
+            for(uint len = 0; *s and len + 1 < sizeof(temp_src); len++)
+            {
+                size_t avail = 0;
+                while(avail < (size_t)GUTF8_MAXLEN and s[avail] != NUL)
+                    avail++;
+                char out;
+                s += XlatReverseChar(s, avail, &out);
+                *(d++) = out;
+            }
+            *d = NUL;
+            s = temp_src;
+        }
         else if (ChsTP)
         {
             char chln, *d = temp_src;

@@ -533,6 +533,8 @@ void  update_statusline(const char* info);
 void  update_statuslinef(const char* format, const char *token, ...) __attribute__ ((format (printf, 1, 3)));
 void  update_statuslines();
 void  update_statusline_forget();
+bool   XlatTableReversed();
+size_t XlatReverseChar(const char* p, size_t avail, char* out);
 void  ReaderViewsRelayout();
 void  w_info(const char* info=NULL);
 void  w_infof(const char* format, ...) __attribute__ ((format (printf, 1, 2)));

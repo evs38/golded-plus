@@ -646,6 +646,17 @@ ______________________________________________________________________
   a program they are Windows 8, and "6.2" went into the tearline and
   the PID kludge on every newer Windows.
 
++ A charset that only a *.CHS table knows can be written from a UTF-8
+  session. A table maps one byte to up to three, so it reads such a
+  charset into UTF-8 but cannot take a UTF-8 character as its input;
+  a UTF-8 session with XLATEXPORT naming a table charset found no way
+  to convert and wrote UTF-8. The table that reads the charset (CP895
+  to UTF-8, say) is now enough: read backwards, each of its entries is
+  one character and the byte it stands for, and the text, the header
+  fields and the encoded-word headers go out through it, with the
+  kludge naming the 8-bit charset at level 2. A character the table
+  does not have becomes '?'.
+
 - After a run of window resizes on a curses build - a phone pinched a
   dozen times a minute - the reader stopped taking keys and sat until
   the screen blanker took it. A KEY_RESIZE for a size the screen had

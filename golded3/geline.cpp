@@ -39,6 +39,7 @@
 #include <grecode.h>
 #include <gutf8.h>
 #include <vector>
+#include <map>
 
 
 
@@ -766,6 +767,10 @@ namespace
 
 int current_table = -1;
 
+
+
+
+
 const int BODYLINE = 0;
 const int HEADERLINE = 1;
 const int USERDEFINED = 2;
@@ -1110,6 +1115,51 @@ static const Kludges rfc_list[] =
 };
 
 } // namespace
+
+
+//  ------------------------------------------------------------------
+//  A table read the other way.
+//
+//  A *.CHS table maps one byte of an 8-bit charset to up to three
+//  bytes - one character of UTF-8, when that is what it maps to - and
+//  so it can be read only in that direction: it cannot take a UTF-8
+//  character, which is several bytes, as its input. A UTF-8 session
+//  writing a charset that only a table knows had no way to convert,
+//  and fell back to writing UTF-8. But the same table, read backwards,
+//  is exactly the conversion wanted: each of its 128 entries is one
+//  codepoint and the byte it stands for. That map is built here when
+//  the writing direction is asked for and only the reading table
+//  exists, and the three places that convert through a table take a
+//  whole UTF-8 character from the text while it is in force.
+
+static std::map<uint32_t, unsigned char> ChsReverse;
+static bool ChsReverseOn = false;
+
+bool XlatTableReversed()
+{
+    return ChsReverseOn;
+}
+
+//  One UTF-8 character at p (at most 'avail' bytes) into the one byte
+//  the table maps to it - ASCII as it is, an unmapped character as
+//  '?'. Returns the bytes taken from p.
+size_t XlatReverseChar(const char* p, size_t avail, char* out)
+{
+    int used = 1;
+    uint32_t cp = g_utf8_decode(p, p + avail, &used);
+    if(used <= 0)
+        used = 1;
+
+    if(cp < 0x80)
+        *out = (char)cp;
+    else
+    {
+        std::map<uint32_t, unsigned char>::const_iterator it = ChsReverse.find(cp);
+        *out = (it != ChsReverse.end()) ? (char)it->second : '?';
+    }
+    return (size_t)used;
+}
+
 
 char* mime_header_decode(char* decoded, const char* encoded, char *charset)
 {
@@ -2801,6 +2851,17 @@ static uint RecodeChar(char*& ptr, char*& bp, int level, GRecoder* recoder)
 
     if((level > 0) and ChsTP)
     {
+        if(ChsReverseOn)
+        {
+            size_t avail = 0;
+            while(avail < (size_t)GUTF8_MAXLEN and ptr[avail] != NUL)
+                avail++;
+            char out;
+            ptr += XlatReverseChar(ptr, avail, &out);
+            *(++bp) = out;
+            return 1;
+        }
+
         const char* tptr = (const char*)ChsTP[(byte)*ptr++];
         char chln = *tptr++;
         char* start = bp + 1;
@@ -3006,6 +3067,18 @@ std::string XlatStr(const char* src, int level, Chs* chrtbl, GRecoder* recoder, 
             goto defaultchardo;
 
         default:
+            if(ChsReverseOn and (level > 0) and chrs and not recoder and ((byte)*sptr >= 0x80))
+            {
+                //  Backwards through the table: a whole UTF-8 character
+                //  at a time, not the byte the forward table is indexed by.
+                size_t avail = 0;
+                while(avail < (size_t)GUTF8_MAXLEN and sptr[avail] != NUL)
+                    avail++;
+                char out;
+                sptr += XlatReverseChar(sptr, avail, &out);
+                result += out;
+                break;
+            }
 defaultchardo:
             dochar = *sptr++;
 chardo:
@@ -3017,10 +3090,19 @@ chardo:
                 pending += dochar;
             else if ((level > 0) && chrs)
             {
-                const char* tptr = (const char*)chrs[(byte)dochar];
-                char clen = *tptr++;
-                while(clen--)
-                    result += *tptr++;
+                if(ChsReverseOn)
+                {
+                    //  A lone high byte here is not a character of the
+                    //  UTF-8 text; the forward entries mean nothing to it.
+                    result += ((byte)dochar >= 0x80) ? '?' : dochar;
+                }
+                else
+                {
+                    const char* tptr = (const char*)chrs[(byte)dochar];
+                    char clen = *tptr++;
+                    while(clen--)
+                        result += *tptr++;
+                }
             }
             else
             {
@@ -4570,6 +4652,10 @@ char *ExtractPlainCharset(const char *encoding)
 
 static bool LoadCharTable(int index)
 {
+    //  Whatever is loaded now is loaded forwards.
+    ChsReverseOn = false;
+    ChsReverse.clear();
+
     if (index < 0)
     {
         // No conversion case.
@@ -4708,6 +4794,43 @@ int LoadCharset(const char* imp, const char* exp)
             {
                 return CharTable->level;
             }
+        }
+    }
+
+    //  Writing from UTF-8 into a charset only a table knows: the table
+    //  that reads it into UTF-8, backwards - see ChsReverse above.
+    if(impCharset == "UTF-8")
+    {
+        ChrsMap::iterator revIt = CFG->xlatcharsets.find(ImpExp(expCharset, impCharset));
+        int revIndex = (revIt != CFG->xlatcharsets.end()) ? (int)g_distance(CFG->xlatcharsets.begin(), revIt) : -1;
+        //  Already in force, read backwards: leave it.
+        if(revIndex >= 0 and ChsReverseOn and revIndex == current_table)
+            return 2;
+        if(revIndex >= 0 and CheckCharset(revIndex))
+        {
+            ChsReverse.clear();
+            for(int b = 0x80; b < 256; b++)
+            {
+                const byte* t = CharTable->t[b];
+                int len = t[0];
+                if(len < 1 or len > 3)
+                    continue;
+                int used = 0;
+                uint32_t cp = g_utf8_decode((const char*)t + 1, (const char*)t + 1 + len, &used);
+                if(used == len and cp >= 0x80 and ChsReverse.find(cp) == ChsReverse.end())
+                    ChsReverse[cp] = (unsigned char)b;
+            }
+            //  The loaded copy now stands for the other direction: the
+            //  8-bit charset is what comes out, at the single-byte level.
+            XlatName _from;
+            strxcpy(_from, CharTable->imp, sizeof(_from));
+            strxcpy(CharTable->imp, impCharset.c_str(), sizeof(CharTable->imp));
+            gsprintf(PRINTF_DECLARE_BUFFER(CharTable->exp), "%s 2", _from);
+            CharTable->level = 2;
+            CharTable->displaylevel = 2;
+            ChsReverseOn = true;
+            LOG.printf("+ Writing %s through the %s -> %s table read backwards", expCharset.c_str(), _from, impCharset.c_str());
+            return 2;
         }
     }
 
