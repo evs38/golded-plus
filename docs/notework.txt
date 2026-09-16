@@ -13,6 +13,11 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- Leaving a help page that had cross-references with Esc read a freed
+  key binding: the help's own Esc handler detaches that binding, and
+  the key reader looked at the record again after the handler had
+  returned.
+
 - The message hexdump (READtogglehexdump) of a Squish, Hudson, Ezycom,
   Wildcat, AdeptXBBS, PCBoard, Synchronet or *.MSG message read past
   the header: the last, partial line was dumped as a full sixteen and

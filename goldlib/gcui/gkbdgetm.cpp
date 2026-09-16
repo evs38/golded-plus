@@ -313,13 +313,23 @@ gkey getxch(int __tick)
 
         if(not blanked)
         {
+            //  What to hand back is read before the function runs: the
+            //  function may detach the very binding it was called for -
+            //  the help's Esc handler does, through setonkey() from a
+            //  nested read - and the record is freed by the time it
+            //  returns.
             KBnd* _onkey = gkbd.onkey;
+            bool  _hit   = false;
+            gkey  _pass  = 0;
             while(_onkey)
             {
                 if(_onkey->keycode == k)
                 {
+                    _hit  = true;
+                    _pass = _onkey->pass;
                     gkbd.curronkey = _onkey;
                     kbd_call_func(_onkey->func);
+                    gkbd.curronkey = NULL;
 #ifdef GOLD_MOUSE
                     if(gkbd.inmenu and gmou.FreeCursor())
                         return 0;
@@ -328,12 +338,12 @@ gkey getxch(int __tick)
                 }
                 _onkey = _onkey->prev;
             }
-            if(_onkey)
+            if(_hit)
             {
-                if(not _onkey->pass or (_onkey->pass >= 0xFE00))
+                if(not _pass or (_pass >= 0xFE00))
                     k = 0;
                 else
-                    k = _onkey->pass;
+                    k = _pass;
             }
             else
             {
