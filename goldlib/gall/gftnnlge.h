@@ -106,6 +106,11 @@ protected:
 
     _GEIdx   current;
 
+    //  Bytes per record in goldnode.gxn: sizeof(_GEIdx) for an index
+    //  GoldNODE wrote with this layout, the older 48 for one written
+    //  before the name field grew - see open().
+    size_t   recsize;
+
     long     node;
     long     maxnode;
 

@@ -13,6 +13,13 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- A nodelist index compiled by an older GoldNODE was refused - its
+  records are shorter, the name field grew from 36 bytes to 80 when
+  text went UTF-8 - and every lookup answered "Unable to access the
+  nodelist or index files" until the nodelist was recompiled. Such an
+  index is read as it is now, without a word, until the next compile
+  writes the new layout.
+
 - On a terminal wider than 325 columns the reader died on opening any
   message: the header's name field was copied with four bytes a
   column into a buffer of 1301, and strncpy() wrote past its end.

@@ -31,6 +31,7 @@
 #include <gstrall.h>
 #include <gftnnlge.h>
 #include <stdlib.h>
+#include <stddef.h>
 
 //  ------------------------------------------------------------------
 
@@ -170,8 +171,12 @@ void ftn_golded_nodelist_index::getnode()
             seekto = nseekto;
         }
     }
-    lseekset(fhn, seekto*(long)sizeof(_GEIdx));
-    read(fhn, &current, sizeof(_GEIdx));
+    //  A record of the older, shorter layout fills the first 48 bytes
+    //  of current - pos, addr and the first 36 of the name - and the
+    //  rest of the name has to be clear.
+    memset(&current, 0, sizeof(current));
+    lseekset(fhn, seekto*(long)recsize);
+    read(fhn, &current, recsize);
 }
 
 
@@ -351,6 +356,7 @@ ftn_golded_nodelist_index::ftn_golded_nodelist_index()
     nodelists = 0;
     lastfileno = -1;
     isopen = false;
+    recsize = sizeof(_GEIdx);
 }
 
 
@@ -409,42 +415,64 @@ bool ftn_golded_nodelist_index::open()
     }
     fclose(fp);
 
-    //  An index written by a build with a different _GEIdx would be
-    //  read as garbage - every record at the wrong offset - so check
-    //  that the file divides into whole records before believing it.
-    //  Divisibility alone is not proof: 48-byte records divide into
-    //  92-byte ones whenever their count is a multiple of 23. So read
-    //  the first record too and require its name to look like one -
-    //  NUL-padded text - which reinterpreted binary never does.
-    if(filelength(fhn) % (long)sizeof(_GEIdx))
+    //  The record is the file format, and it changed once: the name
+    //  field grew from 36 bytes to 80 when text went UTF-8, 48 bytes a
+    //  record to 92. An index GoldNODE wrote before that is still a
+    //  good index - shorter records, shorter names, nothing else
+    //  differs - so it is read as it is, without a word, until the
+    //  next compile writes the new layout. Which layout a file has is
+    //  told by the two files together: goldnode.gxa holds one entry,
+    //  two or four bytes, per record of goldnode.gxn, so the record
+    //  size is the one that makes the counts agree. Divisibility alone
+    //  would not do: 48-byte records divide into 92-byte ones whenever
+    //  their count is a multiple of 23. The first name is looked at
+    //  as well and has to be NUL-padded text, which reinterpreted
+    //  binary never is.
     {
-        close();
-        return false;
-    }
-    if(filelength(fhn) >= (long)sizeof(_GEIdx))
-    {
-        _GEIdx _probe;
-        lseek(fhn, 0, SEEK_SET);
-        if(read(fhn, &_probe, sizeof(_probe)) != (int)sizeof(_probe))
+        static const size_t legacysize = offsetof(_GEIdx, name) + 36;
+        long nlen = filelength(fhn);
+        long alen = filelength(fha);
+
+        recsize = 0;
+        if(nlen == 0)
+            recsize = sizeof(_GEIdx);
+
+        const size_t sizes[2] = { sizeof(_GEIdx), legacysize };
+        for(int s = 0; (s < 2) and (recsize == 0); s++)
         {
-            close();
-            return false;
+            long rs = (long)sizes[s];
+            if(nlen % rs)
+                continue;
+            long count = nlen / rs;
+            if((count != alen / (long)sizeof(word)) and (count != alen / (long)sizeof(dword)))
+                continue;
+
+            char probe[sizeof(_GEIdx)];
+            memset(probe, 0, sizeof(probe));
+            lseek(fhn, 0, SEEK_SET);
+            if(read(fhn, probe, sizes[s]) != (int)sizes[s])
+                continue;
+
+            const char* nm = probe + offsetof(_GEIdx, name);
+            size_t nsz = sizes[s] - offsetof(_GEIdx, name);
+            bool sane = false;
+            for(size_t i = 0; i < nsz; i++)
+            {
+                byte b = (byte)nm[i];
+                if(b == 0)
+                {
+                    sane = true;        // terminated within the field
+                    break;
+                }
+                if(b < ' ')
+                    break;              // control bytes are not a name
+            }
+            if(sane)
+                recsize = sizes[s];
         }
         lseek(fhn, 0, SEEK_SET);
 
-        bool _sane = false;
-        for(size_t _i = 0; _i < sizeof(_probe.name); _i++)
-        {
-            byte _b = (byte)_probe.name[_i];
-            if(_b == 0)
-            {
-                _sane = true;       // terminated within the field
-                break;
-            }
-            if(_b < ' ')
-                break;              // control bytes are not a name
-        }
-        if(not _sane)
+        if(recsize == 0)
         {
             close();
             return false;
@@ -452,7 +480,7 @@ bool ftn_golded_nodelist_index::open()
     }
 
     maxnode = filelength(fha) / sizeof(word);
-    if(filelength(fhn) / sizeof(_GEIdx) < (size_t)maxnode)
+    if(filelength(fhn) / recsize < (size_t)maxnode)
     {
         maxnode = filelength(fha) / sizeof(dword);
         index32 = true;
