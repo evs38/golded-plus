@@ -13,6 +13,10 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- Writing a message to a file ran the template with the message as
+  its own original and copied two fields onto themselves, which the
+  C library's strcpy() is not defined for and a sanitizer stops on.
+
 - Leaving a help page that had cross-references with Esc read a freed
   key binding: the help's own Esc handler detaches that binding, and
   the key reader looked at the record again after the handler had

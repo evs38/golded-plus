@@ -361,17 +361,28 @@ int TemplateToText(int mode, GMsg* msg, GMsg* oldmsg, const char* tpl, int origa
     else
         *(msg->pseudofrom) = NUL;
 
+    //  Writing a message to a file runs the template with the message
+    //  as its own original, and two of the copies below then go from a
+    //  field onto itself - which is nothing to do, and which strcpy()
+    //  is not defined for.
+
     // build @dpseudo
     if(msg->to_me())
         strcpy(oldmsg->pseudoto, msg->pseudofrom);
     else if(msg->to_you())
-        strcpy(oldmsg->pseudoto, msg->pseudoto);
+    {
+        if(oldmsg->pseudoto != msg->pseudoto)
+            strcpy(oldmsg->pseudoto, msg->pseudoto);
+    }
     else
         *(oldmsg->pseudoto) = NUL;
 
     // build @opseudo
     if(msg->by_me())
-        strcpy(oldmsg->pseudofrom, msg->pseudofrom);
+    {
+        if(oldmsg->pseudofrom != msg->pseudofrom)
+            strcpy(oldmsg->pseudofrom, msg->pseudofrom);
+    }
     else if(msg->by_you())
         strcpy(oldmsg->pseudofrom, msg->pseudoto);
     else
