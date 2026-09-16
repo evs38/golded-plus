@@ -13,6 +13,10 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- A menu whose window did not fit on the screen - the "Goto next
+  area?" box on a terminal of four rows - was dropped without being
+  freed: its items and the menu record leaked each time.
+
 - Writing a message to a file ran the template with the message as
   its own original and copied two fields onto themselves, which the
   C library's strcpy() is not defined for and a sanitizer stops on.

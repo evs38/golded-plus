@@ -1001,7 +1001,14 @@ int wmenuget()
         w=whandle();
         hide_mouse_cursor_mnu();
         if(!wopen(gwin.cmenu->srow,gwin.cmenu->scol,gwin.cmenu->erow,gwin.cmenu->ecol,gwin.cmenu->btype,gwin.cmenu->battr,gwin.cmenu->wattr,gwin.cmenu->sbattr,gwin.cmenu->loattr))
+        {
+            //  No room for the window - a screen of four rows and the
+            //  "next area?" box laid out for row six. The menu records
+            //  are still ours: drop them as every other way out does,
+            //  or each such menu leaks its items and itself.
+            pre_exit(w,NO);
             return -1;
+        }
         if(gwin.cmenu->shadattr != DEFATTR)
             wshadow(gwin.cmenu->shadattr);
         if(gwin.cmenu->title and *gwin.cmenu->title)
