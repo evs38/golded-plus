@@ -163,6 +163,14 @@ void Cleanup(void)
         //  The views close their own windows; that has to come before
         //  every window is closed below, or they close a record that
         //  wcloseall() has already freed.
+#if defined(GOLD_IMAGES)
+        //  The pictures of the last message shown: the rows put into
+        //  the body view's index in their place were freed on every
+        //  change of message and never on the way out, which a leak
+        //  checker reports as a screenful of lost lines; and a kitty
+        //  keeps what it was sent until told otherwise.
+        ReadImagesScreenReset();
+#endif
         throw_xdelete(BodyView);
         throw_xdelete(HeaderView);
 

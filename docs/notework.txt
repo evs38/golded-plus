@@ -18,7 +18,9 @@ ______________________________________________________________________
   iTerm2's name into a screen session, and the multiplexer relays the
   queries - and the picture bytes came out as text all over the
   screen. Inside a multiplexer auto now draws nothing; a set-up that
-  passes pictures through says so with IMAGEPROTOCOL.
+  passes pictures through says so with IMAGEPROTOCOL. The rows put
+  into the body view in place of the last message's pictures were
+  never freed on exit.
 
 - A nodelist index compiled by an older GoldNODE was refused - its
   records are shorter, the name field grew from 36 bytes to 80 when
