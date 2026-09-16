@@ -13,6 +13,12 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- The message hexdump (READtogglehexdump) of a Squish, Hudson, Ezycom,
+  Wildcat, AdeptXBBS, PCBoard, Synchronet or *.MSG message read past
+  the header: the last, partial line was dumped as a full sixteen and
+  the remainder once more from beyond the end. Whole lines, then the
+  remainder, once.
+
 - Pictures inside screen or tmux: with IMAGEPROTOCOL auto GoldED took
   the outer terminal's word for what it could draw - ssh carries
   iTerm2's name into a screen session, and the multiplexer relays the

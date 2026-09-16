@@ -95,7 +95,8 @@ Line* EzycomArea::make_dump_msg(Line*& lin, gmsg* msg, char* lng_head)
 
     uint _count = 0;
     char* _ptr = (char*)&_hdr;
-    while(_count < sizeof(EzycHdr))
+    //  Whole lines, then the remainder - see the Squish dump.
+    while(_count + 16 <= sizeof(EzycHdr))
     {
         sprintf(buf, "%04X   ", _count);
         HexDump16(buf+7, _ptr, 16, HEX_DUMP2);
@@ -103,9 +104,12 @@ Line* EzycomArea::make_dump_msg(Line*& lin, gmsg* msg, char* lng_head)
         _count += 16;
         _ptr += 16;
     }
-    sprintf(buf, "%04X   ", _count);
-    HexDump16(buf+7, _ptr, sizeof(EzycHdr)%16, HEX_DUMP2);
-    line = AddLine(line, buf);
+    if(sizeof(EzycHdr) % 16)
+    {
+        sprintf(buf, "%04X   ", _count);
+        HexDump16(buf+7, _ptr, sizeof(EzycHdr)%16, HEX_DUMP2);
+        line = AddLine(line, buf);
+    }
 
     GFTRK(0);
 

@@ -1209,7 +1209,8 @@ Line* SMBArea::make_dump_msg(Line*& lin, gmsg* msg, char* lng_head)
 
     int _count = 0;
     char* _ptr = (char*)&smsg.hdr;
-    while(_count < sizeof(msghdr_t))
+    //  Whole lines, then the remainder - see the Squish dump.
+    while(_count + 16 <= (int)sizeof(msghdr_t))
     {
         sprintf(buf, "%04X   ", _count);
         HexDump16(buf+7, _ptr, 16, HEX_DUMP2);
@@ -1217,9 +1218,12 @@ Line* SMBArea::make_dump_msg(Line*& lin, gmsg* msg, char* lng_head)
         _count += 16;
         _ptr += 16;
     }
-    sprintf(buf, "%04X   ", _count);
-    HexDump16(buf+7, _ptr, sizeof(msghdr_t)%16, HEX_DUMP2);
-    line = AddLine(line, buf);
+    if(sizeof(msghdr_t) % 16)
+    {
+        sprintf(buf, "%04X   ", _count);
+        HexDump16(buf+7, _ptr, sizeof(msghdr_t)%16, HEX_DUMP2);
+        line = AddLine(line, buf);
+    }
 
     uint16_t xlat;
     uint8_t  *inbuf;

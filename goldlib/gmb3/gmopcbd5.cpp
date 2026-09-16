@@ -163,10 +163,17 @@ Line* PcbArea::make_dump_msg(Line*& lin, gmsg* __msg, char* lng_head)
 
     char _buf[256];
     char* _ptr = (char*)&_hdr;
-    for(n=0; n < sizeof(PcbHdr); _ptr+=16,n+=16)
+    //  Whole lines, then the remainder - see the Squish dump.
+    for(n=0; n + 16 <= (int)sizeof(PcbHdr); _ptr+=16,n+=16)
     {
         sprintf(_buf, "%04X   ", n);
         HexDump16(_buf+7, _ptr, 16, HEX_DUMP2);
+        line = AddLine(line, _buf);
+    }
+    if(sizeof(PcbHdr) % 16)
+    {
+        sprintf(_buf, "%04X   ", n);
+        HexDump16(_buf+7, _ptr, sizeof(PcbHdr)%16, HEX_DUMP2);
         line = AddLine(line, _buf);
     }
 

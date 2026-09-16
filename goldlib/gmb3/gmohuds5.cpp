@@ -123,15 +123,19 @@ Line* _HudsArea<msgn_t, rec_t, attr_t, board_t, last_t, __HUDSON>::make_dump_msg
 
     int _count = 0;
     char* _ptr = (char*)&_hdr;
-    for (; _count < sizeof(HudsHdr); _ptr+=16,_count+=16)
+    //  Whole lines, then the remainder - see the Squish dump.
+    for (; _count + 16 <= (int)sizeof(HudsHdr); _ptr+=16,_count+=16)
     {
         gsprintf(PRINTF_DECLARE_BUFFER(buf), "%04X   ", _count);
         HexDump16(buf+7, _ptr, 16, HEX_DUMP2);
         line = AddLine(line, buf);
     }
-    gsprintf(PRINTF_DECLARE_BUFFER(buf), "%04X   ", _count);
-    HexDump16(buf+7, _ptr, sizeof(HudsHdr)%16, HEX_DUMP2);
-    line = AddLine(line, buf);
+    if(sizeof(HudsHdr) % 16)
+    {
+        gsprintf(PRINTF_DECLARE_BUFFER(buf), "%04X   ", _count);
+        HexDump16(buf+7, _ptr, sizeof(HudsHdr)%16, HEX_DUMP2);
+        line = AddLine(line, buf);
+    }
 
     GFTRK(0);
 

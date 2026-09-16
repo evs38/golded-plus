@@ -113,15 +113,19 @@ Line* WCatArea::make_dump_msg(Line*& lin, gmsg* msg, char* lng_head)
 
     int _count;
     char* _ptr = (char*)&_hdr;
-    for(_count=0; _count<sizeof(WCatHdr); _ptr+=16,_count+=16)
+    //  Whole lines, then the remainder - see the Squish dump.
+    for(_count=0; _count+16<=(int)sizeof(WCatHdr); _ptr+=16,_count+=16)
     {
         sprintf(buf, "%04X   ", _count);
         HexDump16(buf+7, _ptr, 16, HEX_DUMP2);
         line = AddLine(line, buf);
     }
-    sprintf(buf, "%04X   ", _count);
-    HexDump16(buf+7, _ptr, 14, HEX_DUMP2);
-    line = AddLine(line, buf);
+    if(sizeof(WCatHdr) % 16)
+    {
+        sprintf(buf, "%04X   ", _count);
+        HexDump16(buf+7, _ptr, sizeof(WCatHdr)%16, HEX_DUMP2);
+        line = AddLine(line, buf);
+    }
 
     GFTRK(0);
 

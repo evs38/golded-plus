@@ -114,15 +114,19 @@ Line* XbbsArea::make_dump_msg(Line*& lin, gmsg* msg, char* lng_head)
 
     int _count;
     char* _ptr = (char*)&hdr;
-    for(_count=0; _count<sizeof(XbbsHdr); _ptr+=16,_count+=16)
+    //  Whole lines, then the remainder - see the Squish dump.
+    for(_count=0; _count+16<=(int)sizeof(XbbsHdr); _ptr+=16,_count+=16)
     {
         sprintf(buf, "%04X   ", _count);
         HexDump16(buf+7, _ptr, 16, HEX_DUMP2);
         line = AddLine(line, buf);
     }
-    sprintf(buf, "%04X   ", _count);
-    HexDump16(buf+7, _ptr, 14, HEX_DUMP2);
-    line = AddLine(line, buf);
+    if(sizeof(XbbsHdr) % 16)
+    {
+        sprintf(buf, "%04X   ", _count);
+        HexDump16(buf+7, _ptr, sizeof(XbbsHdr)%16, HEX_DUMP2);
+        line = AddLine(line, buf);
+    }
 
     GFTRK(0);
 

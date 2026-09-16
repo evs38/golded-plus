@@ -144,7 +144,11 @@ Line* SquishArea::make_dump_msg(Line*& lin, gmsg* msg, char* lng_head)
 
     int _count = 0;
     char* _ptr = (char*)&_hdr;
-    while(_count < sizeof(SqshHdr))
+    //  Whole lines of sixteen, then what is left: a line for the
+    //  remainder read sixteen bytes past a header that is not a
+    //  multiple of sixteen long, and the remainder was then dumped
+    //  once more from beyond the end.
+    while(_count + 16 <= (int)sizeof(SqshHdr))
     {
         sprintf(buf, "%04X   ", _count);
         HexDump16(buf+7, _ptr, 16, HEX_DUMP2);
@@ -152,9 +156,12 @@ Line* SquishArea::make_dump_msg(Line*& lin, gmsg* msg, char* lng_head)
         _count += 16;
         _ptr += 16;
     }
-    sprintf(buf, "%04X   ", _count);
-    HexDump16(buf+7, _ptr, sizeof(SqshHdr)%16, HEX_DUMP2);
-    line = AddLine(line, buf);
+    if(sizeof(SqshHdr) % 16)
+    {
+        sprintf(buf, "%04X   ", _count);
+        HexDump16(buf+7, _ptr, sizeof(SqshHdr)%16, HEX_DUMP2);
+        line = AddLine(line, buf);
+    }
 
     GFTRK(0);
 
