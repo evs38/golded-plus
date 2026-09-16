@@ -464,6 +464,12 @@ void CfgQuotectrl()
             ctrlinfo |= CI_TEAR;
         if(striinc("ORIGIN", val))
             ctrlinfo |= CI_ORIG;
+        //  Attachments stay out of a reply unless named here; YES
+        //  keeps meaning the two it always meant.
+        if(striinc("UUE", val))
+            ctrlinfo |= CI_UUE;
+        if(striinc("BASE64", val))
+            ctrlinfo |= CI_B64;
     }
     if(cfgingroup)
         CFG->grp.AddItm(GRP_QUOTECTRL, ctrlinfo);

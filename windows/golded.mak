@@ -118,6 +118,7 @@ CLEAN :
 	-@erase "$(INTDIR)\gesrch.obj"
 	-@erase "$(INTDIR)\getpls.obj"
 	-@erase "$(INTDIR)\geusrbse.obj"
+	-@erase "$(INTDIR)\geimg.obj"
 	-@erase "$(INTDIR)\geutil.obj"
 	-@erase "$(INTDIR)\geutil2.obj"
 	-@erase "$(INTDIR)\geview.obj"
@@ -227,6 +228,7 @@ LINK32_OBJS= \
 	"$(INTDIR)\gesrch.obj" \
 	"$(INTDIR)\getpls.obj" \
 	"$(INTDIR)\geusrbse.obj" \
+	"$(INTDIR)\geimg.obj" \
 	"$(INTDIR)\geutil.obj" \
 	"$(INTDIR)\geutil2.obj" \
 	"$(INTDIR)\geview.obj" \
@@ -559,6 +561,12 @@ SOURCE=..\golded3\getpls.cpp
 SOURCE=..\golded3\geusrbse.cpp
 
 "$(INTDIR)\geusrbse.obj" : $(SOURCE) "$(INTDIR)"
+	$(CPP) $(CPP_PROJ) $(SOURCE)
+
+
+SOURCE=..\golded3\geimg.cpp
+
+"$(INTDIR)\geimg.obj" : $(SOURCE) "$(INTDIR)"
 	$(CPP) $(CPP_PROJ) $(SOURCE)
 
 

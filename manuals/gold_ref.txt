@@ -3958,10 +3958,12 @@ Here is the complete keyword list:
     a smiley :-)
 
 
-QUOTECTRL <Tearline,Origin,yes/no>
+QUOTECTRL <Tearline,Origin,UUE,Base64,yes/no>
 
     Specifies if you want quote tearline and/or origin in your
-    messages.
+    messages. A uuencoded or a MIME base64 attachment in the message
+    you answer is left out of the quote as well, unless UUE or Base64
+    is named here; "yes" means tearline and origin only.
 
     This keyword can be used in random system groups.
 

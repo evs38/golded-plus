@@ -473,6 +473,7 @@
     <ClCompile Include="..\golded3\gesrch.cpp" />
     <ClCompile Include="..\golded3\getpls.cpp" />
     <ClCompile Include="..\golded3\geusrbse.cpp" />
+    <ClCompile Include="..\golded3\geimg.cpp" />
     <ClCompile Include="..\golded3\geutil.cpp" />
     <ClCompile Include="..\golded3\geutil2.cpp" />
     <ClCompile Include="..\golded3\geview.cpp" />

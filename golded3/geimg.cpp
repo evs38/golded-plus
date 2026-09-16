@@ -39,7 +39,9 @@
 //  The drawing itself, and knowing what the terminal can draw, is in
 //  goldlib/gall/gimgterm; this file is the reader's side of it. It is
 //  compiled only where GOLD_IMAGES is defined - the curses builds on
-//  unix - and nothing calls into it anywhere else.
+//  unix - and nothing calls into it anywhere else, except for the
+//  block finder below it, which is compiled everywhere: the quoting
+//  code asks it which lines of a message are an encoded attachment.
 //  ------------------------------------------------------------------
 
 #include <golded.h>
@@ -87,6 +89,9 @@ static GImgTerm* ReadImageTerm()
     }
     return &term;
 }
+
+
+#endif  // GOLD_IMAGES
 
 
 //  ------------------------------------------------------------------
@@ -292,30 +297,54 @@ static void ReadImageFindBlocks(GMsg* msg, std::vector<ReadInlineBlock>& blocks)
             int j = i + 1;
             while(j < msg->lines and not strblank(msg->line[j]->txt.c_str()))
                 j++;
+            //  'k' was the header loop's above, and a compiler that
+            //  leaks a for-variable into the enclosing scope - MSVC6,
+            //  Borland - would see it declared twice.
             unsigned acc = 0;
             int bits = 0;
-            int k = j + 1;
-            for(; k < msg->lines; k++)
+            int e = j + 1;
+            for(; e < msg->lines; e++)
             {
-                const char* d = msg->line[k]->txt.c_str();
+                const char* d = msg->line[e]->txt.c_str();
                 if(strblank(d) or strneql(d, "--", 2))
                     break;
                 std::string whole;
-                k = ReadImageJoinLine(msg, k, 0, whole);
+                e = ReadImageJoinLine(msg, e, 0, whole);
                 if(not ReadImageB64Line(whole.c_str(), b.bytes, acc, bits))
                     break;
             }
             if(not b.bytes.empty())
             {
-                b.last = k - 1;
+                b.last = e - 1;
                 if(b.name.empty())
                     b.name = "attachment";
                 blocks.push_back(b);
-                i = k - 1;
+                i = e - 1;
             }
         }
     }
 }
+
+
+//  For the quoting code, which leaves an attachment out of a reply:
+//  the same blocks, as line ranges, each saying which encoding it is.
+
+void FindEncodedBlocks(GMsg* msg, std::vector<EncodedBlock>& out)
+{
+    std::vector<ReadInlineBlock> blocks;
+    ReadImageFindBlocks(msg, blocks);
+    for(size_t n = 0; n < blocks.size(); n++)
+    {
+        EncodedBlock b;
+        b.first = blocks[n].first;
+        b.last  = blocks[n].last;
+        b.uue   = strneql(msg->line[b.first]->txt.c_str(), "begin ", 6);
+        out.push_back(b);
+    }
+}
+
+
+#if defined(GOLD_IMAGES)
 
 
 //  ------------------------------------------------------------------

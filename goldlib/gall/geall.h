@@ -63,6 +63,8 @@ const int CI_NONE = 0x0000;
 const int CI_TEAR = 0x0001;
 const int CI_ORIG = 0x0002;
 const int CI_TAGL = 0x0004;
+const int CI_UUE  = 0x0008;     // a uuencoded attachment in a reply
+const int CI_B64  = 0x0010;     // a MIME base64 one
 
 
 //  ------------------------------------------------------------------

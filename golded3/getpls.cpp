@@ -108,6 +108,8 @@ int TemplateToText(int mode, GMsg* msg, GMsg* oldmsg, const char* tpl, int origa
     char qbuf[100];
     uint len;
     int y;
+    std::vector<EncodedBlock> encoded;  // attachments of the quoted message
+    size_t enc;
     int tmptpl = NO;
     int robotchk = NO;
     int disphdr = NO;
@@ -860,9 +862,25 @@ int TemplateToText(int mode, GMsg* msg, GMsg* oldmsg, const char* tpl, int origa
                         y = (int)(ptr-quotestr);
                         n = 0;
                         *buf = NUL;
+                        //  An encoded attachment is not text to answer.
+                        //  It stays out of the quote unless QUOTECTRL
+                        //  names it, the way a tearline or an origin
+                        //  does.
+                        encoded.clear();
+                        enc = 0;
+                        if((AA->Quotectrl() & (CI_UUE|CI_B64)) != (CI_UUE|CI_B64))
+                            FindEncodedBlocks(oldmsg, encoded);
                         while(oldmsg->line[n])
                         {
                             strtrim(oldmsg->line[n]->txt);
+                            while(enc < encoded.size() and encoded[enc].last < n)
+                                enc++;
+                            if(enc < encoded.size() and n >= encoded[enc].first and
+                               not (AA->Quotectrl() & (encoded[enc].uue ? CI_UUE : CI_B64)))
+                            {
+                                n++;
+                                continue;
+                            }
                             if(oldmsg->line[n]->type & GLINE_TEAR)
                             {
                                 // Invalidate tearline

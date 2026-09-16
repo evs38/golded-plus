@@ -300,6 +300,10 @@ SOURCE=..\golded3\geusrbse.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=..\golded3\geimg.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=..\golded3\geutil.cpp
 # End Source File
 # Begin Source File

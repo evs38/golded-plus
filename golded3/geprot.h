@@ -517,6 +517,16 @@ int   GetAkaNo(const ftn_addr& __aka);
 int   GetQuotestr(const char* ptr, char* qbuf, uint* qlen);
 int   cmp_quotes(char* q1, char* q2);
 bool  is_uue_line(const char* ptr);
+
+//  A uuencoded or MIME base64 block in a message's line index - see
+//  geimg.cpp, which finds them for the pictures and for the quoting.
+struct EncodedBlock
+{
+    int  first;         //  index of its first line in msg->line
+    int  last;          //  and its last, inclusive
+    bool uue;           //  uuencoded; otherwise base64
+};
+void  FindEncodedBlocks(GMsg* msg, std::vector<EncodedBlock>& out);
 int   is_quote(const char* ptr);
 bool  is_quote2(Line* line, const char* ptr);
 int   IsQuoteChar(const char* s);

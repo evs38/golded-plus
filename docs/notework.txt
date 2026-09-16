@@ -13,6 +13,11 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- A uuencoded or MIME base64 attachment in the message answered was
+  quoted line by line with the text. It is left out of the quote now,
+  the way a tearline and an origin are; QUOTECTRL UUE and QUOTECTRL
+  BASE64 put them back.
+
 - A build made with GOLD_UTF8 off, or against the 8-bit curses API,
   and given XLATLOCALSET UTF-8 drew the letters right and everything
   else wrong: the caret landed a cell to the right of every Cyrillic
