@@ -447,6 +447,7 @@ public:
     void BlockCopy      ();
     void BlockCut       (bool just_delete = false);
     void BlockPaste     ();
+    void PasteVerbatim  (const std::string& __text);
     void BlockDel       (Line* _anchor);
     void ClearDeleteBuf ();
     void ClearPasteBuf  ();

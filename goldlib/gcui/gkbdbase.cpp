@@ -44,6 +44,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 #endif
+#include <stdio.h>
 #include <string.h>
 
 #include <stdlib.h>
@@ -168,6 +169,63 @@ bool right_alt_same_as_left = false;
 static GKbdChar gkbd_last = { 0, "" };
 
 
+//  ------------------------------------------------------------------
+//  Bracketed paste - see gkbdbase.h.
+//
+//  The two markers are bound to key codes of their own above KEY_MAX,
+//  so curses hands them over whole and nothing here has to peek at
+//  bytes. Text pasted without the markers, from a terminal that does
+//  not have them, is indistinguishable from typing and is treated as
+//  such.
+
+bool gkbd_paste_verbatim = false;
+
+static std::string gkbd_paste_text;
+
+//  A paste has been collected and Key_Paste not yet handed out. The
+//  reader is asked twice for every key - once whether there is one,
+//  once for it - and the collecting happens on whichever ask meets
+//  the marker, so the key is kept here until the read that takes it.
+static bool gkbd_paste_ready = false;
+
+#if defined(__UNIX__) && defined(__USE_NCURSES__)
+const int GKBD_KEY_PASTE_BEGIN = KEY_MAX + 1;
+const int GKBD_KEY_PASTE_END   = KEY_MAX + 2;
+#endif
+
+
+void gkbd_paste_setup()
+{
+#if defined(__UNIX__) && defined(__USE_NCURSES__)
+    define_key("\033[200~", GKBD_KEY_PASTE_BEGIN);
+    define_key("\033[201~", GKBD_KEY_PASTE_END);
+    gkbd_paste_mode(true);
+#endif
+}
+
+
+void gkbd_paste_mode(bool on)
+{
+#if defined(__UNIX__) && defined(__USE_NCURSES__)
+    //  Straight to the terminal: curses has no idea of the mode and
+    //  keeps nothing of its own in it, so nothing of curses' is upset.
+    fputs(on ? "\033[?2004h" : "\033[?2004l", stdout);
+    fflush(stdout);
+#else
+    (void)on;
+#endif
+}
+
+
+std::string gkbd_paste_take()
+{
+    std::string s;
+    s.swap(gkbd_paste_text);
+    return s;
+}
+
+
+
 const char* gkbd_lastchars(int* len)
 {
     if(len)
@@ -289,6 +347,7 @@ void GKbd::Init()
         nonl();
         intrflush(stdscr, FALSE);
         keypad(stdscr, TRUE);
+        gkbd_paste_setup();
     }
 
     // WARNING: this might break with an old version of ncurses, or
@@ -630,7 +689,10 @@ GKbd::~GKbd()
 #if defined(__USE_NCURSES__)
 
     if(0 == (--curses_initialized))
+    {
+        gkbd_paste_mode(false);
         endwin();
+    }
 
 #elif defined(__WIN32__)
 
@@ -1430,6 +1492,88 @@ static double gkbd_now()
 #endif
 
 
+#if defined(__UNIX__) && defined(__USE_NCURSES__)
+
+//  Everything up to the end marker. A paste arrives in pieces over a
+//  slow link, so a read waits a while for the next; a terminal that
+//  sent the start but never the end - none is known to - just ends the
+//  paste at the first silence. Line ends are '\r', '\n' or both, the
+//  way terminals differ, and become '\n'. A tab is spaced out to the
+//  next eighth column, as the editor's own Tab does.
+
+static void gkbd_paste_collect()
+{
+    gkbd_paste_text.clear();
+    wtimeout(stdscr, 2000);
+
+    uint32_t prev = 0;
+    size_t   linestart = 0;
+
+    for(;;)
+    {
+        uint32_t cp;
+
+#if defined(__USE_WIDE_NCURSES__)
+        wint_t wch = 0;
+        int rc = get_wch(&wch);
+        if(rc == ERR)
+            break;
+        if(rc == KEY_CODE_YES)
+        {
+            if((int)wch == GKBD_KEY_PASTE_END)
+                break;
+            continue;           //  a function key inside a paste: nothing
+        }
+        cp = (uint32_t)wch;
+#else
+        int c = getch();
+        if(c == ERR or c == GKBD_KEY_PASTE_END)
+            break;
+        if(c >= KEY_MIN)
+            continue;
+        cp = (uint32_t)(unsigned char)c;
+#endif
+
+        if(cp == '\r' or cp == '\n')
+        {
+            if(not (cp == '\n' and prev == '\r'))
+            {
+                gkbd_paste_text += '\n';
+                linestart = gkbd_paste_text.size();
+            }
+            prev = cp;
+            continue;
+        }
+        prev = cp;
+
+        if(cp == '\t')
+        {
+            size_t n = 8 - ((gkbd_paste_text.size() - linestart) % 8);
+            gkbd_paste_text.append(n, ' ');
+            continue;
+        }
+        if(cp < ' ' and cp != 0x1B)
+            continue;           //  a control character has no place in text
+        if(cp == 0x1B)
+            continue;
+
+#if defined(__USE_WIDE_NCURSES__)
+        //  The same conversion a typed character gets: the local
+        //  charset's bytes for the codepoint.
+        gkbd_setlastcp(cp, true);
+        gkbd_paste_text.append(gkbd_last.buf, (size_t)gkbd_last.len);
+#else
+        gkbd_paste_text += (char)cp;
+#endif
+    }
+
+    nodelay(stdscr, FALSE);
+    gkbd_setlastcp(0);
+}
+
+#endif
+
+
 int gkbd_cursgetch(eKeyModes mode)
 {
 
@@ -2073,6 +2217,14 @@ gkey kbxget_raw(eKeyModes mode)
     GKbdChar _lastsv;
     gkbd_savelast(_lastsv);
 
+    if(gkbd_paste_ready)
+    {
+        if(mode != KeyMode_Test)
+            gkbd_paste_ready = false;
+        gkbd_setlastcp(0);
+        return Key_Paste;
+    }
+
     gkbd_setlastcp(0);      // no character typed unless we say otherwise
     key = gkbd_cursgetch(mode);
     if(key == ERR)
@@ -2122,6 +2274,21 @@ gkey kbxget_raw(eKeyModes mode)
         if((key2 != ERR) and (mode == KeyMode_Test))
             gkbd_ungetch(key2);
     }
+    //  The terminal pasted something. Wanted whole: collect it and say
+    //  so; otherwise the marker alone is dropped and the text follows
+    //  as keys. The end marker on its own - the text having been read
+    //  as keys - is nothing either way.
+    else if(key == GKBD_KEY_PASTE_BEGIN)
+    {
+        if(not gkbd_paste_verbatim)
+            return 0;
+        gkbd_paste_collect();
+        gkbd_restorelast(_lastsv);
+        gkbd_paste_ready = (mode == KeyMode_Test);
+        return Key_Paste;
+    }
+    else if(key == GKBD_KEY_PASTE_END)
+        return 0;
     // Curses sequence; lookup in nice table above
     else if((key >= KEY_MIN)
             and (key <= KEY_MIN+sizeof(gkbd_curstable)/sizeof(int))

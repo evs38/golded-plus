@@ -39,6 +39,7 @@
     #include <conio.h>
 #endif
 #include <gvidall.h>
+#include <gkbdbase.h>
 
 #if defined(__OS2__)
     #define INCL_BASE
@@ -182,6 +183,7 @@ void vshutdown()
     if(curses_initialized > 0)
     {
         curses_initialized = 0;
+        gkbd_paste_mode(false);
         endwin();
     }
 
@@ -232,6 +234,7 @@ void GVid::init()
         nonl();
         intrflush(stdscr, FALSE);
         keypad(stdscr, TRUE);
+        gkbd_paste_setup();
     }
 #endif
 

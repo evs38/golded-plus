@@ -355,6 +355,7 @@ int ShellToDos(const char* command, char* message, vattr cls, int cursor, int pa
         gvid->setpalette(gvid->orig.color.palette);
 
 #if defined(__USE_NCURSES__)
+    gkbd_paste_mode(false);
     def_prog_mode();
     reset_shell_mode();
 #elif defined(__UNIX__)
@@ -399,6 +400,7 @@ int ShellToDos(const char* command, char* message, vattr cls, int cursor, int pa
     // Restore console settings
 #ifdef __USE_NCURSES__
     reset_prog_mode();
+    gkbd_paste_mode(true);
     clearok(stdscr, TRUE);
 #else
     gkbd.Init();

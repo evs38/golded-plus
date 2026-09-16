@@ -3678,7 +3678,11 @@ int IEclass::Start(int __mode, uint* __position, GMsg* __msg)
 
         do
         {
+            //  Only while the editor itself is reading: a paste into a
+            //  prompt opened from here is typed, as before.
+            gkbd_paste_verbatim = true;
             _ch = getxchtick();
+            gkbd_paste_verbatim = false;
             if(_ch == Key_Resize)
             {
                 Resize();
@@ -3704,6 +3708,14 @@ int IEclass::Start(int __mode, uint* __position, GMsg* __msg)
 
         }
         while(_ch == Key_Tick);
+
+        //  Pasted text goes in as it is, and the loop comes round to
+        //  put the cursor and the status line right, as after any key.
+        if(_ch == Key_Paste)
+        {
+            PasteVerbatim(gkbd_paste_take());
+            continue;
+        }
 
         pcol = col;
         getthisrow(currline);

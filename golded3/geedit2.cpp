@@ -1050,6 +1050,70 @@ void IEclass::BlockPaste()
 
 
 //  ------------------------------------------------------------------
+//  Text the terminal pasted, put in as it is: every line of it a hard
+//  line, nothing wrapped, nothing taken for a quote and continued as
+//  one. Typed in, a uuencoded picture came out as a cascade of quote
+//  prefixes - each line was long enough to wrap, the wrap saw a '>'
+//  near its start and carried a quote string onto the next line, and
+//  the next line did the same with that. What is pasted is what the
+//  sender meant; the text after the cursor goes after it.
+
+void IEclass::PasteVerbatim(const std::string& __text)
+{
+
+    GFTRK("EditPasteVerbatim");
+
+    if(not __text.empty())
+    {
+        if(not batch_mode)
+            Undo->PushItem(EDIT_UNDO_VOID);
+
+        size_t pos = 0;
+        while(pos <= __text.length())
+        {
+            size_t nl = __text.find('\n', pos);
+            bool   hard = (nl != __text.npos);
+            std::string piece(__text, pos, hard ? nl - pos + 1 : __text.npos);
+            pos = hard ? nl + 1 : __text.length() + 1;
+
+            uint curlen = currline->txt.length();
+            if(col > curlen)
+                col = curlen;
+
+            if(hard)
+            {
+                //  The rest of the current line moves below the paste.
+                Undo->PushItem(EDIT_UNDO_DEL_TEXT|BATCH_MODE, currline, col);
+                Line* _newline = insertlinebelow(currline, currline->txt.c_str()+col, BATCH_MODE);
+                strerase(currline->txt, col);
+                currline->txt += piece;
+                Undo->PushItem(EDIT_UNDO_INS_TEXT|BATCH_MODE, currline, col, piece.length());
+                setlinetype(currline);
+                currline->type |= GLINE_HARD;
+                currline = _newline;
+                col = 0;
+                if(row < maxrow)
+                    row++;
+            }
+            else if(not piece.empty())
+            {
+                currline->txt.insert(col, piece);
+                Undo->PushItem(EDIT_UNDO_INS_TEXT|BATCH_MODE, currline, col, piece.length());
+                col += piece.length();
+                setlinetype(currline);
+            }
+        }
+
+        getthisrow(currline);
+        Line* _topline = findtopline();
+        refresh(_topline, minrow);
+    }
+
+    GFTRK(0);
+}
+
+
+//  ------------------------------------------------------------------
 
 void IEclass::LoadFile()
 {

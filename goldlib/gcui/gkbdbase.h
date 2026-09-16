@@ -108,6 +108,22 @@ void gkbd_setlastchars(const char* chars, int len);
 //  character - see the note on the definition.
 const char* gkbd_keychars(gkey key, int* len, bool checkfirst = true);
 
+//  Text pasted into the terminal.
+//
+//  A terminal that supports bracketed paste marks a paste with an
+//  escape sequence at either end; the keyboard layer asks for that at
+//  start-up. While gkbd_paste_verbatim is set, the whole paste is
+//  collected and the reader hands back one Key_Paste, with the text
+//  waiting in gkbd_paste_take() - in the local charset, lines ending
+//  in '\n'. While it is clear, only the markers are taken out and the
+//  text arrives as typed keys, the way it always did. The editor sets
+//  it around its own key read, so that a paste there is inserted as it
+//  is, and a paste into any prompt is still typed.
+extern bool gkbd_paste_verbatim;
+std::string gkbd_paste_take();
+void gkbd_paste_setup();            //  after initscr()
+void gkbd_paste_mode(bool on);      //  tell the terminal; off before endwin()
+
 
 //  ------------------------------------------------------------------
 //  Definition of kbuf record

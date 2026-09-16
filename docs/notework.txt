@@ -13,6 +13,14 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
++ Text pasted into the terminal goes into the editor as it is. The
+  terminal is asked to mark a paste (bracketed paste, which xterm,
+  PuTTY, iTerm2, Windows Terminal, tmux and the rest do), and what
+  arrives between the marks becomes hard lines: nothing is wrapped at
+  the margin, nothing is taken for a quote and continued as one - a
+  uuencoded picture pasted from the clipboard came out as a cascade of
+  quote prefixes. A paste into a prompt is still typed, as before.
+
 - A uuencoded or MIME base64 attachment in the message answered was
   quoted line by line with the text. It is left out of the quote now,
   the way a tearline and an origin are; QUOTECTRL UUE and QUOTECTRL

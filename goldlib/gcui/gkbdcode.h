@@ -456,6 +456,7 @@
 
     #define  Key_Tick    0x0200          // Timer tick
     #define  Key_Resize  0xFC00          // The terminal changed size
+    #define  Key_Paste   0xFB00          // The terminal pasted text - see gkbd_paste_take()
     #define  Key_Auto    0xFD00          // Auto macro
     #define  Key_Macro   0xFE00          // Macro
 
