@@ -13,6 +13,10 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- On a terminal wider than 325 columns the reader died on opening any
+  message: the header's name field was copied with four bytes a
+  column into a buffer of 1301, and strncpy() wrote past its end.
+
 + Text pasted into the terminal goes into the editor as it is. The
   terminal is asked to mark a paste (bracketed paste, which xterm,
   PuTTY, iTerm2, Windows Terminal, tmux and the rest do), and what

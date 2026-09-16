@@ -132,6 +132,13 @@ void GMsgHeaderView::Paint()
     int nodewidth = MaxV(0, datepos - nodepos);
     int datewidth = MaxV(0, MinV(width - datepos, CFG->disphdrdateset.len));
 
+    //  Room in buf for a name: four bytes a column, but never more than
+    //  the buffer. On a terminal wider than 325 columns the field's
+    //  bytes outgrew it, and strncpy() wrote 1347 bytes into 1301 -
+    //  found by AddressSanitizer on opening any message.
+    size_t namebytes = MinV((size_t)(namewidth + nodewidth) * 4, sizeof(buf));
+    size_t namecols  = MinV((size_t)(namewidth + nodewidth), sizeof(buf));
+
 #if defined(GUTLOS_FUNCS)
     g_set_ostitle_name(struplow(strtmp(area->echoid())), 0);
 #endif
@@ -246,11 +253,11 @@ void GMsgHeaderView::Paint()
     }
 
     if((not area->isecho() or area->isnewsgroup()) and *msg->ifrom and *msg->realby)
-        strxmerge(buf, (namewidth+nodewidth)*4, msg->realby, " <", msg->iorig, ">", NULL);
+        strxmerge(buf, namebytes, msg->realby, " <", msg->iorig, ">", NULL);
     else if((not area->isecho() or area->isnewsgroup()) and *msg->ifrom and *msg->iorig)
-        strxcpy(buf, msg->iorig, (namewidth+nodewidth));
+        strxcpy(buf, msg->iorig, namecols);
     else
-        strxcpy_utf8(buf, msg->By(), (namewidth+nodewidth)*4);
+        strxcpy_utf8(buf, msg->By(), namebytes);
 
     //  The name shares its line with the address and the date, which are
     //  drawn at fixed columns, so the field is laid out in columns too.
@@ -307,11 +314,11 @@ void GMsgHeaderView::Paint()
     }
 
     if((not area->isecho() or area->isnewsgroup()) and *msg->ito and *msg->realto)
-        strxmerge(buf, (namewidth+nodewidth)*4, msg->realto, " <", msg->idest, ">", NULL);
+        strxmerge(buf, namebytes, msg->realto, " <", msg->idest, ">", NULL);
     else if((not area->isecho() or area->isnewsgroup()) and *msg->ito and *msg->idest)
-        strxcpy(buf, msg->idest, (namewidth+nodewidth));
+        strxcpy(buf, msg->idest, namecols);
     else
-        strxcpy_utf8(buf, msg->To(), (namewidth+nodewidth)*4);
+        strxcpy_utf8(buf, msg->To(), namebytes);
 
     strxcpy(buf, g_utf8_fit(buf, nodegenerated ? namewidth : (namewidth+nodewidth)).c_str(), sizeof(buf));
 
