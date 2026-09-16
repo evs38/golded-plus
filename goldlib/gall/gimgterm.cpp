@@ -321,6 +321,24 @@ void g_imgterm_probe(GImgTerm& term, GImgProto wanted)
 
     if(wanted == GIMG_AUTO)
     {
+        //  Inside screen or tmux nothing below is to be trusted: the
+        //  multiplexer answers the queries with what the outer terminal
+        //  said, ssh carries LC_TERMINAL from an iTerm2 into it, and
+        //  neither passes a picture on - the bytes come out as text
+        //  all over the screen. Whoever has set a multiplexer up to
+        //  pass them through says so with IMAGEPROTOCOL; on its own
+        //  GoldED draws nothing there.
+        const char* e;
+        bool multiplexed = ((e = getenv("STY")) != NULL and *e)
+                        or ((e = getenv("TMUX")) != NULL and *e);
+        if(not multiplexed and (e = getenv("TERM")) != NULL)
+            multiplexed = (strncmp(e, "screen", 6) == 0) or (strncmp(e, "tmux", 4) == 0);
+        if(multiplexed)
+        {
+            term.proto = GIMG_NONE;
+            return;
+        }
+
         wanted = g_imgterm_from_env();
         if(wanted == GIMG_AUTO)
             wanted = g_imgterm_by_xtversion(term);

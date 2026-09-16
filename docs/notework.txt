@@ -13,6 +13,13 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- Pictures inside screen or tmux: with IMAGEPROTOCOL auto GoldED took
+  the outer terminal's word for what it could draw - ssh carries
+  iTerm2's name into a screen session, and the multiplexer relays the
+  queries - and the picture bytes came out as text all over the
+  screen. Inside a multiplexer auto now draws nothing; a set-up that
+  passes pictures through says so with IMAGEPROTOCOL.
+
 - A nodelist index compiled by an older GoldNODE was refused - its
   records are shorter, the name field grew from 36 bytes to 80 when
   text went UTF-8 - and every lookup answered "Unable to access the
