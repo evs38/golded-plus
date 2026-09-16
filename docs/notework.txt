@@ -17,6 +17,12 @@ ______________________________________________________________________
   message: the header's name field was copied with four bytes a
   column into a buffer of 1301, and strncpy() wrote past its end.
 
+- A window opened before the terminal shrank - the area list under a
+  burst of resizes - asked curses to save rows the screen no longer
+  had, and copywin() read off the end of the screen and died. The
+  rectangle saved and put back under a window is kept to the screen
+  as it is now.
+
 + Text pasted into the terminal goes into the editor as it is. The
   terminal is asked to mark a paste (bracketed paste, which xterm,
   PuTTY, iTerm2, Windows Terminal, tmux and the rest do), and what

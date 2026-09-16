@@ -2638,7 +2638,20 @@ vsavebuf* vsave(int srow, int scol, int erow, int ecol)
 
     scol     -= padl;
     ecol     += padr;
-    num_cols += padl + padr;
+
+    //  A window opened before a resize can lie partly or wholly past
+    //  the screen curses has now - the area list hidden after a burst
+    //  of resizes asked to save rows the screen no longer had, and
+    //  copywin() read off the end of stdscr and died. Keep to the
+    //  screen; an empty rectangle saves nothing and puts nothing back.
+    int maxrow = getmaxy(stdscr) - 1;
+    int maxcol = getmaxx(stdscr) - 1;
+    if(srow < 0)      srow = 0;
+    if(scol < 0)      scol = 0;
+    if(erow > maxrow) erow = maxrow;
+    if(ecol > maxcol) ecol = maxcol;
+    num_rows = erow - srow + 1;
+    num_cols = ecol - scol + 1;
 
     vsavebuf *sbuf = reinterpret_cast<vsavebuf *>(throw_xmalloc(sizeof(vsavebuf)));
 
@@ -2650,6 +2663,10 @@ vsavebuf* vsave(int srow, int scol, int erow, int ecol)
         sbuf->right  = ecol;
         sbuf->padl   = padl;
         sbuf->padr   = padr;
+        sbuf->win    = NULL;
+
+        if(num_rows <= 0 or num_cols <= 0)
+            return sbuf;
 
         WINDOW* w = newwin(num_rows, num_cols, 0, 0);
         sbuf->win  = w;
@@ -2872,8 +2889,19 @@ void vrestore(vsavebuf* sbuf, int srow, int scol, int erow, int ecol)
 
     if(w)
     {
-        copywin(w, stdscr, 0, 0, srow, scol, erow, ecol, FALSE);
-        gvid_refresh();
+        //  The screen may have shrunk since the save: put back only
+        //  what fits on it now. See vsave().
+        int maxrow = getmaxy(stdscr) - 1;
+        int maxcol = getmaxx(stdscr) - 1;
+        if(erow > maxrow) erow = maxrow;
+        if(ecol > maxcol) ecol = maxcol;
+        if(erow > srow + getmaxy(w) - 1) erow = srow + getmaxy(w) - 1;
+        if(ecol > scol + getmaxx(w) - 1) ecol = scol + getmaxx(w) - 1;
+        if(srow >= 0 and scol >= 0 and srow <= erow and scol <= ecol)
+        {
+            copywin(w, stdscr, 0, 0, srow, scol, erow, ecol, FALSE);
+            gvid_refresh();
+        }
     }
 
     if(gvid_overlay_hook)
