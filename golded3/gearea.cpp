@@ -134,8 +134,15 @@ void GPickArealist::do_delayed()
                        LNG->unread, area->PMrk.Count(), LNG->personal);
 
     strcpy(stpcpy(buf, title), area_maybe);
-    strsetsz(strcpy(tmp, buf), MAXCOL);
-    wwprintstr(tempwin, 0, 0, wattr, tmp);
+    //  Cut to the screen by columns in a UTF-8 session: by bytes, a
+    //  title wider than the terminal ended in half a character.
+    if(g_utf8_mode())
+        wwprintstr(tempwin, 0, 0, wattr, g_utf8_fit(buf, MAXCOL).c_str());
+    else
+    {
+        strsetsz(strcpy(tmp, buf), MAXCOL);
+        wwprintstr(tempwin, 0, 0, wattr, tmp);
+    }
 
     if(CFG->switches.get(arealistpagebar))
         wscrollbar(W_VERT, maximum_index+1, maximum_index, index);
@@ -670,8 +677,15 @@ bool GPickArealist::handle_key()
     uint x;
     const char* adesc;
 
-    CREATEBUFFER(char, buf, MAXCOL+1);
-    CREATEBUFFER(char, tmp, MAXCOL+1);
+    //  The title and the search string are bytes, the screen is
+    //  columns, and a UTF-8 title is longer in the first than in the
+    //  second: the Russian "pick new area" title is 36 bytes for 19
+    //  cells, more than a buffer of MAXCOL+1 holds on a narrow
+    //  terminal. Sized by what can go in, as do_delayed() does.
+    const size_t buflen = strlen(title) + sizeof(Echo);
+    const size_t tmplen = (buflen > (size_t)MAXCOL) ? buflen : (size_t)MAXCOL;
+    CREATEBUFFER(char, buf, buflen+1);
+    CREATEBUFFER(char, tmp, tmplen+1);
 
     int mode, changed, currno;
 
@@ -945,12 +959,17 @@ bool GPickArealist::handle_key()
                         int _len = 0;
                         const char* _chars = gkbd_keychars(key, &_len, false);
 
-                        if(_chars and ((area_fuzidx + (uint)_len) < sizeof(Echo)))
+                        if(_chars)
                         {
-                            memcpy(area_maybe+area_fuzidx, _chars, _len);
-                            area_fuzidx += (uint)_len;
+                            //  A character that does not fit is left
+                            //  out whole, not stored by its first byte.
+                            if((area_fuzidx + (uint)_len) < sizeof(Echo))
+                            {
+                                memcpy(area_maybe+area_fuzidx, _chars, _len);
+                                area_fuzidx += (uint)_len;
+                            }
                         }
-                        else
+                        else if(area_fuzidx + 1 < sizeof(Echo))
                             area_maybe[area_fuzidx++] = (char)n;
                     }
                     else if(area_fuzidx)
@@ -961,8 +980,13 @@ bool GPickArealist::handle_key()
                     }
                     area_maybe[area_fuzidx] = NUL;
                     strcpy(stpcpy(buf, title), area_maybe);
-                    strsetsz(strcpy(tmp, buf), MAXCOL);
-                    wwprintstr(tempwin, 0, 0, wattr, tmp);
+                    if(g_utf8_mode())
+                        wwprintstr(tempwin, 0, 0, wattr, g_utf8_fit(buf, MAXCOL).c_str());
+                    else
+                    {
+                        strsetsz(strcpy(tmp, buf), MAXCOL);
+                        wwprintstr(tempwin, 0, 0, wattr, tmp);
+                    }
                     if(area_fuzidx)
                     {
 
@@ -1107,7 +1131,12 @@ int GPickArealist::Run(const char* _title, int wpos, int& idx)
     index            = AL.AreaIdToNo(idx);        // List Index
     listwrap         = CFG->switches.get(displistwrap);  // True if wrap-around is supported
     esc_abort        = (wpos!=0);
-    area_maxfuz      = MinV(sizeof(Echo), MAXCOL-strlen(title)-1);
+    //  Room for the search string after the title, in the title's
+    //  cells rather than its bytes, and none on a screen narrower than
+    //  the title: the unsigned subtraction wrapped there and let a
+    //  whole Echo through into buffers sized by the screen.
+    size_t titlecols = g_utf8_mode() ? g_utf8_width(title) : strlen(title);
+    area_maxfuz      = ((size_t)MAXCOL > titlecols + 1) ? MinV(sizeof(Echo)-1, (size_t)MAXCOL-titlecols-1) : 0;
 
     goldmark = ' ';
 

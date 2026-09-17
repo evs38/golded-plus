@@ -13,6 +13,13 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- Typing in the area picker on a terminal narrower than its title
+  overran the stack: the search line's buffers were sized by the
+  screen's columns while the title is UTF-8 bytes, and the room left
+  for the search string wrapped below zero on such a screen. Sized by
+  bytes now, the room counted in cells, and a title wider than the
+  terminal is cut at a character, not inside one.
+
 - A menu whose window did not fit on the screen - the "Goto next
   area?" box on a terminal of four rows - was dropped without being
   freed: its items and the menu record leaked each time.
