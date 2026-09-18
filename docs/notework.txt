@@ -13,6 +13,13 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- On a curses build the screen size came from LINES and COLUMNS when
+  the shell exported them, at startup and at every resize after it:
+  with 13x34 in the environment GoldED drew thirteen rows of a phone's
+  screen of thirty-five and never followed a turn of the display. The
+  terminal itself is asked now and curses told to follow it; the
+  environment stands only where the terminal cannot answer.
+
 - A configuration line beginning with a comma made the keyword parser
   read the byte before the line buffer (goldnode and golded alike; a
   sanitizer stops on it). The walk over a keyword's trailing commas

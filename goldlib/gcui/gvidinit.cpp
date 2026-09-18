@@ -50,7 +50,9 @@
     #include <windows.h>
 #endif
 
-#if !defined(__USE_NCURSES__) && defined(__UNIX__)
+#if defined(__UNIX__)
+    //  The curses build asks the terminal for its size as well - see
+    //  gvid_tty_size() below.
     #include <sys/ioctl.h>
     #include <termios.h>
     #include <unistd.h>
@@ -219,6 +221,45 @@ GVid::~GVid()
 
 
 //  ------------------------------------------------------------------
+//  The size the terminal itself reports, on a curses build.
+//
+//  Curses answers LINES and COLS from the environment when a shell
+//  exports LINES and COLUMNS - at initscr() and at every SIGWINCH
+//  after it - and then holds the size they name whatever the window
+//  does: a phone with 13x34 in the environment drew thirteen rows of
+//  a screen of thirty-five and never followed a turn of the display.
+//  The terminal is asked directly, and curses is told (resizeterm) to
+//  follow it. Where the ioctl has no answer, LINES and COLS stand.
+
+#if defined(__USE_NCURSES__) && defined(TIOCGWINSZ)
+static bool gvid_tty_size(int& rows, int& cols)
+{
+    struct winsize ws;
+    int fds[] = { 1, 0, 2 };
+    for(size_t n = 0; n < sizeof(fds)/sizeof(fds[0]); n++)
+    {
+        if(ioctl(fds[n], TIOCGWINSZ, &ws) == 0 and ws.ws_row > 0 and ws.ws_col > 0)
+        {
+            rows = ws.ws_row;
+            cols = ws.ws_col;
+            return true;
+        }
+    }
+    return false;
+}
+
+static void gvid_follow_tty()
+{
+    int rows, cols;
+    if(gvid_tty_size(rows, cols) and (rows != LINES or cols != COLS))
+        resizeterm(rows, cols);
+}
+#else
+static inline void gvid_follow_tty() {}
+#endif
+
+
+//  ------------------------------------------------------------------
 
 void GVid::init()
 {
@@ -236,6 +277,10 @@ void GVid::init()
         keypad(stdscr, TRUE);
         gkbd_paste_setup();
     }
+    //  Whichever of the keyboard and the screen called initscr(),
+    //  curses is up here: bring it to the terminal's size before the
+    //  size is taken below.
+    gvid_follow_tty();
 #endif
 
     // Detect video adapter
@@ -555,6 +600,16 @@ void GVid::detectinfo(GVidInfo* _info)
     _info->screen.mode = 0;
     _info->screen.rows = LINES;
     _info->screen.columns = COLS;
+#if defined(TIOCGWINSZ)
+    {
+        int rows, cols;
+        if(gvid_tty_size(rows, cols))
+        {
+            _info->screen.rows = rows;
+            _info->screen.columns = cols;
+        }
+    }
+#endif
     getyx(stdscr, _info->cursor.row, _info->cursor.column);
     _info->color.textattr = 7;
     _info->cursor.start = 11;
@@ -1212,6 +1267,7 @@ bool GVid::size_changed()
 
 void GVid::refresh_size()
 {
+    gvid_follow_tty();
     detectinfo(&curr);
     resize_screen(curr.screen.columns, curr.screen.rows);
 }
