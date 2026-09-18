@@ -93,9 +93,14 @@ void getkeyvaleql(char** key, char** val, bool eql)
     {
         if((*p != '\"') and (*p != '\'') and (*p != /*(*/ ')'))
         {
+            //  Trailing commas of the keyword. The walk stops at the
+            //  keyword's start: a line that begins with a comma has an
+            //  empty keyword, and the byte before it is not ours -
+            //  goldnode's line buffer sits on the stack, and this read
+            //  the byte below it.
             char* q = p;
-            while(*(--q) == ',')
-                *q = NUL;
+            while(q > *key and *(q-1) == ',')
+                *--q = NUL;
         }
         *p++ = NUL;
     }

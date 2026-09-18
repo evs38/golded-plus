@@ -13,6 +13,11 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- A configuration line beginning with a comma made the keyword parser
+  read the byte before the line buffer (goldnode and golded alike; a
+  sanitizer stops on it). The walk over a keyword's trailing commas
+  now stops at the keyword's start.
+
 - Typing in the area picker on a terminal narrower than its title
   overran the stack: the search line's buffers were sized by the
   screen's columns while the title is UTF-8 bytes, and the room left
