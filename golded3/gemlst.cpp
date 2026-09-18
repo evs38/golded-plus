@@ -726,8 +726,10 @@ void GMsgList::Run()
 
     ypos    = AA->Msglistheader() ? 6 : 1;      // Window Starting Row
     xpos    = 0;                                // Window Starting Column
-    ylen    = MAXROW-3-ypos;                    // Window Height
-    xlen    = MAXCOL-2;                         // Window Width
+    //  In int and at least one: unsigned, these wrapped on a screen
+    //  of fewer than nine rows (see gearea.cpp).
+    ylen    = MaxV((int)MAXROW-3-(int)ypos, 1); // Window Height
+    xlen    = MaxV((int)MAXCOL-2, 1);           // Window Width
     btype   = W_BMENU;                          // Window Border Type
     battr   = C_MENUB;                          // Window Border Color
     wattr   = C_MENUW;                          // Window Color
@@ -1404,8 +1406,10 @@ void GThreadlist::Run()
     aborted = false;
     ypos    = AA->Msglistheader() ? 6 : 1;      // Window Starting Row
     xpos    = 0;                                // Window Starting Column
-    ylen    = MAXROW-3-ypos;                    // Window Height
-    xlen    = MAXCOL-2;                         // Window Width
+    //  In int and at least one: unsigned, these wrapped on a screen
+    //  of fewer than nine rows (see gearea.cpp).
+    ylen    = MaxV((int)MAXROW-3-(int)ypos, 1); // Window Height
+    xlen    = MaxV((int)MAXCOL-2, 1);           // Window Width
     btype   = W_BMENU;                          // Window Border Type
     battr   = C_MENUB;                          // Window Border Color
     wattr   = C_MENUW;                          // Window Color

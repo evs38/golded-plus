@@ -1114,8 +1114,11 @@ int GPickArealist::Run(const char* _title, int wpos, int& idx)
 
     xpos     = 0;                             // Window starting coloumn
     ypos     = wpos;                          // Window starting row
-    xlen     = MAXCOL-2;                      // Window ending coloumn
-    ylen     = MAXROW-wpos-4;                 // Window ending row
+    //  In int and no lower than one: the screen size is unsigned, and
+    //  on a terminal of two rows this came out as four billion rows,
+    //  which display_page() then drew one refresh at a time - a hang.
+    xlen     = MaxV((int)MAXCOL-2, 1);        // Window ending coloumn
+    ylen     = MaxV((int)MAXROW-wpos-4, 1);   // Window ending row
     title    = _title;                        // Window title
     btype    = W_BAREA;                       // Window border type
     battr    = C_AREAB;                       // Window border attributes

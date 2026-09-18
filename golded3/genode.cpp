@@ -874,7 +874,7 @@ static int browse_nodelist(char* title, int topline)
     browser->helpcat = H_NodelistBrowser;
     browser->ypos = topline;
     browser->xpos = 0;
-    browser->ylen = MAXROW-browser->ypos-1;
+    browser->ylen = MaxV((int)MAXROW-(int)browser->ypos-1, 1);  // unsigned: wrapped on a screen shorter than the top line
     browser->xlen = MAXCOL;
     browser->listwrap = CFG->switches.get(displistwrap);
     browser->firstkey = YES;

@@ -13,6 +13,13 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- A terminal shrunk to two or three rows under the area list, the
+  message list or the nodelist browser hung GoldED: the list's height
+  is unsigned screen arithmetic that wrapped to four billion rows,
+  each drawn with a refresh of its own. The heights are computed in
+  int and never below one, and a list is cut to the rows the screen
+  has below its top before it opens.
+
 - On a curses build the screen size came from LINES and COLUMNS when
   the shell exported them, at startup and at every resize after it:
   with 13x34 in the environment GoldED drew thirteen rows of a phone's

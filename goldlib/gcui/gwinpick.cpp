@@ -559,6 +559,22 @@ int gwinpick::run_picker()
     gmou.HideCursor();
 #endif
 
+    //  The height comes from whoever set the list up, out of unsigned
+    //  screen arithmetic that wrapped on a terminal of two rows: the
+    //  area list asked for four billion rows, and display_page()
+    //  refreshed the screen once per row until the process was
+    //  killed. No more rows than the screen has below the top, at
+    //  least one; the visible positions follow.
+    {
+        uint rows = (uint)MaxV((int)gvid->numrows - (int)ypos, 1);
+        if(ylen > rows)
+            ylen = rows;
+        if(maximum_position >= ylen)
+            maximum_position = ylen-1;
+        if(position > maximum_position)
+            position = maximum_position;
+    }
+
     // Open and initialize
 
     open();
