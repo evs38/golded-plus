@@ -13,6 +13,12 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- An area separator on a terminal narrower than the area list's
+  layout wrote before its line buffer (the rule to the right of the
+  description came out negative) and drew the description past the
+  window, onto the next row. The separator is kept within the
+  window's width.
+
 - A terminal shrunk to two or three rows under the area list, the
   message list or the nodelist browser hung GoldED: the list's height
   is unsigned screen arithmetic that wrapped to four billion rows,

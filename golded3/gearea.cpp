@@ -549,7 +549,17 @@ void GPickArealist::print_line(uint idx, uint pos, bool isbar)
     {
         Area* area = AL.AreaNoToPtr(idx);
 
+        //  On a screen narrower than the layout the description's
+        //  column lies past the window and the description past that:
+        //  the rule to the right of it came out negative and was
+        //  written before the buffer, and the text wrapped onto the
+        //  next row. Everything is kept within the window's width.
+        int width = (int)MAXCOL-2;
         int sep_pos = (desc_pos != -1) ? desc_pos : echoid_pos;
+        if(sep_pos < 0)
+            sep_pos = 0;
+        if(sep_pos > width)
+            sep_pos = width;
 
         {
             for(int c = 0; c < sep_pos; c++)
@@ -557,10 +567,15 @@ void GPickArealist::print_line(uint idx, uint pos, bool isbar)
         }
         vbuf[sep_pos] = NUL;
         wprintvs(pos, 0, battr|ACSET, vbuf);
-        wprints(pos, sep_pos, tattr, area->desc());
 
-        int l = (int)g_utf8_width(area->desc());
-        int n = MAXCOL-2-sep_pos-l;
+        std::string desc = g_utf8_mode() ? g_utf8_truncate(std::string(area->desc()), (size_t)(width-sep_pos))
+                                         : std::string(area->desc()).substr(0, (size_t)(width-sep_pos));
+        wprints(pos, sep_pos, tattr, desc.c_str());
+
+        int l = (int)g_utf8_width(desc.c_str());
+        int n = width-sep_pos-l;
+        if(n < 0)
+            n = 0;
 
         {
             for(int c = 0; c < n; c++)
