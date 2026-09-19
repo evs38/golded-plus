@@ -852,21 +852,28 @@ char *strxcat(char *dest, const char *src, size_t max)
 
 char *strxmerge(char *dest, size_t max, ...)
 {
+    //  max is the whole capacity of dest, the NUL included, as with
+    //  strxcpy() and strxcat(): every caller passes sizeof(dest) or
+    //  the bytes it allocated. It used to be spent entirely on text,
+    //  and the NUL then went one byte past the buffer whenever the
+    //  pieces filled it - the header's top line on a narrow terminal
+    //  with a long area description, found by AddressSanitizer.
     va_list a;
     va_start(a, max);
-    for(; max > 0;)
+    for(; max > 1;)
     {
         const char *src = va_arg(a, const char *);
         if (src == NULL)
             break;
-        while (*src and (max > 0))
+        while (*src and (max > 1))
         {
             --max;
             *dest++ = *src++;
         }
     }
     va_end(a);
-    *dest = NUL;
+    if(max > 0)
+        *dest = NUL;
     return dest;
 }
 

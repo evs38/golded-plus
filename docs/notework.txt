@@ -13,6 +13,11 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- The header's top line on a narrow terminal, with an area description
+  long enough to fill it, wrote its terminator one byte past the line
+  buffer: strxmerge() spent the whole size on text, unlike strxcpy()
+  and strxcat(). The size includes the terminator now.
+
 - An area separator on a terminal narrower than the area list's
   layout wrote before its line buffer (the rule to the right of the
   description came out negative) and drew the description past the
