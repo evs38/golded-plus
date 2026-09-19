@@ -1167,6 +1167,12 @@ Area::~Area()
     if(isopen())
         Close();
 
+    //  The random system data is made when an area is chosen, before it
+    //  is opened, and freed when it is closed.  An area chosen and then
+    //  left unopened - quitting from the area picker does that - still
+    //  holds it here.
+    delete adat;
+
     throw_delete(area);
 }
 
