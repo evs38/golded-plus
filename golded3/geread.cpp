@@ -206,6 +206,18 @@ gkey ViewMessage(int istwit)
 
 //  ------------------------------------------------------------------
 
+//  A resize while the areas are being scanned at start-up: the screen
+//  and the splash laid out for the new size, the status line with it.
+
+static void StartupScanResized()
+{
+    ScreenResized(true);
+    ScreenBragAgain();
+}
+
+
+//  ------------------------------------------------------------------
+
 void Reader()
 {
 
@@ -229,7 +241,9 @@ void Reader()
     {
         if(cmdlinedebughg)
             LOG.printf("- AreaScan during startup");
+        AreaScanResizeHook = StartupScanResized;
         AL.AreaScan(SCAN_STARTUP, 0, pmscan, personalmails, pmareas);
+        AreaScanResizeHook = NULL;
         startupscan_success = true;
     }
 

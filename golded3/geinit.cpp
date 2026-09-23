@@ -768,6 +768,18 @@ static void w_brag()
     wcenters(MAXROW-10, C_BRAGW, buf);
 }
 
+
+//  ------------------------------------------------------------------
+//  The splash drawn again on a screen laid out anew - the terminal
+//  grew while the areas were being scanned. As at start-up, the
+//  window is unlinked at once and only its picture stays.
+
+void ScreenBragAgain()
+{
+    w_brag();
+    wunlink(W_READ);
+}
+
 //  ------------------------------------------------------------------
 
 static bool ExistCfg(char* path, char* file)

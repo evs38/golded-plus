@@ -178,6 +178,11 @@ int AreaList::SetActiveAreaNo(int __areano)
 
 //  ------------------------------------------------------------------
 
+void (*AreaScanResizeHook)() = NULL;
+
+
+//  ------------------------------------------------------------------
+
 int AreaList::AreaScan(int mode, uint currno, int pmscan, int& pmails, int& pmareas, const char* file)
 {
 
@@ -255,12 +260,19 @@ int AreaList::AreaScan(int mode, uint currno, int pmscan, int& pmails, int& pmar
             if(xch == Key_Esc)
                 break;
             //  A resize is not a key to replay: the read has raised
-            //  gkbd.resize_pending, and the start-up list lays the
-            //  screen out for it. Put back, one copy per resize, the
-            //  second one ended the list as if an area had been chosen.
+            //  gkbd.resize_pending, and the screen is laid out for it
+            //  below, or by the start-up list. Put back, one copy per
+            //  resize, the second one ended the list as if an area had
+            //  been chosen.
             else if(xch != Key_Resize)
                 kbput(xch);
         }
+
+        //  The terminal was resized under the splash: the caller lays
+        //  the screen out for it now rather than when the scan is over
+        //  - on a slow network-mounted base that is a while.
+        if(gkbd.resize_pending and AreaScanResizeHook)
+            AreaScanResizeHook();
 
         SetActiveAreaNo(n);
 

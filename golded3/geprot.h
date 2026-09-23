@@ -100,6 +100,11 @@ char* MakeOrigin(GMsg* msg, const char* _origin);
 char* MakeTearline(GMsg* msg, char* buf, size_t size);
 void DoKludges(int mode, GMsg* msg, int kludges = 0);
 bool ScreenResized(bool force = false);
+//  The splash again, after the screen was laid out anew under it.
+void ScreenBragAgain();
+//  Called by AreaList::AreaScan() between two areas when the terminal
+//  was resized meanwhile; NULL means nothing to do until the scan ends.
+extern void (*AreaScanResizeHook)();
 void ReaderResize();
 void ApplyUcsHeaders(GMsg* msg);
 void DoTearorig(int mode, GMsg* msg);

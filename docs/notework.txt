@@ -50,6 +50,12 @@ ______________________________________________________________________
   for before it opens, and a list ended by one always asks for the
   layout again.
 
+- A terminal resized while the areas were being scanned at start-up
+  kept the splash and the "Scanning Area" line at the old size until
+  the scan was over - on a slow network-mounted base, a while spent
+  looking at two thirds of the window. The screen is laid out again
+  between two areas, as soon as the resize is seen.
+
 - With SCREENMAXROW or SCREENMAXCOL below the terminal's size every
   probe for a resize saw one - "Screen resized: 80x30 -> 120x30"
   twice a second for as long as GoldED ran, the area list rebuilt
