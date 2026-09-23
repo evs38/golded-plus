@@ -13,6 +13,17 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- A nodelist's names and cities are brought into the session's
+  charset. A nodelist is text in whatever the network writes it in -
+  CP866 in the Russian nets, UTF-8 for DAILYUTF - and it was shown as
+  it stood: a CP866 city in a UTF-8 session was a row of broken bytes
+  in the header, and a Cyrillic name could not be found. GoldNODE
+  compiles the index in the local charset and GoldED converts the
+  entry it shows: a UTF-8 line from UTF-8, any other from XLATIMPORT,
+  the network's charset, and only across the UTF-8 line - an 8-bit
+  nodelist in an 8-bit session is left exactly as before. Recompile
+  the nodelist index once.
+
 - GoldED walked into the first area at start-up instead of showing
   the area list when the terminal was resized twice while the areas
   were being scanned - a console that grows after a batch file starts

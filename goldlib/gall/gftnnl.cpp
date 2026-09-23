@@ -25,9 +25,57 @@
 //  ------------------------------------------------------------------
 
 #include <cstdio>
+#include <cstring>
+#include <string>
 #include <gstrall.h>
 #include <gftnnl.h>
+#include <grecode.h>
+#include <gutf8.h>
 #include <stdlib.h>
+
+
+//  ------------------------------------------------------------------
+
+void ftn_nodelist_recode_line(char* line, size_t size, const char* import)
+{
+    bool high = false;
+    for(const char* p = line; *p; p++)
+    {
+        if((unsigned char)*p >= 0x80)
+        {
+            high = true;
+            break;
+        }
+    }
+    if(not high)
+        return;
+
+    const char* local = g_local_charset();
+    if((local == NULL) or (*local == NUL))
+        return;
+
+    //  Only across the UTF-8 line: an 8-bit nodelist in an 8-bit
+    //  session is taken to be in that session's charset, as it always
+    //  was - guessing between two codepages there (XLATIMPORT is
+    //  itself a guess when the config does not say) turned Cyrillic
+    //  names into question marks.
+    bool local_utf8 = strieql(local, "UTF-8") or strieql(local, "UTF8");
+    bool line_utf8  = g_utf8_looks_utf8(line);
+    if(line_utf8 == local_utf8)
+        return;
+
+    const char* from = line_utf8 ? "UTF-8" : import;
+    if((from == NULL) or (*from == NUL) or strieql(from, local))
+        return;
+
+    GRecoder& rec = g_recoder(from, local);
+    if(not rec.is_open() or rec.is_identity())
+        return;
+
+    std::string out = rec.convert(line);
+    if(out.length() < size)
+        memcpy(line, out.c_str(), out.length() + 1);
+}
 
 //  ------------------------------------------------------------------
 

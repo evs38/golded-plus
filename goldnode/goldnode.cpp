@@ -145,6 +145,7 @@ const word _ZONE  = 0x0004;
 const word _TEST  = 777;
 
 static std::string nodepath;                // Path to the nodelist files
+static char xlatimport[40] = "";            // The network's charset, for a nodelist that is not UTF-8
 
 static time32_t runtime = 0;
 static int    sh_mod = SH_DENYWR;
@@ -740,6 +741,14 @@ static void read_nodelists()
                         continue;
                     }
 
+                    //  Names go into the index in the local charset -
+                    //  see ftn_nodelist_recode_line(). After the file
+                    //  position has been taken from the line as it is
+                    //  in the file: converted, a CP866 line is longer,
+                    //  and the positions of every entry after it would
+                    //  drift.
+                    ftn_nodelist_recode_line(buf, sizeof(buf), xlatimport);
+
                     // Skip whitespace
                     ptr = buf;
                     while(isspace(*ptr))
@@ -925,6 +934,7 @@ static void read_nodelists()
             {
                 while (lfp.Fgets(buf, sizeof(buf)))
                 {
+                    ftn_nodelist_recode_line(buf, sizeof(buf), xlatimport);
                     // Get node data
                     strbtrim(buf);
                     ptr = buf + strlen(buf) - 1;
@@ -1536,6 +1546,9 @@ static int parse_config(const char *__configfile, Addr& zoneaddr)
                         //  an ill-formed sequence in the index.
                         g_set_local_charset(value);
                         break;
+                    case CRC_XLATIMPORT:
+                        strxcpy(xlatimport, value, sizeof(xlatimport));
+                        break;
                     case CRC_ADDRESS:
                     case CRC_AKA:
                         if(not zoneaddr.net)
@@ -1750,6 +1763,14 @@ static bool read_config(const char *cfg, const char *argv_0)
     {
         errorlevel = 1;
         return false;
+    }
+
+    //  The same default GoldED gives XLATIMPORT: the DOS codepage that
+    //  goes with the local charset, or the local charset itself.
+    if(*xlatimport == NUL)
+    {
+        const char* dos = get_dos_charset(g_local_charset());
+        strxcpy(xlatimport, (dos and *dos) ? dos : g_local_charset(), sizeof(xlatimport));
     }
 
     if(nodelist.empty() and userlist.empty() == 0)

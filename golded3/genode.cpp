@@ -915,6 +915,7 @@ static bool NLP_open()
         NLP = new ftn_fidouser_nodelist_index;
         throw_new(NLP);
         NLP->set_path(CFG->fidouserlist);
+        NLP->set_import_charset(CFG->xlatimport);
     }
     else
     {
@@ -922,6 +923,7 @@ static bool NLP_open()
         NLP = new ftn_golded_nodelist_index;
         throw_new(NLP);
         NLP->set_path(CFG->nodepath);
+        NLP->set_import_charset(CFG->xlatimport);
     }
 
     return NLP->open();

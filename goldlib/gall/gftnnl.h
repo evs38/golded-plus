@@ -61,6 +61,17 @@ public:
 //  ------------------------------------------------------------------
 //  Nodelist index base class
 
+//  Bring a nodelist line into the local charset. A nodelist is text in
+//  whatever the network writes it in - CP866 in the Russian nets, UTF-8
+//  for DAILYUTF - and its names and cities were shown as they stood: a
+//  CP866 city in a UTF-8 session came out as a row of broken bytes. A
+//  line that is UTF-8 is converted from that, any other from 'import'
+//  (XLATIMPORT, the network's charset); a line in the local charset,
+//  or one of plain ASCII, is left as it is. Used by GoldNODE for the
+//  index and by the reader for the entry it shows.
+void ftn_nodelist_recode_line(char* line, size_t size, const char* import);
+
+
 class ftn_nodelist_index_base
 {
 
@@ -78,9 +89,14 @@ protected:
 
 public:
 
+    //  The charset a nodelist that is not UTF-8 is taken to be in -
+    //  the network's, XLATIMPORT - for ftn_nodelist_recode_line().
+    const char*         nlcharset;
+
     ftn_nodelist_index_base()
     {
         indexmax = indexpos = 0;
+        nlcharset = NULL;
     }
     virtual             ~ftn_nodelist_index_base()  { }
 
@@ -99,6 +115,10 @@ public:
     void                set_path(const char* path)
     {
         nlpath = path;
+    }
+    void                set_import_charset(const char* charset)
+    {
+        nlcharset = charset;
     }
 
     virtual bool        open() = 0;

@@ -135,7 +135,14 @@ void ftn_golded_nodelist_index::fetchdata()
             */
             strtok(buf,"\r\n");
 
-            data.unpack(buf);
+            //  Into the local charset before the fields are taken; a
+            //  CP866 line grows when it becomes UTF-8, so in a buffer
+            //  with room for that.
+            char line[1024];
+            strxcpy(line, buf, sizeof(line));
+            ftn_nodelist_recode_line(line, sizeof(line), nlcharset);
+
+            data.unpack(line);
         }
     }
 
