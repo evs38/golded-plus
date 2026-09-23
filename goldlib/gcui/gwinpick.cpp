@@ -613,6 +613,13 @@ int gwinpick::run_picker()
         //  out again and, if it wants, open the list once more.
         if(key == Key_Resize)
         {
+            //  The key is the signal, whether or not the flag is up:
+            //  a resize read during the start-up scan was put back into
+            //  the key buffer, the first copy laid the screen out and
+            //  cleared the flag, and the second ended the list with the
+            //  flag down - taken for a choice, GoldED walked into the
+            //  first area.
+            gkbd.resize_pending = true;
             aborted = true;
             keyok = false;
             continue;

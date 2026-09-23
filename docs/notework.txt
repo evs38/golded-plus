@@ -13,6 +13,16 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- GoldED walked into the first area at start-up instead of showing
+  the area list when the terminal was resized twice while the areas
+  were being scanned - a console that grows after a batch file starts
+  it, a slow network-mounted setup. Each resize read during the scan
+  was put back as a key; the first laid the screen out again, the
+  second ended the list as if an area had been chosen. A resize is
+  never replayed as a key, a resize seen before the list is laid out
+  for before it opens, and a list ended by one always asks for the
+  layout again.
+
 - With SCREENMAXROW or SCREENMAXCOL below the terminal's size every
   probe for a resize saw one - "Screen resized: 80x30 -> 120x30"
   twice a second for as long as GoldED ran, the area list rebuilt

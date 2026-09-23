@@ -254,7 +254,11 @@ int AreaList::AreaScan(int mode, uint currno, int pmscan, int& pmails, int& pmar
             xch = kbxget();
             if(xch == Key_Esc)
                 break;
-            else
+            //  A resize is not a key to replay: the read has raised
+            //  gkbd.resize_pending, and the start-up list lays the
+            //  screen out for it. Put back, one copy per resize, the
+            //  second one ended the list as if an area had been chosen.
+            else if(xch != Key_Resize)
                 kbput(xch);
         }
 

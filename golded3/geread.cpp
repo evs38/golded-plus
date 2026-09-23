@@ -264,10 +264,14 @@ void Reader()
         //  reader loop does, rather than walk into the first area.
         for(;;)
         {
+            //  A resize seen during the start-up scan, before the list
+            //  existed, is laid out for here rather than left pending
+            //  under a list built for the old size.
+            if(gkbd.resize_pending)
+                ScreenResized(true);
             NewArea();
             if(not gkbd.resize_pending)
                 break;
-            ScreenResized(true);
         }
     }
     else
