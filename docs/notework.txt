@@ -13,6 +13,12 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- With SCREENMAXROW or SCREENMAXCOL below the terminal's size every
+  probe for a resize saw one - "Screen resized: 80x30 -> 120x30"
+  twice a second for as long as GoldED ran, the area list rebuilt
+  each time. A resize is measured against the size last detected, not
+  against the rows and columns the layout was cut to.
+
 - On a curses build every window closed left its saved rectangle - a
   curses window of its own - in curses' list, and every resize after
   that resized all of them again: a minute of resizing grew the

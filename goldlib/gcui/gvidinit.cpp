@@ -1259,9 +1259,14 @@ void GVid::restore_cursor()
 
 bool GVid::size_changed()
 {
+    //  Against the size last detected, not the rows and columns the
+    //  layout uses: SCREENMAXROW and SCREENMAXCOL cut numrows/numcols
+    //  below the terminal's size, and compared with those every probe
+    //  saw a resize - "Screen resized: 80x30 -> 120x30" twice a second
+    //  for as long as GoldED ran, the area list rebuilt each time.
     GVidInfo now;
     detectinfo(&now);
-    return (now.screen.rows != numrows) or (now.screen.columns != numcols);
+    return (now.screen.rows != curr.screen.rows) or (now.screen.columns != curr.screen.columns);
 }
 
 
