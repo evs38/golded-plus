@@ -12,7 +12,7 @@ source=(
     "golded"
 )
 makedepends=('git' 'gcc' 'make' 'glibc' 'groff')
-depends=()
+depends=('icu')
 provides=('golded-plus')
 
 build() {

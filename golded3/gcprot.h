@@ -406,6 +406,7 @@
     void CfgXlatareaset      ();
     void CfgXlatconfigset    ();
     void CfgXlatlocalset     ();
+    void CfgXlattranslit     ();
     void CfgXlatpath         ();
     void CfgZonegating       ();
 

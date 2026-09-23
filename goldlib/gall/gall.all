@@ -60,6 +60,7 @@ gftnnl   cpp     all ovl bcd bco bcx wcn wco wcx lnx emx djg rsx cyg be sun osx
 gftnnlfd cpp     all ovl bcd bco bcx wcn wco wcx lnx emx djg rsx cyg be sun osx
 gftnnlfu cpp     all ovl bcd bco bcx wcn wco wcx lnx emx djg rsx cyg be sun osx
 gftnnlge cpp     all ovl bcd bco bcx wcn wco wcx lnx emx djg rsx cyg be sun osx
+gtranslit cpp    all ovl bcd bco bcx wcn wco wcx lnx emx djg rsx cyg be sun osx
 gftnnlv7 cpp     all ovl bcd bco bcx wcn wco wcx lnx emx djg rsx cyg be sun osx
 
 ## Keyboard.

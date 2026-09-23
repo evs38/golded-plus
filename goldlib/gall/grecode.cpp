@@ -35,6 +35,7 @@
 #include <gcharset.h>
 #include <vector>
 #include <grecode.h>
+#include <gtranslit.h>
 
 #ifdef HAS_ICONV
     #include <iconv.h>
@@ -644,9 +645,18 @@ bool GRecoder::open(const char* from, const char* to)
 
         //  A named string, not the expression: Open Watcom faults on
         //  destroying a temporary one.
+        //
+        //  Only while transliteration is off. With it on, what iconv
+        //  cannot represent has to come back as an error, so that the
+        //  transliterator gets the word: GNU libiconv's own
+        //  approximation writes y"ezhik and Pr'ilis, counts no
+        //  substitute, and left nothing for a better engine to do.
         std::string tospec = *c;
-        tospec += "//TRANSLIT";
-        cd = iconv_open(tospec.c_str(), f->c_str());
+        if(not g_translit_enabled())
+        {
+            tospec += "//TRANSLIT";
+            cd = iconv_open(tospec.c_str(), f->c_str());
+        }
         if(cd == (iconv_t)(-1))
             cd = iconv_open(c->c_str(), f->c_str());
     }
@@ -871,6 +881,148 @@ std::string GRecoder::convert_uls(const char* src, size_t len) const
 //  ------------------------------------------------------------------
 
 std::string GRecoder::convert(const char* src, size_t len) const
+{
+    if(src == NULL or len == 0)
+        return std::string();
+
+    if(__state == state_closed or __state == state_identity)
+        return std::string(src, len);
+
+    //  Straight through first; the whole of a line converts nearly
+    //  always, and then nothing more is done. Only what the destination
+    //  could not hold goes round again, word by word, transliterated.
+    size_t before = __substitutes;
+    std::string result = convert_plain(src, len);
+    if(not g_translit_enabled())
+        return result;
+    if(__substitutes == before and lossless(src, len, result))
+        return result;
+
+    return convert_translit(src, len, result, before);
+}
+
+
+//  ------------------------------------------------------------------
+//  Whether a conversion kept everything: converted back, it gives the
+//  text it was made from. The substitute count alone does not say so -
+//  Apple's iconv approximates on its own, without being asked and
+//  without an error, writing Pr'ilis into CP866 and worse into
+//  LATIN-2, and only the way back shows what was lost.
+
+bool GRecoder::lossless(const char* src, size_t len, const std::string& out) const
+{
+    if(__state != state_iconv)
+        return true;
+    GRecoder& back = g_recoder(__to.c_str(), __from.c_str());
+    if(not back.is_open() or back.is_identity())
+        return true;
+    size_t was = back.__substitutes;
+    std::string again = back.convert_plain(out.data(), out.length());
+    back.__substitutes = was;
+    return again.length() == len and memcmp(again.data(), src, len) == 0;
+}
+
+
+//  ------------------------------------------------------------------
+//  A destination that cannot hold a word gets it in Latin letters
+//  instead of a row of substitutes: first with its diacritics, for a
+//  charset that has them (LATIN-2 keeps a Czech name whole), then
+//  without, for one that has not. What no engine can render is
+//  substituted as before. Word by word, because the rules look at
+//  neighbours - BGN/PCGN writes the same letter differently after a
+//  vowel - and because a word the charset does hold is left exactly as
+//  it was. 'plain' is the straight conversion already made, 'before'
+//  the substitute count from before it.
+
+std::string GRecoder::convert_translit(const char* src, size_t len, const std::string& plain, size_t before) const
+{
+    //  The engines take UTF-8; a source in another charset is brought
+    //  there first, and the words are cut in that form.
+    std::string utf8;
+    const GRecoder* self = this;
+    if(__from != "UTF-8")
+    {
+        GRecoder& r = g_recoder(__from.c_str(), "UTF-8");
+        if(not r.is_open() or r.is_identity())
+            return plain;
+        size_t was = r.__substitutes;
+        utf8 = r.convert_plain(src, len);
+        if(r.__substitutes != was)
+            return plain;
+        self = &g_recoder("UTF-8", __to.c_str());
+        if(not self->is_open())
+            return plain;
+    }
+    else
+        utf8.assign(src, len);
+
+    std::string out;
+    size_t total = 0;                       // substitutes in the result
+    const char* p   = utf8.data();
+    const char* end = p + utf8.length();
+
+    while(p < end)
+    {
+        //  Runs of blanks pass as they are; everything between two
+        //  blanks is a word.
+        const char* q = p;
+        if(isspace((unsigned char)*p))
+        {
+            while(q < end and isspace((unsigned char)*q))
+                q++;
+            out.append(p, q - p);
+            p = q;
+            continue;
+        }
+        while(q < end and not isspace((unsigned char)*q))
+            q++;
+
+        size_t was = self->__substitutes;
+        std::string best = self->convert_plain(p, q - p);
+        size_t bad = self->__substitutes - was;
+        if(bad or not self->lossless(p, q - p, best))
+        {
+            //  With diacritics first; a destination that has them
+            //  keeps them, and the way back says whether it did.
+            std::string t = g_translit(p, q - p, false);
+            was = self->__substitutes;
+            std::string c = self->convert_plain(t.data(), t.length());
+            size_t tbad = self->__substitutes - was;
+            bool ok = (tbad == 0) and self->lossless(t.data(), t.length(), c);
+            if(ok or tbad < bad)
+            {
+                best = c;
+                bad = tbad;
+            }
+            if(not ok)
+            {
+                t = g_translit(p, q - p, true);
+                was = self->__substitutes;
+                c = self->convert_plain(t.data(), t.length());
+                tbad = self->__substitutes - was;
+                if(tbad <= bad)
+                {
+                    best = c;
+                    bad = tbad;
+                }
+            }
+        }
+        total += bad;
+        out += best;
+        p = q;
+    }
+
+    //  The count reflects the result, not the trials.
+    __substitutes = before + total;
+    return out;
+}
+
+
+//  ------------------------------------------------------------------
+//  The conversion itself, substituting what the destination has no
+//  character for.
+
+std::string GRecoder::convert_plain(const char* src, size_t len) const
 {
     if(src == NULL or len == 0)
         return std::string();

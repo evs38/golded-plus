@@ -100,6 +100,12 @@ public:
     std::string convert(const char* src, size_t len) const;
     std::string convert(const std::string& src) const;
 
+    //  The same without transliteration: what the destination has no
+    //  character for becomes the substitute, full stop. convert() is
+    //  this plus a second, word-wise pass through the transliterator
+    //  for what was substituted - see gtranslit.h.
+    std::string convert_plain(const char* src, size_t len) const;
+
     //  Convert a single Unicode codepoint into the destination charset.
     std::string encode(uint32_t cp) const;
 
@@ -221,6 +227,8 @@ private:
     void* __uconv_to;
 
     std::string convert_table(const char* src, size_t len) const;
+    std::string convert_translit(const char* src, size_t len, const std::string& plain, size_t before) const;
+    bool        lossless(const char* src, size_t len, const std::string& out) const;
     std::string convert_win32(const char* src, size_t len) const;
     std::string convert_uls(const char* src, size_t len) const;
 

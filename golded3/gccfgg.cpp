@@ -784,6 +784,7 @@ CfgGed::CfgGed()
     strcpy(tearline, "@longpid @version");
     strcpy(whoto, "All");
     *xlatconfigset = NUL;   // empty: config is in the local charset
+    strcpy(xlattranslit, "Russian-Latin/BGN");   // XLATTRANSLIT: BGN/PCGN unless the config says
     *xlatareaset = NUL;     // empty: area descriptions follow the config
     strcpy(xlatlocalset, get_charset());
     strcpy(xlatimport, get_dos_charset(xlatlocalset));

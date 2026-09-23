@@ -516,6 +516,7 @@ public:
     std::map<std::string, std::string, std::less<std::string> > xlatcharsetalias;
     char        xlatexport[17];       // exportcharset[17];
     char        xlatimport[17];       // localcharset[17];
+    char        xlattranslit[80];     // XLATTRANSLIT: ICU rules, TABLE, or NO
     //  The charset configuration files are written in. Area
     //  descriptions come from there and are shown as they are, so a
     //  config that predates the move to UTF-8 - or one written by a

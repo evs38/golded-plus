@@ -35,3 +35,6 @@ endif
 endif
 
 include $(TOP)/GNUmakef.lib
+
+#  ICU, for the transliterator only - see ICU_CFLAGS in GNUmakef.def.
+$(FOBJPATH)/gtranslit$(OBJEXT): CPPFLAGS+=$(ICU_CFLAGS)

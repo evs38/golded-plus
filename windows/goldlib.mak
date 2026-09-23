@@ -94,6 +94,7 @@ CLEAN :
 	-@erase "$(INTDIR)\gftnnlfd.obj"
 	-@erase "$(INTDIR)\gftnnlfu.obj"
 	-@erase "$(INTDIR)\gftnnlge.obj"
+	-@erase "$(INTDIR)\gtranslit.obj"
 	-@erase "$(INTDIR)\gftnnlv7.obj"
 	-@erase "$(INTDIR)\gfuzzy.obj"
 	-@erase "$(INTDIR)\ghdrmime.obj"
@@ -334,6 +335,7 @@ LIB32_OBJS= \
 	"$(INTDIR)\gftnnlfd.obj" \
 	"$(INTDIR)\gftnnlfu.obj" \
 	"$(INTDIR)\gftnnlge.obj" \
+	"$(INTDIR)\gtranslit.obj" \
 	"$(INTDIR)\gftnnlv7.obj" \
 	"$(INTDIR)\gfuzzy.obj" \
 	"$(INTDIR)\ghdrmime.obj" \
@@ -666,6 +668,12 @@ SOURCE=..\goldlib\gall\gftnnlfu.cpp
 SOURCE=..\goldlib\gall\gftnnlge.cpp
 
 "$(INTDIR)\gftnnlge.obj" : $(SOURCE) "$(INTDIR)"
+	$(CPP) $(CPP_PROJ) $(SOURCE)
+
+
+SOURCE=..\goldlib\gall\gtranslit.cpp
+
+"$(INTDIR)\gtranslit.obj" : $(SOURCE) "$(INTDIR)"
 	$(CPP) $(CPP_PROJ) $(SOURCE)
 
 

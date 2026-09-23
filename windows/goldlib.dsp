@@ -199,6 +199,8 @@ SOURCE=..\goldlib\gall\gftnnlfu.cpp
 
 SOURCE=..\goldlib\gall\gftnnlge.cpp
 # End Source File
+SOURCE=..\goldlib\gall\gtranslit.cpp
+# End Source File
 # Begin Source File
 
 SOURCE=..\goldlib\gall\gftnnlv7.cpp
@@ -1033,6 +1035,8 @@ SOURCE=..\goldlib\gall\gftnnlfu.h
 # Begin Source File
 
 SOURCE=..\goldlib\gall\gftnnlge.h
+# End Source File
+SOURCE=..\goldlib\gall\gtranslit.h
 # End Source File
 # Begin Source File
 

@@ -1369,6 +1369,9 @@ SwitchX:
     case CRC_XLATIMPORT       :
         CfgXlatimport       ();
         break;
+    case CRC_XLATTRANSLIT     :
+        CfgXlattranslit     ();
+        break;
     case CRC_XLATREPLYORIGINAL:
         CfgXlatreplyoriginal();
         break;

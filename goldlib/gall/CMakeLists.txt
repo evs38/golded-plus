@@ -47,6 +47,7 @@ set(gall_SOURCES
   gstrutil.cpp
   gtimjuld.cpp
   gtimutil.cpp
+  gtranslit.cpp
   gtxtpara.cpp
   gutf8.cpp
   gimage.cpp
@@ -94,4 +95,12 @@ include_directories(BEFORE .. ../glibc)
 target_link_libraries(gall hunspell)
 if (GOLD_ICONV_LIBS)
   target_link_libraries(gall ${GOLD_ICONV_LIBS})
+endif()
+if (GOLD_ICU_LIBS)
+  target_link_libraries(gall ${GOLD_ICU_LIBS})
+  #  The headers for the one file that uses them, not for the library:
+  #  an ICU under /usr/pkg brings a packaged GNU libiconv's iconv.h
+  #  along, and in front of the C library's that breaks grecode.cpp's
+  #  pairing with the iconv actually linked - see the top-level notes.
+  set_source_files_properties(gtranslit.cpp PROPERTIES INCLUDE_DIRECTORIES "${GOLD_ICU_INCLUDE_DIRS}" COMPILE_DEFINITIONS GOLD_ICU=1)
 endif()

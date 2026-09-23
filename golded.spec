@@ -32,6 +32,7 @@ Requires: ncurses >= 5.4
 BuildRequires: make
 BuildRequires: gcc-c++
 BuildRequires: ncurses-devel >= 5.4
+BuildRequires: libicu-devel
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 
 %description

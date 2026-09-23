@@ -13,6 +13,18 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
++ Transliteration. Text the charset a message goes out in cannot
+  hold - a Cyrillic name into an ASCII echo, a Czech one into CP437,
+  kana into CP866 - is written in Latin letters instead of a row of
+  "?": only the words the charset cannot hold, and only as far as
+  needed, so a charset that has the diacritics keeps them. Two
+  engines: ICU's transliterators (the system's own ICU on macOS and
+  Windows 10 and later, the library elsewhere when built with it -
+  every script and the standard rule sets) and a built-in table
+  (Cyrillic and Greek after BGN/PCGN, Latin diacritics, Hepburn kana).
+  XLATTRANSLIT names the ICU rules (default Russian-Latin/BGN), TABLE
+  for the built-in table only, NO for the old behaviour.
+
 - A nodelist's names and cities are brought into the session's
   charset. A nodelist is text in whatever the network writes it in -
   CP866 in the Russian nets, UTF-8 for DAILYUTF - and it was shown as

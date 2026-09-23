@@ -28,6 +28,7 @@
 #include <gutlos.h>
 #include <gmoprot.h>
 #include <gdirposx.h>
+#include <gtranslit.h>
 #ifdef __WIN32__
     #include <windows.h>
 #endif
@@ -1211,6 +1212,15 @@ void Initialize(int argc, char* argv[])
     // The charset aliases the configuration declared, for the
     // recoder; an area's group adds its own when the area is entered.
     LoadCharsetAliases(NULL);
+
+    //  Transliteration of what a destination charset cannot hold: the
+    //  rules from XLATTRANSLIT, and a line in the log saying which
+    //  engine answers them.
+    g_set_translit_rules(CFG->xlattranslit);
+    //  The conversions opened while the configuration was read were
+    //  opened for the setting before this one; see GRecoder::open().
+    g_recoder_flush();
+    LOG.printf("- Transliteration: %s", g_translit_engine());
 
     // Read/compile various configs
     compiled |= ReadLangCfg();

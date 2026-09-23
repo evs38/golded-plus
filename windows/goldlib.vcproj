@@ -623,6 +623,10 @@
 					RelativePath="..\goldlib\gall\gftnnlge.cpp"
 					>
 				</File>
+<File
+					RelativePath="..\goldlib\gall\gtranslit.cpp"
+					>
+				</File>
 				<File
 					RelativePath="..\goldlib\gall\gftnnlv7.cpp"
 					>
@@ -2247,6 +2251,10 @@
 				</File>
 				<File
 					RelativePath="..\goldlib\gall\gftnnlge.h"
+					>
+				</File>
+<File
+					RelativePath="..\goldlib\gall\gtranslit.h"
 					>
 				</File>
 				<File

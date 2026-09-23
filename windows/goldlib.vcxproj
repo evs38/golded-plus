@@ -286,6 +286,7 @@
     <ClCompile Include="..\goldlib\gall\gftnnlfd.cpp" />
     <ClCompile Include="..\goldlib\gall\gftnnlfu.cpp" />
     <ClCompile Include="..\goldlib\gall\gftnnlge.cpp" />
+    <ClCompile Include="..\goldlib\gall\gtranslit.cpp" />
     <ClCompile Include="..\goldlib\gall\gftnnlv7.cpp" />
     <ClCompile Include="..\goldlib\gall\gfuzzy.cpp" />
     <ClCompile Include="..\goldlib\gall\ghdrmime.cpp" />
@@ -603,6 +604,7 @@
     <ClInclude Include="..\goldlib\gall\gftnnlfd.h" />
     <ClInclude Include="..\goldlib\gall\gftnnlfu.h" />
     <ClInclude Include="..\goldlib\gall\gftnnlge.h" />
+    <ClInclude Include="..\goldlib\gall\gtranslit.h" />
     <ClInclude Include="..\goldlib\gall\gftnnlv7.h" />
     <ClInclude Include="..\goldlib\gall\gfuzzy.h" />
     <ClInclude Include="..\goldlib\gall\ghdrmime.h" />

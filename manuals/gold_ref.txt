@@ -5170,6 +5170,40 @@ Here is the complete keyword list:
         ENDGROUP
 
 
+XLATTRANSLIT <rules/table/no>  (Russian-Latin/BGN)
+
+    What to do with text the charset a message is written out in
+    cannot hold - a Cyrillic name going into an ASCII echo, a Czech
+    one into CP437, kana into CP866. Left to itself the recoder puts a
+    substitute ("?") for every such character; with this keyword the
+    word is written in Latin letters instead. Only the words the
+    charset cannot hold are touched, and only as far as needed: a
+    charset that has the diacritics keeps them (LATIN-2 takes a Czech
+    name as it is), one that has not gets the base letters.
+
+    The value names the rules. Where ICU is available - the system's
+    own on macOS and Windows 10 and later, the library on the others
+    when GoldED was built with it - it is the ID of an ICU
+    transliterator applied before the general one: Russian-Latin/BGN
+    (the default, BGN/PCGN romanization), Ukrainian-Latin/BGN,
+    Greek-Latin/BGN, Serbian-Latin/BGN, Hebrew-Latin, Hangul-Latin and
+    so on; a name ICU does not know falls back to its general
+    Any-Latin rules, which also render kana, Han and every other
+    script ICU knows.
+
+    TABLE uses the built-in table only, ICU or not: Cyrillic and Greek
+    after BGN/PCGN, Latin letters with diacritics reduced to the base
+    letter, Japanese kana after Hepburn; ideographs stay substitutes.
+    NO switches transliteration off, and every character the charset
+    cannot hold is a substitute, as before.
+
+    The engine in use is written to the log at start-up.
+
+    Example:
+
+      XLATTRANSLIT Russian-Latin/BGN
+
+
 XLATUTFAUTODETECT <yes/override/no>  (no)
 
     Recognise a message written in UTF-8 that does not say so. A text

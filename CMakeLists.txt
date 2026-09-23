@@ -530,6 +530,25 @@ elseif (NOT GOLD_ICONV_NATIVE_ONLY)
   message(WARNING "No usable iconv: falling back to the built-in charset tables.")
 endif()
 
+#  ICU, for transliteration (gtranslit.cpp): text a destination charset
+#  cannot hold is written in Latin letters instead of substitutes. On
+#  macOS and Windows the system's own ICU is opened at run time and
+#  nothing is linked; elsewhere the library is linked when it is found,
+#  and the built-in table answers where it is not. GOLD_ICU=OFF leaves
+#  it out of the link on purpose.
+option(GOLD_ICU "Link ICU for transliteration where the system does not carry it" ON)
+set(GOLD_ICU_LIBS "")
+if (GOLD_ICU AND NOT APPLE AND NOT WIN32)
+  find_package(ICU COMPONENTS i18n uc data QUIET)
+  if (ICU_FOUND)
+    set(GOLD_ICU_INCLUDE_DIRS ${ICU_INCLUDE_DIRS})
+    set(GOLD_ICU_LIBS ${ICU_LIBRARIES})
+    message(STATUS "ICU: ${ICU_VERSION} (${ICU_LIBRARIES})")
+  else()
+    message(STATUS "ICU: not found, transliteration uses the built-in table")
+  endif()
+endif()
+
 if (GOLD_UTF8)
   add_definitions(-DGOLD_UTF8=1)
 endif()

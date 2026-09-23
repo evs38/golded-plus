@@ -873,6 +873,15 @@ void CfgXlatareaset()
 
 //  ------------------------------------------------------------------
 
+void CfgXlattranslit()
+{
+
+    strxcpy(CFG->xlattranslit, val, sizeof(CFG->xlattranslit));
+}
+
+
+//  ------------------------------------------------------------------
+
 void CfgXlatlocalset()
 {
 
