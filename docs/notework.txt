@@ -13,6 +13,13 @@ ______________________________________________________________________
 Legend: "-" - bugfix, "+" - new feature, "!" - important modification.
 ______________________________________________________________________
 
+- On a curses build every window closed left its saved rectangle - a
+  curses window of its own - in curses' list, and every resize after
+  that resized all of them again: a minute of resizing grew the
+  process by hundreds of megabytes (freed only at exit, so no leak
+  checker saw it) and a small machine killed it. The rectangle's
+  window is deleted with the window now.
+
 - The header's top line on a narrow terminal, with an area description
   long enough to fill it, wrote its terminator one byte past the line
   buffer: strxmerge() spent the whole size on text, unlike strxcpy()

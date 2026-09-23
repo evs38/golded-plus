@@ -251,7 +251,13 @@ int wclose()
 
     // restore contents of and free memory held by window
     vrestore(gwin.active->wbuf);
-    throw_xrelease(gwin.active->wbuf);
+    //  vfreesave(), not a bare release: under curses the saved
+    //  rectangle is a curses window, and releasing only the record
+    //  left the window in curses' list - one per window closed, all
+    //  of them resized again by every resizeterm(), until a minute of
+    //  resizing on a phone had the process killed for memory.
+    vfreesave(gwin.active->wbuf);
+    gwin.active->wbuf = NULL;
 
     // decrement total number of open windows
     gwin.total--;
@@ -1315,8 +1321,9 @@ int wunlink(int w)
     if(found->wsbuf!=NULL)
         throw_xrelease(found->wsbuf);
 
-    // free memory held by window's buffer
-    throw_xrelease(found->wbuf);
+    // free memory held by window's buffer - see wclose()
+    vfreesave(found->wbuf);
+    found->wbuf = NULL;
 
     // decrement total number of open windows
     gwin.total--;

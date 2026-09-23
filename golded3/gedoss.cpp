@@ -201,7 +201,8 @@ void Cleanup(void)
         if(oldscreen)
         {
             vrestore(oldscreen);
-            throw_xrelease(oldscreen);
+            vfreesave(oldscreen);
+            oldscreen = NULL;
         }
         if(CFG->intensecolors)
             gvid->setintensity(gvid->orig.color.intensity);
