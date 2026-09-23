@@ -3455,6 +3455,26 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
 
     if(AA->attr().hex())
     {
+        //  The header fields are recoded from the message's charset
+        //  by the text pass below, which the dump does not run: the
+        //  subject of a CP866 message stood in the header as raw bytes
+        //  for as long as the dump was shown. Run the pass once with
+        //  the dump off, keep the header it made, drop its lines.
+        if(header_recode)
+        {
+            AA->attr().hex0();
+            MakeLineIndex(msg, margin, getvalue, header_recode);
+            AA->attr().hex1();
+            line = msg->lin;
+            while(line)
+            {
+                nextline = line->next;
+                throw_xdelete(line);
+                line = nextline;
+            }
+            msg->lines = 0;
+            msg->lin = NULL;
+        }
 
         // Make a complete hexdump as a list of message lines
         w_info(LNG->GenHexdump);

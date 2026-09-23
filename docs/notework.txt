@@ -24,6 +24,10 @@ ______________________________________________________________________
   nodelist in an 8-bit session is left exactly as before. Recompile
   the nodelist index once.
 
+- In the hexdump view the header's From, To and Subject stood in the
+  message base's charset, not the session's - a CP866 subject was a
+  row of broken bytes for as long as the dump was shown.
+
 - GoldED walked into the first area at start-up instead of showing
   the area list when the terminal was resized twice while the areas
   were being scanned - a console that grows after a batch file starts
