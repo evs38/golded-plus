@@ -1098,6 +1098,26 @@ static bool gvid_win9x()
 }
 
 
+//  The OEM byte for a cell's Unicode on 9x. The table the bytes came
+//  in through is exact for all 256 of them, the glyphs below 32
+//  included, which the system's best-fit mapping would not give back;
+//  anything else - a codepoint from a UTF-8 session - goes through
+//  the system, and comes out as its nearest byte or '?'.
+static char gvid_oem_byte(WCHAR wc)
+{
+    if(wc < 0x80 and oem2unicode[wc] == wc)
+        return (char)wc;
+
+    for(int i = 0; i < 256; i++)
+        if(oem2unicode[i] == wc)
+            return (char)i;
+
+    char c = '?';
+    WideCharToMultiByte(CP_OEMCP, 0, &wc, 1, &c, 1, NULL, NULL);
+    return c;
+}
+
+
 static void gvid_write_cells(const vatch* buf, COORD size, SMALL_RECT* rect)
 {
     const COORD coord = {0, 0};
@@ -1112,10 +1132,7 @@ static void gvid_write_cells(const vatch* buf, COORD size, SMALL_RECT* rect)
     CHAR_INFO* oem = (CHAR_INFO*)throw_malloc(n * sizeof(CHAR_INFO));
     for(int i = 0; i < n; i++)
     {
-        WCHAR wc = buf[i].Char.UnicodeChar;
-        char  c  = '?';
-        WideCharToMultiByte(CP_OEMCP, 0, &wc, 1, &c, 1, NULL, NULL);
-        oem[i].Char.AsciiChar = c;
+        oem[i].Char.AsciiChar = gvid_oem_byte(buf[i].Char.UnicodeChar);
         oem[i].Attributes = buf[i].Attributes;
     }
     WriteConsoleOutputA(gvid_hout, oem, size, coord, rect);
@@ -1137,10 +1154,10 @@ static void gvid_read_cells(vatch* buf, COORD size, SMALL_RECT* rect)
     int n = (int)size.X * (int)size.Y;
     for(int i = 0; i < n; i++)
     {
-        char  c  = buf[i].Char.AsciiChar;
-        WCHAR wc = (unsigned char)c;
-        MultiByteToWideChar(CP_OEMCP, 0, &c, 1, &wc, 1);
-        buf[i].Char.UnicodeChar = wc;
+        //  Through the same table the bytes were written from, so a
+        //  rectangle saved and put back is the same bytes again.
+        unsigned char c = (unsigned char)buf[i].Char.AsciiChar;
+        buf[i].Char.UnicodeChar = oem2unicode[c];
     }
 }
 

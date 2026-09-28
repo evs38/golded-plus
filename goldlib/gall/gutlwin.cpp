@@ -71,6 +71,22 @@ int g_init_os(int flags)
     GetVersionEx(&WinVer);
     SetFileApisToOEM();
     GetConsoleTitle(ge_win_coldtitle, sizeof(ge_win_coldtitle));
+
+    //  The console's codepage as Unicode, one entry per byte, for the
+    //  screen cells - see gvid_tcpr(). On NT the console takes the
+    //  cells as Unicode; on 9x it takes OEM bytes, and the cells are
+    //  turned back through this same table. It is built on both, or a
+    //  9x screen holds nothing but attributes: the table stayed all
+    //  zero there, and every cell went out as a NUL. MB_USEGLYPHCHARS
+    //  gives the bytes below 32 the glyphs CP437 draws there.
+    for(i = 0; i < 256; i++)
+    {
+        CHAR chr = (CHAR)i;
+        if(MultiByteToWideChar(CP_OEMCP, MB_USEGLYPHCHARS, &chr, 1, oem2unicode+i, 1) != 1
+        and MultiByteToWideChar(CP_OEMCP, 0, &chr, 1, oem2unicode+i, 1) != 1)
+            oem2unicode[i] = (WCHAR)(unsigned char)i;
+    }
+
     if(WinVer.dwPlatformId == VER_PLATFORM_WIN32_NT)
     {
 #ifdef __MSVCRT__
@@ -91,8 +107,6 @@ int g_init_os(int flags)
         {
             tu[i] = toupper(i);
             tl[i] = tolower(i);
-            CHAR chr = (CHAR)i;
-            MultiByteToWideChar(CP_OEMCP, MB_USEGLYPHCHARS, &chr, 1, oem2unicode+i, 1);
         }
         return 0;
     }

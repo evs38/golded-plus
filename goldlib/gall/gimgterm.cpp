@@ -256,12 +256,22 @@ static void g_imgterm_cell_size(GImgTerm& term)
 #if defined(GIMG_WINDOWS)
     //  The console font's cell, as the console reports it. Windows
     //  Terminal answers through its conpty with the size it draws at.
+    //  Looked up at run time: both calls came with Windows 2000, and
+    //  an executable naming them in its import table does not load on
+    //  Windows 9x at all - "linked to missing export".
     {
+        typedef BOOL  (WINAPI* gimg_font_t)(HANDLE, BOOL, PCONSOLE_FONT_INFO);
+        typedef COORD (WINAPI* gimg_fontsize_t)(HANDLE, DWORD);
+
+        HMODULE k32 = GetModuleHandleA("kernel32.dll");
+        gimg_font_t     pfont = k32 ? (gimg_font_t)(void*)GetProcAddress(k32, "GetCurrentConsoleFont") : NULL;
+        gimg_fontsize_t psize = k32 ? (gimg_fontsize_t)(void*)GetProcAddress(k32, "GetConsoleFontSize") : NULL;
+
         CONSOLE_FONT_INFO fi;
         HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
-        if(h != INVALID_HANDLE_VALUE and GetCurrentConsoleFont(h, FALSE, &fi))
+        if(pfont and psize and h != INVALID_HANDLE_VALUE and pfont(h, FALSE, &fi))
         {
-            COORD sz = GetConsoleFontSize(h, fi.nFont);
+            COORD sz = psize(h, fi.nFont);
             if(sz.X > 0 and sz.Y > 0)
             {
                 term.cell_width  = sz.X;

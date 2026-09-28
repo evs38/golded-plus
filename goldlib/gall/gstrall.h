@@ -301,6 +301,17 @@ std::string &FormatString(std::string &format, const char *token, size_t replace
 
 void tokenize(gstrarray &array, const TCHAR* str, const TCHAR *delim = NULL);
 
+//  The _s variants only with Visual C++'s own runtime, where they are
+//  always there. mingw-w64's <tchar.h> maps them too, onto msvcrt.dll
+//  imports that Windows XP and 2003 do not have, so the executable
+//  would not load there: "entry point strncpy_s not found".
+#if defined(_tcstok_s) && !defined(_MSC_VER)
+    #undef _tcstok_s
+#endif
+#if defined(_tcsncpy_s) && !defined(_MSC_VER)
+    #undef _tcsncpy_s
+#endif
+
 class GTok
 {
 protected:

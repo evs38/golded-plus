@@ -50,6 +50,19 @@ ______________________________________________________________________
   for before it opens, and a list ended by one always asks for the
   layout again.
 
+- On Windows 9x the screen was black with the colour bars alone on
+  it: the table that turns the console's codepage into the Unicode
+  the cells hold was built on NT only, and every cell went out as a
+  NUL. It is built on 9x too, and the 9x path writes and reads the
+  console through it both ways, the CP437 glyphs below 32 included.
+
+- The mingw32 executable did not load on Windows XP and 2003 ("entry
+  point strncpy_s not found in msvcrt.dll"): the toolchain's <tchar.h>
+  had mapped the string copy and tokenizer onto the _s functions,
+  which that msvcrt does not export. They are used with Visual C++'s
+  own runtime only. Nor did it load on Windows 98, over the console
+  font calls the picture code names; those are looked up at run time.
+
 - The Visual C++ 2008 build failed in <algorithm>: geall.h names the
   window parts with macros (_Reverse among them), and two files
   included the standard headers after it, where that compiler's own
