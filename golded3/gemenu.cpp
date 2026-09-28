@@ -1007,8 +1007,10 @@ int ChangeAka()
 
 //  ------------------------------------------------------------------
 //  Build the charset list for the "change charset" menus out of what
-//  the recoder can do, for the case where no .chs tables are configured
-//  - which is the normal state of affairs once iconv is doing the work.
+//  the recoder can do, and after it the charsets only a .chs table can
+//  convert. The tables add to the recoder's list rather than replace
+//  it: a CP895 table beside iconv means CP895 on top of everything
+//  iconv knows, not CP895 alone.
 //
 //  The entries have the same shape as the table-derived ones, because
 //  the caller picks the charset back out with tokenize(): the name it
@@ -1039,11 +1041,59 @@ static bool XlatOffered(const char* name, bool importing)
 }
 
 
+//  The charsets the .chs tables add: those the recoder cannot convert
+//  but a table can - CP895 through its own tables, say. A table for a
+//  charset the recoder knows adds nothing, since LoadCharset() prefers
+//  the recoder anyway. Reading, a table goes from the charset into the
+//  session's; writing, from the session's into the charset - or, in a
+//  UTF-8 session, the reading table run backwards, as LoadCharset()
+//  does it.
+
+static void TableXlatNames(gstrarray& names, bool importing)
+{
+    ChrsMap::iterator xlt = CFG->xlatcharsets.begin();
+    ChrsMap::iterator end = CFG->xlatcharsets.end();
+
+    for (; xlt != end; ++xlt)
+    {
+        const char* from = (*xlt).first.first.c_str();
+        const char* to   = (*xlt).first.second.c_str();
+        const char* name = NULL;
+
+        if (importing)
+        {
+            if (strieql(to, CFG->xlatlocalset))
+                name = from;
+        }
+        else
+        {
+            if (strieql(from, CFG->xlatlocalset))
+                name = to;
+            else if (strieql(to, CFG->xlatlocalset) and GRecoder::is_utf8(CFG->xlatlocalset))
+                name = from;
+        }
+
+        if (name == NULL or strieql(name, CFG->xlatlocalset) or XlatOffered(name, importing))
+            continue;
+
+        bool seen = false;
+        for (size_t n = 0; n < names.size(); n++)
+            if (strieql(names[n].c_str(), name))
+                seen = true;
+        if (not seen)
+            names.push_back(name);
+    }
+}
+
+
 static void BuiltinXlatList(gstrarray& list, bool importing)
 {
     char buf[100];
     char ftn[64];
     char local[64];
+
+    gstrarray tables;
+    TableXlatNames(tables, importing);
 
     //  The names shown are the ones FTS-5003 uses, which is what a CHRS
     //  kludge carries and therefore what the reader recognises: LATIN-1
@@ -1064,6 +1114,8 @@ static void BuiltinXlatList(gstrarray& list, bool importing)
             width = MaxV(width, strlen(ftn));
         }
     }
+    for (n = 0; n < tables.size(); n++)
+        width = MaxV(width, tables[n].size());
 
     for (n = 0; n < g_charset_count(); n++)
     {
@@ -1081,6 +1133,17 @@ static void BuiltinXlatList(gstrarray& list, bool importing)
                      (int)width, ftn, local);
         list.push_back(buf);
     }
+
+    for (n = 0; n < tables.size(); n++)
+    {
+        if (importing)
+            gsprintf(PRINTF_DECLARE_BUFFER(buf), " %*s -> %s ",
+                     (int)width, tables[n].c_str(), local);
+        else
+            gsprintf(PRINTF_DECLARE_BUFFER(buf), " %*s <- %s ",
+                     (int)width, tables[n].c_str(), local);
+        list.push_back(buf);
+    }
 }
 
 
@@ -1088,10 +1151,9 @@ static void BuiltinXlatList(gstrarray& list, bool importing)
 
 int ChangeXlatImport()
 {
-    if (CFG->xlatcharsets.empty())
     {
-        //  No translation tables: offer what the recoder knows instead
-        //  of telling the user there is nothing to choose from.
+        //  What the recoder knows, and the charsets the .chs tables add
+        //  to that - see BuiltinXlatList().
         gstrarray Listi;
         Listi.push_back(LNG->CharsetAuto);
         BuiltinXlatList(Listi, true);
@@ -1132,92 +1194,6 @@ int ChangeXlatImport()
         LoadCharset(AA->Xlatimport(), CFG->xlatlocalset);
         return true;
     }
-
-    if (not CFG->xlatcharsets.empty())
-    {
-        size_t startat = 0;
-        int maximport = 0;
-        int maxexport = 0;
-
-        char buf[100];
-        gstrarray Listi;
-
-        ChrsMap::iterator xlt = CFG->xlatcharsets.begin();
-        ChrsMap::iterator end = CFG->xlatcharsets.end();
-
-        for (size_t xlatimports = 1; xlt != end; xlt++)
-        {
-            if (strieql((*xlt).first.second.c_str(), CFG->xlatlocalset))
-            {
-                maximport = MaxV(maximport, (int)(*xlt).first.first.size());
-                maxexport = MaxV(maxexport, (int)(*xlt).first.second.size());
-                if ((CFG->ignorecharset == true) and strieql((*xlt).first.first.c_str(), AA->Xlatimport()))
-                    startat = xlatimports;
-                xlatimports++;
-            }
-        }
-
-        //  Is one of the tables the session's own charset read as
-        //  itself? If not, the entry is added at the end: see
-        //  XlatOffered() above for why the list needs it. The widths
-        //  have to allow for the name, since the format truncates.
-        bool haslocal = false;
-        for (xlt = CFG->xlatcharsets.begin(); xlt != end; ++xlt)
-        {
-            if (strieql((*xlt).first.first.c_str(), CFG->xlatlocalset)
-                and strieql((*xlt).first.second.c_str(), CFG->xlatlocalset))
-                haslocal = true;
-        }
-        if (not haslocal)
-        {
-            maximport = MaxV(maximport, (int)strlen(CFG->xlatlocalset));
-            maxexport = MaxV(maxexport, (int)strlen(CFG->xlatlocalset));
-        }
-
-        Listi.push_back(LNG->CharsetAuto);
-
-        for (xlt = CFG->xlatcharsets.begin(); xlt != end; ++xlt)
-        {
-            if (strieql((*xlt).first.second.c_str(), CFG->xlatlocalset))
-            {
-                gsprintf(PRINTF_DECLARE_BUFFER(buf), " %*.*s -> %-*.*s ",
-                         maximport, maximport, (*xlt).first.first.c_str(), maxexport, maxexport, (*xlt).first.second.c_str());
-                Listi.push_back(buf);
-            }
-        }
-
-        if (not haslocal)
-        {
-            gsprintf(PRINTF_DECLARE_BUFFER(buf), " %*.*s -> %-*.*s ",
-                     maximport, maximport, CFG->xlatlocalset, maxexport, maxexport, CFG->xlatlocalset);
-            Listi.push_back(buf);
-            if (CFG->ignorecharset and strieql(AA->Xlatimport(), CFG->xlatlocalset))
-                startat = Listi.size() - 1;
-        }
-
-        size_t n = MinV(Listi.size(), (MAXROW-10));
-        set_title(LNG->Charsets, TCENTER, C_ASKT);
-        update_statusline(LNG->ChangeXlatImp);
-        whelppcat(H_ChangeXlatImport);
-        n = wpickstr(6, 0, 6+n+1, -1, W_BASK, C_ASKB, C_ASKW, C_ASKS, Listi, startat, title_shadow);
-        whelpop();
-
-        if (n == 0)
-        {
-            CFG->ignorecharset = false;
-        }
-        else if (n != -1)
-        {
-            CFG->ignorecharset = true;
-            gstrarray xlat;
-            tokenize(xlat, Listi[n].c_str());
-            AA->SetXlatimport(xlat[0].c_str());
-        }
-
-        LoadCharset(AA->Xlatimport(), CFG->xlatlocalset);
-    }
-    //  (The no-tables answer now lives in the picker above, built from
-    //  the recoder's own list; the old message became unreachable.)
 
     return true;
 }
@@ -1317,48 +1293,8 @@ int ChangeXlatExport()
 
     Listi.push_back(LNG->CharsetAuto);
 
-    if (CFG->xlatcharsets.empty())
-    {
-        BuiltinXlatList(Listi, false);
-    }
-    else
-    {
-        //  Tables: those that start from the charset the session runs
-        //  in, since that is what the text is held in on its way out.
-        int maxexp = (int)strlen(CFG->xlatlocalset);
-        int maxloc = maxexp;
-
-        ChrsMap::iterator xlt = CFG->xlatcharsets.begin();
-        ChrsMap::iterator end = CFG->xlatcharsets.end();
-
-        for (; xlt != end; ++xlt)
-        {
-            if (strieql((*xlt).first.first.c_str(), CFG->xlatlocalset))
-            {
-                maxexp = MaxV(maxexp, (int)(*xlt).first.second.size());
-                maxloc = MaxV(maxloc, (int)(*xlt).first.first.size());
-            }
-        }
-
-        //  Writing in the session's own charset needs no table at all -
-        //  the text is already in it - so that entry is always there.
-        gsprintf(PRINTF_DECLARE_BUFFER(buf), " %*.*s <- %-*.*s ",
-                 maxexp, maxexp, CFG->xlatlocalset,
-                 maxloc, maxloc, CFG->xlatlocalset);
-        Listi.push_back(buf);
-
-        for (xlt = CFG->xlatcharsets.begin(); xlt != end; ++xlt)
-        {
-            if (strieql((*xlt).first.first.c_str(), CFG->xlatlocalset)
-                and not strieql((*xlt).first.second.c_str(), CFG->xlatlocalset))
-            {
-                gsprintf(PRINTF_DECLARE_BUFFER(buf), " %*.*s <- %-*.*s ",
-                         maxexp, maxexp, (*xlt).first.second.c_str(),
-                         maxloc, maxloc, (*xlt).first.first.c_str());
-                Listi.push_back(buf);
-            }
-        }
-    }
+    //  What the recoder knows, and the charsets the .chs tables add.
+    BuiltinXlatList(Listi, false);
 
     if (Listi.size() < 2)
         return false;           // nothing but Auto: nothing to choose

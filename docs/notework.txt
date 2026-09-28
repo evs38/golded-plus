@@ -50,6 +50,13 @@ ______________________________________________________________________
   for before it opens, and a list ended by one always asks for the
   layout again.
 
+- The charset menus (Ctrl-J to read, Ctrl-Y to write) offered either
+  the recoder's charsets or the XLATCHARSET tables, never both: one
+  table in the configuration - CP895 through its .chs files, say -
+  and iconv's whole list vanished from the menus. The tables now add
+  to the list the charsets the recoder cannot convert, and only
+  those; reading and writing them goes through the table as before.
+
 + A second mingw build, for Windows 9x: make PLATFORM=cyg MINGW_ORG=1
   builds with the mingw.org toolchain (GCC 6.3, win32 threads), whose
   runtime still runs on Windows 95/98/Me, into bin9x/. The mingw-w64
