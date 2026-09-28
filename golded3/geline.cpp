@@ -26,11 +26,13 @@
 
 #include <cstdarg>
 #include <limits.h>
+#include <iterator>
+#include <vector>
+#include <map>
 #include <golded.h>
 #include <gstrmail.h>
 #include <gutlcode.h>
 #include <ghdrmime.h>
-#include <iterator>
 
 #if defined(__USE_ALLOCA__)
     #include <malloc.h>
@@ -38,8 +40,6 @@
 
 #include <grecode.h>
 #include <gutf8.h>
-#include <vector>
-#include <map>
 
 
 

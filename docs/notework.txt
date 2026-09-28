@@ -50,6 +50,11 @@ ______________________________________________________________________
   for before it opens, and a list ended by one always asks for the
   layout again.
 
+- The Visual C++ 2008 build failed in <algorithm>: geall.h names the
+  window parts with macros (_Reverse among them), and two files
+  included the standard headers after it, where that compiler's own
+  _Reverse became an array. The standard headers come first now.
+
 - A terminal resized while the areas were being scanned at start-up
   kept the splash and the "Scanning Area" line at the old size until
   the scan was over - on a slow network-mounted base, a while spent

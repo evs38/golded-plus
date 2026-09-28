@@ -44,13 +44,16 @@
 //  code asks it which lines of a message are an encoded attachment.
 //  ------------------------------------------------------------------
 
+//  The library headers first: geall.h names window parts with macros
+//  (_Reverse and the others) that clash with a standard library's
+//  own function names once it is included after them.
+#include <algorithm>
 #include <golded.h>
 
 #if defined(GOLD_IMAGES)
 
 #include <gimgterm.h>
 #include <uudeview.h>
-#include <algorithm>
 #include <time.h>
 
 
