@@ -8,6 +8,15 @@ MINGW=true
 endif
 endif
 
+#  PLATFORM=cyg is the mingw target - a native Win32 binary built with
+#  the Cygwin toolchain - so say so outright instead of inferring it from
+#  $TERM, which a non-interactive build does not set at all. The
+#  mingw.org toolchain has no <regex.h> of its own and takes it from
+#  goldlib/glibc, as the -mno-cygwin build always did.
+ifeq ($(PLATFORM),cyg)
+MINGW=true
+endif
+
 TOP=../..
 TARGET=gall
 INCS=-I$(TOP)/goldlib -I$(TOP)/goldlib/gall

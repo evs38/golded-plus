@@ -2524,9 +2524,13 @@ gkey kbxget_raw(eKeyModes mode)
     else // KeyMode_Wait
     {
 
-        DWORD &CKS = inp.Event.KeyEvent.dwControlKeyState;
-        WORD &VKC = inp.Event.KeyEvent.wVirtualKeyCode;
-        char &ascii = inp.Event.KeyEvent.uChar.AsciiChar;
+        //  Names for the fields of the record, which is read anew on
+        //  every turn of the loop. Not references: mingw.org's w32api
+        //  declares INPUT_RECORD packed, and GCC will not bind a
+        //  reference to a packed field.
+        #define CKS   (inp.Event.KeyEvent.dwControlKeyState)
+        #define VKC   (inp.Event.KeyEvent.wVirtualKeyCode)
+        #define ascii (inp.Event.KeyEvent.uChar.AsciiChar)
 
         while(1)
         {
@@ -2662,6 +2666,9 @@ gkey kbxget_raw(eKeyModes mode)
                 gkbd_read(inp, nread);
             }
         }
+        #undef CKS
+        #undef VKC
+        #undef ascii
     }
 
 #elif defined(__UNIX__)

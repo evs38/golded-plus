@@ -215,10 +215,30 @@ ifeq ($(PLATFORM),cyg)
     #  understand it.
     #  32-bit first: `cyg' has always produced a Win32 binary, and the
     #  code still assumes a long is the size of a pointer.
+    #
+    #  MINGW_ORG=1 asks for the mingw.org toolchain instead - plain gcc,
+    #  taken from PATH with C:\MinGW\bin first. Its runtime still runs
+    #  on Windows 9x, where the mingw-w64 one imports kernel calls that
+    #  came with NT (TryEnterCriticalSection among them) and the loader
+    #  refuses the executable. The objects and the executables go to
+    #  obj9x/, lib9x/ and bin9x/, so the two mingw builds stand side
+    #  by side.
+    ifeq ($(MINGW_ORG),1)
+        CYG_MINGW := mingw.org
+    else
     CYG_MINGW := $(shell for p in i686-w64-mingw32 x86_64-w64-mingw32; do \
         if command -v $$p-gcc > /dev/null 2>&1; then echo $$p; break; fi; \
     done)
+    endif
 
+    ifeq ($(CYG_MINGW),mingw.org)
+        CC=gcc
+        CXX=g++
+        AR=ar
+        RANLIB=ranlib
+        WINDRES=windres
+        LNKFLAGS+=-static
+    else
     ifeq ($(CYG_MINGW),)
         CC=gcc -mno-cygwin
         CXX=g++ -mno-cygwin
@@ -240,6 +260,7 @@ ifeq ($(PLATFORM),cyg)
         #  than the two -static-lib* flags, because the threading model
         #  drags in libwinpthread as well.
         LNKFLAGS+=-static
+    endif
     endif
 
     EXEEXT=.exe
@@ -707,3 +728,8 @@ endif
 BIN=bin
 OBJPATH=obj
 LIBPATH=lib
+ifeq ($(MINGW_ORG),1)
+    BIN=bin9x
+    OBJPATH=obj9x
+    LIBPATH=lib9x
+endif

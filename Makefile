@@ -3,6 +3,9 @@
 # You may use following parameters:
 # "PLATFORM=xxx", where xxx specifies platform, one of:
 #                   "cyg" - for MinGW or Cygwin (MinGW build),
+#                           MINGW_ORG=1 beside it takes the mingw.org
+#                           toolchain (gcc from PATH) for a binary that
+#                           runs on Windows 9x; output in bin9x/
 #                   "lnx" - for GNU/Linux or any BSD,
 #                   "emx" - for OS/2 EMX
 #                   "sun" - for SunOS (Solaris)

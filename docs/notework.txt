@@ -50,6 +50,12 @@ ______________________________________________________________________
   for before it opens, and a list ended by one always asks for the
   layout again.
 
++ A second mingw build, for Windows 9x: make PLATFORM=cyg MINGW_ORG=1
+  builds with the mingw.org toolchain (GCC 6.3, win32 threads), whose
+  runtime still runs on Windows 95/98/Me, into bin9x/. The mingw-w64
+  build stays as it is - its GCC 14 runtime imports kernel calls that
+  came with NT and cannot load on 9x however the program is written.
+
 - On Windows 9x the screen was black with the colour bars alone on
   it: the table that turns the console's codepage into the Unicode
   the cells hold was built on NT only, and every cell went out as a
