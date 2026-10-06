@@ -57,6 +57,15 @@ ______________________________________________________________________
   to the list the charsets the recoder cannot convert, and only
   those; reading and writing them goes through the table as before.
 
+- A build with -fsanitize=alignment reported a member call on a
+  misaligned std::pair inside Invalidate (geall.h): the whole header
+  sat under #pragma pack(1), so Invalidate's alignof fell to 1 and
+  in CfgGed it was placed immediately after a bool. Packing is kept
+  only for Chs and Esc, which are the flat blobs written to
+  goldxlat.gem; the in-memory types with std::string / std::pair
+  (Invalidate, ImpExp, EchoRen, ExtUtil and the rest) keep their
+  natural alignment.
+
 + A second mingw build, for Windows 9x: make PLATFORM=cyg MINGW_ORG=1
   builds with the mingw.org toolchain (GCC 6.3, win32 threads), whose
   runtime still runs on Windows 95/98/Me, into bin9x/. The mingw-w64

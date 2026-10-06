@@ -35,13 +35,6 @@
 
 
 //  ------------------------------------------------------------------
-
-#if defined(GOLD_CANPACK)
-    #pragma pack(1)
-#endif
-
-
-//  ------------------------------------------------------------------
 //  General data/list size limits
 
 const uint MAX_COMM =  25;        // Editor comments
@@ -872,6 +865,17 @@ struct UrlHandler
 
 //  ------------------------------------------------------------------
 //  Charset translation table structure
+//
+//  Chs and Esc are written to and read from goldxlat.gem as flat
+//  blobs (sizeof(Chs) / sizeof(Esc)). Everything else in this header
+//  is in-memory only; packing it forced alignof 1 on types that hold
+//  std::string / std::pair (EchoRen, ExtUtil, Invalidate, ImpExp, …),
+//  so a member sitting after a bool in CfgGed landed on a misaligned
+//  address and tripped -fsanitize=alignment on a member call.
+
+#if defined(GOLD_CANPACK)
+    #pragma pack(1)
+#endif
 
 typedef byte ChsTab[4];
 
@@ -901,6 +905,10 @@ struct Esc
     uint   size;         // Number of escaped chars in table
     EscTab t[256];       // The Escaped Characters Table
 };
+
+#if defined(GOLD_CANPACK)
+    #pragma pack()
+#endif
 
 
 //  ------------------------------------------------------------------
@@ -999,12 +1007,6 @@ const uint BY_ME   = 2;
 const uint TO_YOU  = 4;
 const uint BY_YOU  = 8;
 const uint TO_ALL  = 16;
-
-//  ------------------------------------------------------------------
-
-#if defined(GOLD_CANPACK)
-    #pragma pack()
-#endif
 
 
 //  ------------------------------------------------------------------
