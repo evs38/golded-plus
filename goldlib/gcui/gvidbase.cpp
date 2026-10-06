@@ -1128,7 +1128,12 @@ static void gvid_write_cells(const vatch* buf, COORD size, SMALL_RECT* rect)
         return;
     }
 
+    //  An empty field - a pad of no columns, a line that filled the
+    //  window exactly - asks for no cells. The wide call takes that as
+    //  a no-op; here it would be an allocation of nothing.
     int n = (int)size.X * (int)size.Y;
+    if(n <= 0)
+        return;
     CHAR_INFO* oem = (CHAR_INFO*)throw_malloc(n * sizeof(CHAR_INFO));
     for(int i = 0; i < n; i++)
     {

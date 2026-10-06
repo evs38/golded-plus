@@ -69,6 +69,12 @@ ______________________________________________________________________
   NUL. It is built on 9x too, and the 9x path writes and reads the
   console through it both ways, the CP437 glyphs below 32 included.
 
+- On Windows 9x GoldED stopped with "Attempted to allocate zero bytes
+  of memory" at gvidbase.cpp while paging through an area: a field of
+  no width was handed to the 9x console path, which allocated its
+  OEM copy of the cells before asking whether there were any. An
+  empty field writes nothing now, as it always did on NT.
+
 - The mingw32 executable did not load on Windows XP and 2003 ("entry
   point strncpy_s not found in msvcrt.dll"): the toolchain's <tchar.h>
   had mapped the string copy and tokenizer onto the _s functions,
