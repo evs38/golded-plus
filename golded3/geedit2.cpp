@@ -144,6 +144,15 @@ void IEclass::setmargins()
     else
         margintext = CFG->dispmargin;
 
+    //  The window is maxcol+1 columns wide. A margin past that wraps
+    //  only after the line already sticks out of the right edge: the
+    //  tail, and the paragraph mark on a hard line, stay invisible
+    //  after a paste or a resize until the cursor walks them.
+    if(margintext > maxcol + 1)
+        margintext = maxcol + 1;
+    if(margintext < 1)
+        margintext = 1;
+
     marginquotes = EDIT->QuoteMargin() + 1; // Add one for CR
     if(marginquotes > margintext)
         marginquotes = margintext;
@@ -1051,12 +1060,15 @@ void IEclass::BlockPaste()
 
 //  ------------------------------------------------------------------
 //  Text the terminal pasted, put in as it is: every line of it a hard
-//  line, nothing wrapped, nothing taken for a quote and continued as
-//  one. Typed in, a uuencoded picture came out as a cascade of quote
-//  prefixes - each line was long enough to wrap, the wrap saw a '>'
-//  near its start and carried a quote string onto the next line, and
-//  the next line did the same with that. What is pasted is what the
-//  sender meant; the text after the cursor goes after it.
+//  line, nothing taken for a quote and continued as one. Typed in, a
+//  uuencoded picture came out as a cascade of quote prefixes - each
+//  line was long enough to wrap, the wrap saw a '>' near its start
+//  and carried a quote string onto the next line, and the next line
+//  did the same with that. Soft-wrap still runs, but without carrying
+//  a quote string, so a line wider than the window is not truncated
+//  off the right edge and the paragraph mark stays on screen. Soft
+//  wraps join again when the message is written, so a uuencoded line
+//  that was only soft-broken is whole on the wire.
 
 void IEclass::PasteVerbatim(const std::string& __text)
 {
@@ -1090,6 +1102,13 @@ void IEclass::PasteVerbatim(const std::string& __text)
                 Undo->PushItem(EDIT_UNDO_INS_TEXT|BATCH_MODE, currline, col, piece.length());
                 setlinetype(currline);
                 currline->type |= GLINE_HARD;
+                //  Soft-wrap without inventing quote prefixes.
+                {
+                    uint _c = currline->txt.length();
+                    uint _r = row;
+                    currline->type &= ~GLINE_QUOT;
+                    wrapins(&currline, &_c, &_r, false);
+                }
                 currline = _newline;
                 col = 0;
                 if(row < maxrow)
@@ -1101,6 +1120,14 @@ void IEclass::PasteVerbatim(const std::string& __text)
                 Undo->PushItem(EDIT_UNDO_INS_TEXT|BATCH_MODE, currline, col, piece.length());
                 col += piece.length();
                 setlinetype(currline);
+                {
+                    uint _c = col;
+                    uint _r = row;
+                    currline->type &= ~GLINE_QUOT;
+                    wrapins(&currline, &_c, &_r, false);
+                    col = _c;
+                    row = _r;
+                }
             }
         }
 

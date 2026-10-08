@@ -84,6 +84,13 @@ ______________________________________________________________________
   the same way as any other AREAFILE description, through XLATAREASET
   or XLATCONFIGSET.
 
+- A paste of a line wider than the editor window left the tail - and
+  the paragraph mark - off the right edge: the wrap margin followed
+  DISPMARGIN even when that was past the window, and a terminal paste
+  did not soft-wrap at all (to avoid inventing quote prefixes on
+  uuencoded lines). The margin is capped at the window width, and a
+  verbatim paste soft-wraps without carrying a quote string.
+
 + A second mingw build, for Windows 9x: make PLATFORM=cyg MINGW_ORG=1
   builds with the mingw.org toolchain (GCC 6.3, win32 threads), whose
   runtime still runs on Windows 95/98/Me, into bin9x/. The mingw-w64
