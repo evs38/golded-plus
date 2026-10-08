@@ -75,6 +75,15 @@ ______________________________________________________________________
   8-byte boundary, the fence is written and read through memcpy, and
   the pointer math uses offsetof rather than sizeof-1.
 
+- AREAFILE echolist put the description into the area as the file's
+  raw bytes: golded.cfg lines are converted as they are read, but the
+  echolist file is opened on its own and never went through that path.
+  A Windows session with XLATCONFIGSET and XLATLOCALSET both CP866
+  looked fine; a Unix session in UTF-8 with KOI8-R configs showed the
+  Russian descriptions broken. The echolist description is converted
+  the same way as any other AREAFILE description, through XLATAREASET
+  or XLATCONFIGSET.
+
 + A second mingw build, for Windows 9x: make PLATFORM=cyg MINGW_ORG=1
   builds with the mingw.org toolchain (GCC 6.3, win32 threads), whose
   runtime still runs on Windows 95/98/Me, into bin9x/. The mingw-w64

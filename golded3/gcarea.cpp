@@ -166,6 +166,25 @@ void CheckEMailOrNews(char* echoid, uint& type)
 //  configuration value is; these have not, and follow XLATAREASET.
 static bool cfg_reading_areafile = false;
 
+//  A description out of an AREAFILE / echolist file - not a golded.cfg
+//  line, so XlatCfgLine never saw it. Convert from XLATAREASET (or
+//  XLATCONFIGSET if that is not set) into the session charset. A
+//  Windows box with both at CP866 never noticed the miss; a Unix
+//  session in UTF-8 with KOI8-R configs stored the file's bytes raw
+//  and the area list showed broken Russian.
+static void ConvertAreafileDesc(char* desc, size_t size)
+{
+    if(not desc or not *desc)
+        return;
+    const char* _descset = *CFG->xlatareaset ? CFG->xlatareaset : CFG->xlatconfigset;
+    if(*_descset and not strieql(_descset, CFG->xlatlocalset))
+    {
+        GRecoder& rec = g_recoder(_descset, CFG->xlatlocalset);
+        if(rec.is_open() and not rec.is_identity())
+            strxcpy(desc, rec.convert(desc).c_str(), size);
+    }
+}
+
 
 void AddNewArea(AreaCfg* aa)
 {
@@ -339,13 +358,8 @@ void AreaList::AddNewArea(AreaCfg* aa)
         //  names that charset; where it is not given the configuration's
         //  own is used, which is how this behaved when XLATCONFIGSET was
         //  the only key. Neither given, the two are assumed to match.
-        const char* _descset = *CFG->xlatareaset ? CFG->xlatareaset : CFG->xlatconfigset;
-        if(cfg_reading_areafile and *_descset and not strieql(_descset, CFG->xlatlocalset))
-        {
-            GRecoder& rec = g_recoder(_descset, CFG->xlatlocalset);
-            if(rec.is_open() and not rec.is_identity())
-                strxcpy(aa->desc, rec.convert(aa->desc).c_str(), sizeof(aa->desc));
-        }
+        if(cfg_reading_areafile)
+            ConvertAreafileDesc(aa->desc, sizeof(aa->desc));
     }
 
     // Check if it's email or news
@@ -1021,7 +1035,13 @@ void AreaList::ReadEcholist(char* val)
                             if (strieql(key, (*ap)->echoid()))
                             {
                                 (*ap)->set_groupid(g_toupper(*grp));
-                                if (desc) (*ap)->set_desc(desc);
+                                if (desc)
+                                {
+                                    Desc dbuf;
+                                    strxcpy(dbuf, desc, sizeof(dbuf));
+                                    ConvertAreafileDesc(dbuf, sizeof(dbuf));
+                                    (*ap)->set_desc(dbuf);
+                                }
                                 break;
                             }
                         }
@@ -1041,7 +1061,10 @@ void AreaList::ReadEcholist(char* val)
                         {
                             if (strieql(key, (*ap)->echoid()))
                             {
-                                (*ap)->set_desc(desc);
+                                Desc dbuf;
+                                strxcpy(dbuf, desc, sizeof(dbuf));
+                                ConvertAreafileDesc(dbuf, sizeof(dbuf));
+                                (*ap)->set_desc(dbuf);
                                 break;
                             }
                         }
