@@ -27,6 +27,8 @@
 //  ------------------------------------------------------------------
 
 #include <climits>
+#include <cstddef>
+#include <cstring>
 #include <gdbgerr.h>
 #include <gmemdbg.h>
 #include <glog.h>
@@ -74,10 +76,14 @@ const size_t MALLOC_SIZE = 0xEEEEEEEE;
 
 //  ------------------------------------------------------------------
 //  Struct
-
-#if defined(GOLD_CANPACK)
-    #pragma pack(1)
-#endif
+//
+//  In-memory only - never packed. beforeval is 4 bytes; without a pad
+//  the flexible data[] landed at offset 44 on LP64 (and 28 on ILP32),
+//  so every throw_* allocation was 4 bytes off an 8-byte boundary.
+//  -fsanitize=alignment then reported "misaligned" on LangGed, KBnd,
+//  vsavebuf, std::string, Invalidate, … - the objects were fine, the
+//  pointer from throw_calloc was not. A vectorising compiler could
+//  also emit an aligned load/store against that pointer (UB).
 
 struct Throw
 {
@@ -88,12 +94,10 @@ struct Throw
     int    index;
     size_t nbytes;
     dword  beforeval;
+    dword  align_pad;   // keep data[] on an 8-byte boundary
     char   data[1];
 };
 
-#if defined(GOLD_CANPACK)
-    #pragma pack()
-#endif
 
 //  ------------------------------------------------------------------
 
@@ -116,7 +120,7 @@ int      throw_index_size = 0;
 int      throw_index_free = 0;
 int      throw_last_free = -1;
 uint32_t throw_index_cache_hits = 0;
-int      throw_overhead = sizeof(Throw) - 1;
+int      throw_overhead = (int)offsetof(Throw, data);
 
 #define throw_index_init_size 1000
 #define throw_index_increment 100
@@ -127,11 +131,27 @@ int      throw_overhead = sizeof(Throw) - 1;
 
 inline Throw* throw_ptrtodl(const void* ptr)
 {
-    return (Throw*)((const char*)ptr-sizeof(Throw)+1);
+    //  sizeof(Throw)-1 is wrong once data[] is padded for alignment:
+    //  the struct is rounded up and that formula no longer equals
+    //  offsetof(Throw, data).
+    return (Throw*)((const char*)ptr - offsetof(Throw, data));
 }
 inline void* throw_dltoptr(Throw* dl)
 {
     return (void*)dl->data;
+}
+
+inline void throw_set_after(Throw* dl)
+{
+    dword v = AFTERVAL;
+    memcpy(dl->data + dl->nbytes, &v, sizeof(v));
+}
+
+inline int throw_after_ok(Throw* dl)
+{
+    dword v;
+    memcpy(&v, dl->data + dl->nbytes, sizeof(v));
+    return v == AFTERVAL;
 }
 
 
@@ -333,7 +353,7 @@ void* throw_calloc_debug(size_t __items, size_t __size, const char* __file, int 
         MemoryErrorExit();
     }
 
-    size_t _siz = sizeof(Throw) + __size + sizeof(AFTERVAL) - 1;
+    size_t _siz = offsetof(Throw, data) + __size + sizeof(AFTERVAL);
 
     Throw* dl = (Throw*)calloc(_siz, 1);
     if(dl == NULL)
@@ -368,7 +388,7 @@ void* throw_calloc_debug(size_t __items, size_t __size, const char* __file, int 
     dl->line = __line;
     dl->nbytes = __size;
     dl->beforeval = BEFOREVAL;
-    *(dword*)&(dl->data[__size]) = AFTERVAL;
+    throw_set_after(dl);
 
     dl->next = throw_alloclist.next;
     dl->prev = &throw_alloclist;
@@ -457,7 +477,7 @@ void throw_free_debug(void* __ptr, const char* __file, int __line)
         underrun_dl = throw_find_underrun(dl);
         goto err2;
     }
-    if(*(dword*)&dl->data[dl->nbytes] != AFTERVAL)
+    if(not throw_after_ok(dl))
     {
 #if defined(GTHROW_LOG)
         TLOG->errpointer(__file, __line);
@@ -477,7 +497,7 @@ void throw_free_debug(void* __ptr, const char* __file, int __line)
 
     throw_index_remove(dl->index);
 
-    memset(dl,BADVAL,sizeof(*dl)+dl->nbytes);
+    memset(dl,BADVAL,offsetof(Throw, data) + dl->nbytes + sizeof(AFTERVAL));
     throw_count--;
 
     free(dl);
@@ -490,7 +510,7 @@ err2:
 #if defined(GTHROW_LOG)
         TLOG->printf("! Possibly caused by overrun in this allocation:");
         throw_printdl(underrun_dl);
-        if(*(dword*)&underrun_dl->data[underrun_dl->nbytes] != AFTERVAL)
+        if(not throw_after_ok(underrun_dl))
             TLOG->printf("! Overrun of previous allocation confirmed.");
 #endif
     }
@@ -559,7 +579,7 @@ void throw_checkptr_debug(const void* __ptr, const char* __file, int __line)
         underrun_dl = throw_find_underrun(dl);
         goto err2;
     }
-    if(*(dword*)&dl->data[dl->nbytes] != AFTERVAL)
+    if(not throw_after_ok(dl))
     {
 #if defined(GTHROW_LOG)
         TLOG->errpointer(__file, __line);
@@ -579,7 +599,7 @@ err2:
 #if defined(GTHROW_LOG)
         TLOG->printf("! Possibly caused by overrun in this allocation:");
         throw_printdl(underrun_dl);
-        if(*(dword*)&underrun_dl->data[underrun_dl->nbytes] != AFTERVAL)
+        if(not throw_after_ok(underrun_dl))
             TLOG->printf("! Overrun of previous allocation confirmed.");
 #endif
     }
