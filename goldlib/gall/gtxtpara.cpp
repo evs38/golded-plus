@@ -110,7 +110,7 @@ uint GParagraph::CheckCtrlLines()
             char* _ptr = _pdptr->text;
 
             // Switch the CHR4 value
-            switch(*(dword*)_ptr)
+            switch(get_chr4(_ptr))
             {
 
             // AREA: echo identifier

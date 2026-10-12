@@ -153,7 +153,7 @@ int SquishArea::load_message(int __mode, gmsg* __msg, SqshHdr& __hdr)
             {
 
                 // Copy the kludge char unless it's the AREA: line
-                if(not ((*(dword*)(_src+1) == CHR4_AREA) and strneql(_src+1, "AREA:", 5)))
+                if(not ((get_chr4(_src+1) == CHR4_AREA) and strneql(_src+1, "AREA:", 5)))
                     *_dest++ = *_src;
                 _src++;
 

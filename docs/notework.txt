@@ -91,6 +91,21 @@ ______________________________________________________________________
   uuencoded lines). The margin is capped at the window width, and a
   verbatim paste soft-wraps without carrying a quote string.
 
+- CheckCtrlLines (and the Squish AREA: skip) compared the first four
+  bytes of a paragraph through *(dword*) on the text pointer. Message
+  text is not aligned; with -fsanitize=alignment that load faults on
+  lines such as a tearline after an odd-length body. The four bytes
+  are read through memcpy instead.
+
+- Quoting a message under AddressSanitizer left the Line list from
+  MakeLineIndex leaked: DoTearorig cleared msg->lin when it deleted a
+  tagline, tearline or origin that happened to be the head, so the
+  rest of the body was unreachable when Reset ran. The head is updated
+  to the next line instead. The same head-pointer mistake on a carbon
+  copy's "To:" line is fixed the same way. Undo items marked
+  ORPHAN_LINE (killbuffer lines past EDITUNDELETE) are freed with the
+  undo stack; MakeLineIndex drops the old line index when it rebuilds.
+
 + A second mingw build, for Windows 9x: make PLATFORM=cyg MINGW_ORG=1
   builds with the mingw.org toolchain (GCC 6.3, win32 threads), whose
   runtime still runs on Windows 95/98/Me, into bin9x/. The mingw-w64

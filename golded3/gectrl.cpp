@@ -977,11 +977,16 @@ void DoTearorig(int mode, GMsg* msg)
     {
         if(line->type & deltypes)
         {
-            if(line == msg->lin)
-                msg->lin = NULL;
-            newline = line;
-            Line* nextline = newline->next;
+            //  DeleteLine unlinks this node; if it was the head, the
+            //  rest of the list stays live through next/prev and must
+            //  remain reachable from msg->lin. Setting lin to NULL here
+            //  used to orphan the whole body (ASan: leak of every Line
+            //  MakeLineIndex had just built for a quote).
+            Line* nextline = line->next;
+            bool was_head = (line == msg->lin);
             line = DeleteLine(line);
+            if(was_head)
+                msg->lin = line;
             if(nextline == NULL)
                 line = NULL;
         }

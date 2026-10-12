@@ -3899,7 +3899,12 @@ UndoStack::~UndoStack()
             throw_delete(last_item->data.text_ptr);
             break;
         case EDIT_UNDO_DEL_LINE:
+        case EDIT_UNDO_ORPHAN_LINE:
+            //  ORPHAN_LINE is a killbuffer line kept past EDITUNDELETE:
+            //  prune handed ownership to the undo stack, which must
+            //  free it here. Leaving it out leaked every such Line.
             throw_xdelete(last_item->data.line_ptr);
+            break;
         }
         delete last_item;
     }

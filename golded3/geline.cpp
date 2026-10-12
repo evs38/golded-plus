@@ -3452,6 +3452,7 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
 
     msg->lines = 0;
     msg->lin = NULL;
+    throw_xrelease(msg->line);
 
     if(AA->attr().hex())
     {
@@ -3474,6 +3475,7 @@ void MakeLineIndex(GMsg* msg, int margin, bool getvalue, bool header_recode)
             }
             msg->lines = 0;
             msg->lin = NULL;
+            throw_xrelease(msg->line);
         }
 
         // Make a complete hexdump as a list of message lines
@@ -4527,7 +4529,7 @@ void MsgLineReIndex(GMsg* msg, int viewhidden, int viewkludge, int viewquote)
         line = line->next;
     }
 
-    msg->line = (Line**)throw_xcalloc(msg->lines+2, sizeof(Line*)); // FIXME: Memory Leak
+    msg->line = (Line**)throw_xcalloc(msg->lines+2, sizeof(Line*));
 
     x = 0;
     msg->lines = 0;

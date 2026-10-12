@@ -40,6 +40,18 @@
 
 
 //  ------------------------------------------------------------------
+//  Load a CHR4 from message text.  The text pointer is not aligned;
+//  casting it to dword* is undefined and trips -fsanitize=alignment.
+
+inline dword get_chr4(const char* p)
+{
+    dword v;
+    memcpy(&v, p, sizeof(v));
+    return v;
+}
+
+
+//  ------------------------------------------------------------------
 //  CHR4 values for standard non-kludge control lines
 
 const dword CHR4_AREA          = MK_CHR4('A','R','E','A');

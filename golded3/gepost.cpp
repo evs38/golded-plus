@@ -642,11 +642,16 @@ static void MakeMsg3(int& mode, GMsg* msg)
             }
 
             // remove unnessesary To: line from message if present
-            for(Line* line = cmsg->lin; line; line = line->next)
+            for(Line* line = cmsg->lin; line; )
                 if(strnieql(line->txt.c_str(), "To:", 3))
+                {
+                    bool was_head = (line == cmsg->lin);
                     line = DeleteLine(line);
+                    if(was_head)
+                        cmsg->lin = line;
+                }
                 else if(line->type & GLINE_KLUDGE)
-                    continue;
+                    line = line->next;
                 else
                     break;
 
