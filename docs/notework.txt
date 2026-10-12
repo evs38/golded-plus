@@ -106,6 +106,13 @@ ______________________________________________________________________
   ORPHAN_LINE (killbuffer lines past EDITUNDELETE) are freed with the
   undo stack; MakeLineIndex drops the old line index when it rebuilds.
 
+- AreaData's constructor still wiped Attr, gaka, Node and GPlay with
+  memset after those types grew constructors (Attr has a user-defined
+  copy; the rest hold ftn_addr). The sanitizer warned on Attr. They
+  are cleared through reset() / field assignment; char arrays in the
+  same constructor stay memset. The nodelist index record (_GEIdx)
+  uses its own reset() the same way.
+
 + A second mingw build, for Windows 9x: make PLATFORM=cyg MINGW_ORG=1
   builds with the mingw.org toolchain (GCC 6.3, win32 threads), whose
   runtime still runs on Windows 95/98/Me, into bin9x/. The mingw-w64

@@ -403,12 +403,21 @@ struct AreaData
         memset(xlatexport, 0, sizeof(xlatexport));
         memset(xlatimport, 0, sizeof(xlatimport));
 
-        //classes
-        memset(&aka, 0, sizeof(aka));
-        memset(&attributes, 0, sizeof(attributes));
-        memset(&internetgate, 0, sizeof(internetgate));
-        memset(&play, 0, sizeof(play));
-        memset(&username, 0, sizeof(username));
+        //  Class members: not memset. Attr has a user-defined copy
+        //  and -Wnontrivial-memcall / sanitizers reject wiping it;
+        //  ftn_addr inside aka / Node is constructed the same way.
+        //  Char arrays above stay memset - they are still plain POD.
+        aka.addr.reset();
+        aka.domain[0] = NUL;
+        aka.pointnet = 0;
+        attributes.reset();
+        internetgate.name[0] = NUL;
+        internetgate.addr.reset();
+        play.type = 0;
+        play.effectno = 0;
+        play.file[0] = NUL;
+        username.name[0] = NUL;
+        username.addr.reset();
     }
 
     // Area

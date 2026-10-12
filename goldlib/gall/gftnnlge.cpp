@@ -180,8 +180,9 @@ void ftn_golded_nodelist_index::getnode()
     }
     //  A record of the older, shorter layout fills the first 48 bytes
     //  of current - pos, addr and the first 36 of the name - and the
-    //  rest of the name has to be clear.
-    memset(&current, 0, sizeof(current));
+    //  rest of the name has to be clear. current is a _GEIdx (ftn_addr
+    //  inside); wipe it through reset(), not memset.
+    current.reset();
     lseekset(fhn, seekto*(long)recsize);
     read(fhn, &current, recsize);
 }
